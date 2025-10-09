@@ -3,81 +3,83 @@ import { useAuth } from '@/react-app/contexts/AuthContext';
 import Header from '@/react-app/components/Header';
 import { Clock, CheckCircle, ChefHat } from 'lucide-react';
 
+interface KitchenOrderItem {
+    id: number;
+    product_name: string;
+    quantity: number;
+    notes?: string;
+    status: 'pending' | 'preparing' | 'ready';
+    preparation_time: number;
+}
+
 interface KitchenOrder {
   id: number;
   order_number: string;
   table_number?: string;
   room_number?: string;
   order_type: string;
-  items: {
-    id: number;
-    name: string;
-    quantity: number;
-    notes?: string;
-    status: 'pending' | 'preparing' | 'ready';
-    preparation_time: number;
-  }[];
+  items: KitchenOrderItem[];
   total_time: number;
   priority: 'low' | 'medium' | 'high';
   created_at: string;
 }
 
-const mockKitchenOrders: KitchenOrder[] = [
-  {
-    id: 1,
-    order_number: 'ORD-001',
-    table_number: 'T02',
-    order_type: 'dine_in',
-    items: [
-      { id: 1, name: 'Ugali & Nyama Choma', quantity: 2, status: 'preparing', preparation_time: 25 },
-      { id: 2, name: 'Pilau Rice', quantity: 1, status: 'pending', preparation_time: 30 },
-    ],
-    total_time: 30,
-    priority: 'high',
-    created_at: '2024-10-09T14:30:00Z'
-  },
-  {
-    id: 2,
-    order_number: 'ORD-002',
-    room_number: '101',
-    order_type: 'room_service',
-    items: [
-      { id: 3, name: 'Continental Breakfast', quantity: 1, status: 'ready', preparation_time: 15 },
-      { id: 4, name: 'Kenyan Coffee', quantity: 2, status: 'ready', preparation_time: 5 },
-    ],
-    total_time: 15,
-    priority: 'medium',
-    created_at: '2024-10-09T14:15:00Z'
-  },
-  {
-    id: 3,
-    order_number: 'ORD-003',
-    table_number: 'T05',
-    order_type: 'dine_in',
-    items: [
-      { id: 5, name: 'Chicken Curry', quantity: 1, status: 'pending', preparation_time: 25 },
-      { id: 6, name: 'Vegetable Stir Fry', quantity: 1, status: 'pending', preparation_time: 15 },
-      { id: 7, name: 'Fresh Mango Juice', quantity: 2, status: 'ready', preparation_time: 5 },
-    ],
-    total_time: 25,
-    priority: 'low',
-    created_at: '2024-10-09T14:45:00Z'
-  }
-];
-
 export default function KitchenDisplay() {
   const { } = useAuth();
-  const [orders, setOrders] = useState<KitchenOrder[]>(mockKitchenOrders);
+  const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  const fetchKitchenOrders = async () => {
+    const token = localStorage.getItem('pos_token');
+    try {
+        const response = await fetch('/api/orders/kitchen', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            // Simple priority logic
+            const processedData = data.map((o: any) => ({
+                ...o,
+                priority: o.items.length > 2 ? 'high' : 'medium',
+                total_time: Math.max(...o.items.map((i: any) => i.preparation_time))
+            }));
+            setOrders(processedData);
+        } else {
+            console.error("Failed to fetch kitchen orders.");
+        }
+    } catch (error) {
+        console.error("Error fetching kitchen orders:", error);
+    }
+  };
+
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
+    fetchKitchenOrders();
+
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    
+    // Setup WebSocket
+    const ws = new WebSocket(`ws://${window.location.host}/ws/kitchen`);
+
+    ws.onopen = () => console.log('WebSocket connected for KDS');
+    ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.type === 'new_order') {
+            console.log('New order received, refreshing...');
+            fetchKitchenOrders();
+        }
+    };
+    ws.onclose = () => console.log('WebSocket disconnected for KDS');
+
+    return () => {
+        clearInterval(timer);
+        ws.close();
+    };
   }, []);
 
+
   const updateItemStatus = (orderId: number, itemId: number, status: 'pending' | 'preparing' | 'ready') => {
+    // This would ideally be a PUT request to the backend
+    console.log(`Updating order ${orderId}, item ${itemId} to ${status}`);
     setOrders(prev => prev.map(order => {
       if (order.id === orderId) {
         return {
@@ -92,8 +94,9 @@ export default function KitchenDisplay() {
   };
 
   const markOrderComplete = (orderId: number) => {
+    // This would be a PUT request to update order status to 'ready_for_pickup' or similar
+    console.log(`Marking order ${orderId} as complete.`);
     setOrders(prev => prev.filter(order => order.id !== orderId));
-    // In real app, this would notify the POS system
     alert('Order marked as complete and sent to service staff');
   };
 
@@ -105,27 +108,19 @@ export default function KitchenDisplay() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high':
-        return 'bg-red-100 border-red-300 text-red-800';
-      case 'medium':
-        return 'bg-yellow-100 border-yellow-300 text-yellow-800';
-      case 'low':
-        return 'bg-green-100 border-green-300 text-green-800';
-      default:
-        return 'bg-gray-100 border-gray-300 text-gray-800';
+      case 'high': return 'bg-red-100 border-red-300 text-red-800';
+      case 'medium': return 'bg-yellow-100 border-yellow-300 text-yellow-800';
+      case 'low': return 'bg-green-100 border-green-300 text-green-800';
+      default: return 'bg-gray-100 border-gray-300 text-gray-800';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ready':
-        return 'bg-green-500 text-white';
-      case 'preparing':
-        return 'bg-yellow-500 text-white';
-      case 'pending':
-        return 'bg-gray-500 text-white';
-      default:
-        return 'bg-gray-500 text-white';
+      case 'ready': return 'bg-green-500 text-white';
+      case 'preparing': return 'bg-yellow-500 text-white';
+      case 'pending': return 'bg-gray-500 text-white';
+      default: return 'bg-gray-500 text-white';
     }
   };
 
@@ -147,36 +142,7 @@ export default function KitchenDisplay() {
               <div className="text-2xl font-bold text-gray-900">
                 {currentTime.toLocaleTimeString('en-KE', { hour12: true })}
               </div>
-              <div className="text-sm text-gray-600">
-                {currentTime.toLocaleDateString('en-KE')}
-              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Order Statistics */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <div className="text-2xl font-bold text-blue-600">{orders.length}</div>
-            <div className="text-sm text-gray-600">Active Orders</div>
-          </div>
-          <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <div className="text-2xl font-bold text-red-600">
-              {orders.filter(o => o.priority === 'high').length}
-            </div>
-            <div className="text-sm text-gray-600">High Priority</div>
-          </div>
-          <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <div className="text-2xl font-bold text-yellow-600">
-              {orders.reduce((acc, order) => acc + order.items.filter(item => item.status === 'preparing').length, 0)}
-            </div>
-            <div className="text-sm text-gray-600">Items Preparing</div>
-          </div>
-          <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <div className="text-2xl font-bold text-green-600">
-              {orders.reduce((acc, order) => acc + order.items.filter(item => item.status === 'ready').length, 0)}
-            </div>
-            <div className="text-sm text-gray-600">Items Ready</div>
           </div>
         </div>
 
@@ -190,13 +156,8 @@ export default function KitchenDisplay() {
             return (
               <div
                 key={order.id}
-                className={`
-                  bg-white rounded-lg border-2 p-4 shadow-sm transition-all
-                  ${isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'}
-                  ${allItemsReady ? 'ring-2 ring-green-500' : ''}
-                `}
+                className={`bg-white rounded-lg border-2 p-4 shadow-sm transition-all ${isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'} ${allItemsReady ? 'ring-2 ring-green-500' : ''}`}
               >
-                {/* Order Header */}
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-lg font-bold text-gray-900">{order.order_number}</h3>
@@ -219,57 +180,26 @@ export default function KitchenDisplay() {
                   </div>
                 </div>
 
-                {/* Order Items */}
                 <div className="space-y-3 mb-4">
                   {order.items.map((item) => (
                     <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">{item.name}</span>
+                          <span className="font-medium text-gray-900">{item.product_name}</span>
                           <span className="text-sm text-gray-500">x{item.quantity}</span>
                         </div>
-                        {item.notes && (
-                          <p className="text-sm text-gray-600 mt-1">{item.notes}</p>
-                        )}
-                        <div className="text-xs text-gray-500 mt-1">
-                          Est. {item.preparation_time} minutes
-                        </div>
+                        <div className="text-xs text-gray-500 mt-1">Est. {item.preparation_time} minutes</div>
                       </div>
                       <div className="flex gap-2">
-                        {item.status === 'pending' && (
-                          <button
-                            onClick={() => updateItemStatus(order.id, item.id, 'preparing')}
-                            className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm rounded-md transition-colors"
-                          >
-                            Start
-                          </button>
-                        )}
-                        {item.status === 'preparing' && (
-                          <button
-                            onClick={() => updateItemStatus(order.id, item.id, 'ready')}
-                            className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded-md transition-colors"
-                          >
-                            Ready
-                          </button>
-                        )}
-                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusColor(item.status)}`}>
-                          {item.status}
-                        </span>
+                        {item.status === 'pending' && <button onClick={() => updateItemStatus(order.id, item.id, 'preparing')} className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm rounded-md">Start</button>}
+                        {item.status === 'preparing' && <button onClick={() => updateItemStatus(order.id, item.id, 'ready')} className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded-md">Ready</button>}
+                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusColor(item.status)}`}>{item.status}</span>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Complete Order Button */}
-                {allItemsReady && (
-                  <button
-                    onClick={() => markOrderComplete(order.id)}
-                    className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
-                  >
-                    <CheckCircle className="w-5 h-5" />
-                    Mark Order Complete
-                  </button>
-                )}
+                {allItemsReady && <button onClick={() => markOrderComplete(order.id)} className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-medium"><CheckCircle className="w-5 h-5" />Mark Order Complete</button>}
               </div>
             );
           })}

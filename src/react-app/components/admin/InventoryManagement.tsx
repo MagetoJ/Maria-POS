@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Package, Plus, Edit3, Trash2, AlertTriangle } from 'lucide-react';
 
 interface InventoryItem {
@@ -14,19 +14,8 @@ interface InventoryItem {
   last_updated: string;
 }
 
-const mockInventory: InventoryItem[] = [
-  { id: 1, name: 'Rice (White)', unit: 'kg', current_stock: 25, minimum_stock: 10, cost_per_unit: 120, supplier: 'Nakumatt Wholesale', inventory_type: 'kitchen', is_active: true, last_updated: '2024-10-08T14:30:00Z' },
-  { id: 2, name: 'Beef (Fresh)', unit: 'kg', current_stock: 8, minimum_stock: 15, cost_per_unit: 800, supplier: 'Farmers Choice', inventory_type: 'kitchen', is_active: true, last_updated: '2024-10-09T08:15:00Z' },
-  { id: 3, name: 'Tusker Beer', unit: 'bottles', current_stock: 48, minimum_stock: 24, cost_per_unit: 180, supplier: 'EABL', inventory_type: 'bar', is_active: true, last_updated: '2024-10-09T10:00:00Z' },
-  { id: 4, name: 'Toilet Paper', unit: 'rolls', current_stock: 15, minimum_stock: 20, cost_per_unit: 50, supplier: 'Softcare', inventory_type: 'housekeeping', is_active: true, last_updated: '2024-10-08T16:45:00Z' },
-  { id: 5, name: 'Tomatoes', unit: 'kg', current_stock: 12, minimum_stock: 8, cost_per_unit: 80, supplier: 'Local Market', inventory_type: 'kitchen', is_active: true, last_updated: '2024-10-09T07:30:00Z' },
-  { id: 6, name: 'Red Wine', unit: 'bottles', current_stock: 6, minimum_stock: 12, cost_per_unit: 1200, supplier: 'Wine Cellar Ltd', inventory_type: 'bar', is_active: true, last_updated: '2024-10-07T15:20:00Z' },
-  { id: 7, name: 'Towels', unit: 'pieces', current_stock: 35, minimum_stock: 25, cost_per_unit: 350, supplier: 'Hotel Supplies Co.', inventory_type: 'housekeeping', is_active: true, last_updated: '2024-10-06T12:10:00Z' },
-  { id: 8, name: 'Coca Cola', unit: 'bottles', current_stock: 72, minimum_stock: 36, cost_per_unit: 60, supplier: 'Coca Cola Co.', inventory_type: 'bar', is_active: true, last_updated: '2024-10-09T11:30:00Z' },
-];
-
 export default function InventoryManagement() {
-  const [inventory, setInventory] = useState<InventoryItem[]>(mockInventory);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [selectedType, setSelectedType] = useState<string>('all');
@@ -40,6 +29,24 @@ export default function InventoryManagement() {
     inventory_type: 'kitchen' as 'kitchen' | 'bar' | 'housekeeping' | 'minibar'
   });
 
+  useEffect(() => {
+    fetchInventory();
+  }, []);
+
+  const fetchInventory = async () => {
+    const token = localStorage.getItem('pos_token');
+    const response = await fetch('/api/inventory', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (response.ok) {
+        const data = await response.json();
+        setInventory(data);
+    } else {
+        console.error("Failed to fetch inventory. Check authentication.");
+    }
+  };
+
+
   const inventoryTypes = [
     { value: 'kitchen', label: 'Kitchen', color: 'bg-green-100 text-green-800' },
     { value: 'bar', label: 'Bar', color: 'bg-blue-100 text-blue-800' },
@@ -47,22 +54,20 @@ export default function InventoryManagement() {
     { value: 'minibar', label: 'Minibar', color: 'bg-orange-100 text-orange-800' }
   ];
 
-  const filteredInventory = selectedType === 'all' 
-    ? inventory 
+  const filteredInventory = selectedType === 'all'
+    ? inventory
     : inventory.filter(item => item.inventory_type === selectedType);
 
   const lowStockItems = inventory.filter(item => item.current_stock <= item.minimum_stock);
   const totalValue = inventory.reduce((sum, item) => sum + (item.current_stock * item.cost_per_unit), 0);
 
-  const handleAdd = () => {
-    const newItem: InventoryItem = {
-      id: Date.now(),
-      ...formData,
-      is_active: true,
-      last_updated: new Date().toISOString()
-    };
-
-    setInventory(prev => [...prev, newItem]);
+  const handleAdd = async () => {
+    await fetch('/api/inventory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` },
+      body: JSON.stringify(formData)
+    });
+    fetchInventory();
     resetForm();
     setShowAddModal(false);
   };
@@ -78,33 +83,41 @@ export default function InventoryManagement() {
       supplier: item.supplier,
       inventory_type: item.inventory_type
     });
+    setShowAddModal(true);
   };
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!editingItem) return;
-    
-    setInventory(prev => prev.map(item => 
-      item.id === editingItem.id 
-        ? { ...item, ...formData, last_updated: new Date().toISOString() }
-        : item
-    ));
-    
+
+    await fetch(`/api/inventory/${editingItem.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` },
+      body: JSON.stringify(formData)
+    });
+    fetchInventory();
     setEditingItem(null);
     resetForm();
+    setShowAddModal(false);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this inventory item?')) {
-      setInventory(prev => prev.filter(item => item.id !== id));
+      await fetch(`/api/inventory/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` }
+      });
+      fetchInventory();
     }
   };
 
-  const updateStock = (id: number, newStock: number) => {
-    setInventory(prev => prev.map(item => 
-      item.id === id 
-        ? { ...item, current_stock: Math.max(0, newStock), last_updated: new Date().toISOString() }
-        : item
-    ));
+
+  const updateStock = async (id: number, newStock: number) => {
+    await fetch(`/api/inventory/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` },
+        body: JSON.stringify({ current_stock: Math.max(0, newStock) })
+    });
+    fetchInventory();
   };
 
   const resetForm = () => {
@@ -143,7 +156,7 @@ export default function InventoryManagement() {
           <p className="text-gray-600">Track stock levels and manage suppliers</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => { setEditingItem(null); resetForm(); setShowAddModal(true); }}
           className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"
         >
           <Plus className="w-5 h-5" />
@@ -177,8 +190,8 @@ export default function InventoryManagement() {
           <button
             onClick={() => setSelectedType('all')}
             className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-              selectedType === 'all' 
-                ? 'bg-yellow-400 text-yellow-900' 
+              selectedType === 'all'
+                ? 'bg-yellow-400 text-yellow-900'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
@@ -189,8 +202,8 @@ export default function InventoryManagement() {
               key={type.value}
               onClick={() => setSelectedType(type.value)}
               className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                selectedType === type.value 
-                  ? 'bg-yellow-400 text-yellow-900' 
+                selectedType === type.value
+                  ? 'bg-yellow-400 text-yellow-900'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -319,13 +332,13 @@ export default function InventoryManagement() {
       </div>
 
       {/* Add/Edit Modal */}
-      {(showAddModal || editingItem) && (
+      {(showAddModal) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               {editingItem ? 'Edit Inventory Item' : 'Add New Inventory Item'}
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
@@ -337,7 +350,7 @@ export default function InventoryManagement() {
                   required
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
@@ -350,7 +363,7 @@ export default function InventoryManagement() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                   <select
@@ -364,7 +377,7 @@ export default function InventoryManagement() {
                   </select>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Current Stock</label>
@@ -377,7 +390,7 @@ export default function InventoryManagement() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Stock</label>
                   <input
@@ -390,7 +403,7 @@ export default function InventoryManagement() {
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Cost per Unit (KES)</label>
                 <input
@@ -403,7 +416,7 @@ export default function InventoryManagement() {
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
                 <input
@@ -415,7 +428,7 @@ export default function InventoryManagement() {
                 />
               </div>
             </div>
-            
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {

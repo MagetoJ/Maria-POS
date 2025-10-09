@@ -49,20 +49,33 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
     try {
       const verifiedUser = await validateStaffPin(employeeId, pin);
       
-      if (verifiedUser) {
-        // Process payment and generate receipt
-        const orderWithPayment = {
+      if (verifiedUser && currentOrder) {
+        const orderToSubmit = {
           ...currentOrder,
           order_number: `ORD-${Date.now()}`,
           staff_id: verifiedUser.id,
-          staff_name: verifiedUser.name,
           payment_method: selectedPaymentMethod,
           payment_status: 'paid',
-          status: 'completed',
-          completed_at: new Date().toISOString()
+          status: 'pending', // Kitchen will change this
+          created_at: new Date().toISOString()
         };
-        
-        setCompletedOrder(orderWithPayment);
+
+        // Submit order to the backend
+        const token = localStorage.getItem('pos_token');
+        const response = await fetch('/api/orders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(orderToSubmit)
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to submit order.');
+        }
+
+        setCompletedOrder({ ...orderToSubmit, staff_name: verifiedUser.name });
         setShowReceipt(true);
         clearOrder();
         resetPinForm();
@@ -70,7 +83,7 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
         setPinError('Invalid Employee ID or PIN');
       }
     } catch (error) {
-      setPinError('Verification failed. Please try again.');
+      setPinError('Verification or order submission failed. Please try again.');
     } finally {
       setIsVerifying(false);
     }
@@ -502,3 +515,4 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
     </div>
   );
 }
+

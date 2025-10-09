@@ -2,17 +2,49 @@ import express from 'express';
 import cors from 'cors';
 import knex from 'knex';
 import jwt from 'jsonwebtoken';
+import http, { IncomingMessage } from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
 import { authenticateToken, authorizeRoles } from './middleware/auth';
 const config = require('../knexfile');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'a-very-secret-and-secure-key-that-you-should-change';
 
 const app = express();
+const server = http.createServer(app);
 const port = 3001;
 const db = knex(config.default.development);
 
 app.use(cors());
 app.use(express.json());
+
+// --- WebSocket Setup ---
+const wss = new WebSocketServer({ server });
+const kitchenSockets = new Set<WebSocket>();
+
+wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
+    // Simple routing based on URL path
+    if (req.url === '/ws/kitchen') {
+        console.log('Kitchen display connected');
+        kitchenSockets.add(ws);
+        ws.on('close', () => {
+            console.log('Kitchen display disconnected');
+            kitchenSockets.delete(ws);
+        });
+        ws.on('error', console.error);
+    } else {
+        ws.close();
+    }
+});
+
+function broadcastToKitchens(message: object) {
+    const data = JSON.stringify(message);
+    kitchenSockets.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(data);
+        }
+    });
+}
+
 
 // --- PUBLIC API Endpoints ---
 
@@ -58,6 +90,63 @@ app.post('/api/validate-pin', async (req, res) => {
 
 // --- PROTECTED API Endpoints ---
 
+// Order Management
+app.post('/api/orders', authenticateToken, async (req, res) => {
+    const { items, ...orderData } = req.body;
+    try {
+        await db.transaction(async trx => {
+            const [orderResult] = await trx('orders').insert(orderData).returning('id');
+            const orderId = typeof orderResult === 'number' ? orderResult : orderResult.id;
+            
+            if (!orderId) {
+                throw new Error("Failed to create order and get ID.");
+            }
+
+            const orderItems = items.map((item: any) => ({
+                order_id: orderId,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                total_price: item.total_price,
+                notes: item.notes,
+            }));
+
+            if (orderItems.length > 0) {
+              await trx('order_items').insert(orderItems);
+            }
+        });
+
+        // Notify kitchen displays of the new order
+        broadcastToKitchens({ type: 'new_order' });
+
+        res.status(201).json({ message: 'Order created successfully' });
+    } catch (err) {
+        console.error("Order creation error:", err);
+        res.status(500).json({ message: 'Failed to create order' });
+    }
+});
+
+app.get('/api/orders/kitchen', authenticateToken, async (req, res) => {
+    try {
+        const activeOrders = await db('orders')
+            .whereIn('status', ['pending', 'preparing'])
+            .orderBy('created_at', 'asc');
+        
+        for (const order of activeOrders) {
+            (order as any).items = await db('order_items')
+                .join('products', 'order_items.product_id', 'products.id')
+                .where('order_id', order.id)
+                .select('order_items.*', 'products.name as product_name', 'products.preparation_time');
+        }
+
+        res.json(activeOrders);
+    } catch (err) {
+        console.error("Kitchen orders fetch error:", err);
+        res.status(500).json({ message: 'Error fetching kitchen orders' });
+    }
+});
+
+
 // Staff Management
 app.get('/api/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
@@ -97,7 +186,7 @@ app.delete('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager
 // Product Management
 app.get('/api/products', async (req, res) => {
     try {
-        const products = await db('products').where({ is_active: true }).orderBy('name', 'asc');
+        const products = await db('products').orderBy('name', 'asc');
         res.json(products);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching products' });
@@ -134,7 +223,7 @@ app.delete('/api/products/:id', authenticateToken, authorizeRoles('admin', 'mana
 // Category Management
 app.get('/api/categories', async (req, res) => {
     try {
-        const categories = await db('categories').where({ is_active: true }).orderBy('display_order', 'asc');
+        const categories = await db('categories').orderBy('name', 'asc');
         res.json(categories);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching categories' });
@@ -212,6 +301,16 @@ app.get('/api/rooms', authenticateToken, async (req, res) => {
         res.status(500).json({ message: 'Error fetching rooms' });
     }
 });
+
+app.post('/api/rooms', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const [newRoom] = await db('rooms').insert(req.body).returning('*');
+        res.status(201).json(newRoom);
+    } catch (err) {
+        res.status(500).json({ message: 'Error adding room' });
+    }
+});
+
 app.put('/api/rooms/:id', authenticateToken, authorizeRoles('admin', 'manager', 'receptionist', 'housekeeping'), async (req, res) => {
     try {
         const { id } = req.params;
@@ -222,6 +321,17 @@ app.put('/api/rooms/:id', authenticateToken, authorizeRoles('admin', 'manager', 
     }
 });
 
+app.delete('/api/rooms/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db('rooms').where({ id }).del();
+        res.status(204).send();
+    } catch (err) {
+        res.status(500).json({ message: 'Error deleting room' });
+    }
+});
+
+
 app.get('/api/tables', authenticateToken, async (req, res) => {
     try {
         const tables = await db('tables').select('*').orderBy('table_number', 'asc');
@@ -230,6 +340,16 @@ app.get('/api/tables', authenticateToken, async (req, res) => {
         res.status(500).json({ message: 'Error fetching tables' });
     }
 });
+
+app.post('/api/tables', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const [newTable] = await db('tables').insert(req.body).returning('*');
+        res.status(201).json(newTable);
+    } catch (err) {
+        res.status(500).json({ message: 'Error adding table' });
+    }
+});
+
 app.put('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manager', 'waiter'), async (req, res) => {
     try {
         const { id } = req.params;
@@ -240,8 +360,128 @@ app.put('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manager',
     }
 });
 
+app.delete('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db('tables').where({ id }).del();
+        res.status(204).send();
+    } catch (err) {
+        res.status(500).json({ message: 'Error deleting table' });
+    }
+});
+
+// --- Reporting Endpoints ---
+app.get('/api/reports/overview', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { start, end } = req.query;
+        if (typeof start !== 'string' || typeof end !== 'string') {
+            return res.status(400).json({ message: 'Start and end date queries are required.' });
+        }
+        
+        const query = db('orders').whereBetween('created_at', [start, end]);
+
+        const sales = await query.clone().sum('total_amount as total').first();
+        const orders = await query.clone().count('id as total').first();
+        const completedOrders = await query.clone().where('status', 'completed').count('id as total').first();
+        const avgOrderValue = await query.clone().avg('total_amount as avg').first();
+
+        const topSellingItems = await db('order_items')
+            .join('products', 'order_items.product_id', 'products.id')
+            .join('orders', 'order_items.order_id', 'orders.id')
+            .whereBetween('orders.created_at', [start, end])
+            .select('products.name')
+            .sum('order_items.quantity as quantity')
+            .sum('order_items.total_price as revenue')
+            .groupBy('products.name')
+            .orderBy('revenue', 'desc')
+            .limit(5);
+
+        const topPerformers = await db('orders')
+            .join('staff', 'orders.staff_id', 'staff.id')
+            .whereBetween('orders.created_at', [start, end])
+            .select('staff.name')
+            .count('orders.id as orders')
+            .sum('orders.total_amount as revenue')
+            .groupBy('staff.name')
+            .orderBy('revenue', 'desc')
+            .limit(4);
+
+        res.json({
+            sales: { monthly: (sales as any)?.total || 0 },
+            orders: {
+                total: (orders as any)?.total || 0,
+                completed: (completedOrders as any)?.total || 0,
+                averageValue: (avgOrderValue as any)?.avg || 0,
+            },
+            inventory: { topSellingItems },
+            staff: { topPerformers }
+        });
+    } catch (err) {
+        console.error("Report generation error:", err);
+        res.status(500).json({ message: 'Error generating report' });
+    }
+});
+
+app.get('/api/reports/:reportType', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { reportType } = req.params;
+        const { start, end } = req.query;
+
+        if (typeof start !== 'string' || typeof end !== 'string') {
+            return res.status(400).json({ message: 'Start and end date queries are required.' });
+        }
+
+        let data;
+
+        switch (reportType) {
+            case 'sales':
+                const salesByDay = await db('orders')
+                    .whereBetween('created_at', [start, end])
+                    .select(db.raw("strftime('%Y-%m-%d', created_at) as date"))
+                    .sum('total_amount as total')
+                    .groupBy('date')
+                    .orderBy('date');
+                data = { salesByDay };
+                break;
+            case 'inventory':
+                 const lowStockItems = await db('inventory_items')
+                    .whereRaw('current_stock <= minimum_stock')
+                    .select('*');
+                 const totalValue = await db('inventory_items').sum(db.raw('current_stock * cost_per_unit as total')).first();
+                 data = { lowStockItems, totalValue: (totalValue as any)?.total || 0 };
+                break;
+            case 'staff':
+                data = await db('orders')
+                    .join('staff', 'orders.staff_id', 'staff.id')
+                    .whereBetween('orders.created_at', [start, end])
+                    .select('staff.name', 'staff.role')
+                    .count('orders.id as orders')
+                    .sum('orders.total_amount as revenue')
+                    .avg('orders.total_amount as avgOrderValue')
+                    .groupBy('staff.name', 'staff.role')
+                    .orderBy('revenue', 'desc');
+                break;
+            case 'rooms':
+                const roomRevenue = await db('orders')
+                    .where('order_type', 'room_service')
+                    .whereBetween('created_at', [start, end])
+                    .sum('total_amount as total').first();
+                const roomStatusCounts = await db('rooms').select('status').count('id as count').groupBy('status');
+                data = { roomRevenue: (roomRevenue as any)?.total || 0, roomStatusCounts };
+                break;
+            default:
+                return res.status(404).json({ message: 'Report type not found' });
+        }
+        res.json(data);
+    } catch (err) {
+        console.error(`Error generating ${req.params.reportType} report:`, err);
+        res.status(500).json({ message: 'Error generating report' });
+    }
+});
+
 
 // --- Start Server ---
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`🚀 Backend server is running at http://localhost:${port}`);
 });
+
