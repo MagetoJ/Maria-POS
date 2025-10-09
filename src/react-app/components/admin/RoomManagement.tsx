@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bed, Plus, Edit3, Trash2, User, DollarSign, Calendar } from 'lucide-react';
-import { mockRooms, formatCurrency } from '@/react-app/data/mockData';
+import { formatCurrency } from '@/react-app/data/mockData';
 
+// This interface is more detailed than the backend, but we'll use it for the frontend
+// and only send the data the backend expects.
 interface Room {
   id: number;
   room_number: string;
@@ -11,31 +13,20 @@ interface Room {
   check_in_date?: string;
   check_out_date?: string;
   rate: number;
-  floor: number;
-  max_occupancy: number;
-  amenities: string[];
+  floor?: number; // Not in DB
+  max_occupancy?: number; // Not in DB
+  amenities?: string[]; // Not in DB
 }
 
-const mockRoomsExtended: Room[] = mockRooms.map(room => ({
-  ...room,
-  floor: parseInt(room.room_number.charAt(0)),
-  max_occupancy: room.room_type === 'Suite' ? 4 : room.room_type === 'Deluxe' ? 3 : 2,
-  amenities: room.room_type === 'Suite' 
-    ? ['King Bed', 'Sitting Area', 'Mini Bar', 'Balcony', 'WiFi', 'AC']
-    : room.room_type === 'Deluxe'
-    ? ['Queen Bed', 'Mini Bar', 'WiFi', 'AC', 'Coffee Maker']
-    : ['Double Bed', 'WiFi', 'AC']
-}));
-
 export default function RoomManagement() {
-  const [rooms, setRooms] = useState<Room[]>(mockRoomsExtended);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  
+
   const [roomForm, setRoomForm] = useState({
     room_number: '',
     room_type: 'Standard',
@@ -51,6 +42,31 @@ export default function RoomManagement() {
     check_out_date: ''
   });
 
+  const getToken = () => localStorage.getItem('pos_token');
+
+  const fetchRooms = async () => {
+    try {
+      const response = await fetch('/api/rooms', {
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Add floor to rooms for UI filtering
+        const roomsWithFloor = data.map((r: Room) => ({...r, floor: parseInt(r.room_number.charAt(0))}))
+        setRooms(roomsWithFloor);
+      } else {
+        console.error("Failed to fetch rooms");
+      }
+    } catch (error) {
+      console.error("Error fetching rooms:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+
   const roomTypes = [
     { value: 'Standard', label: 'Standard Room', baseRate: 5000 },
     { value: 'Deluxe', label: 'Deluxe Room', baseRate: 7500 },
@@ -58,11 +74,11 @@ export default function RoomManagement() {
   ];
 
   const allAmenities = [
-    'WiFi', 'AC', 'TV', 'Mini Bar', 'Coffee Maker', 'Safe', 
+    'WiFi', 'AC', 'TV', 'Mini Bar', 'Coffee Maker', 'Safe',
     'Balcony', 'King Bed', 'Queen Bed', 'Double Bed', 'Sitting Area'
   ];
 
-  const floors = Array.from(new Set(rooms.map(r => r.floor))).sort();
+  const floors = Array.from(new Set(rooms.map(r => r.floor!))).sort();
 
   const filteredRooms = rooms.filter(room => {
     const floorMatch = selectedFloor === null || room.floor === selectedFloor;
@@ -70,17 +86,28 @@ export default function RoomManagement() {
     return floorMatch && statusMatch;
   });
 
-  const handleAddRoom = () => {
-    const newRoom: Room = {
-      id: Date.now(),
-      ...roomForm,
-      status: 'vacant',
-      amenities: roomForm.amenities
-    };
+  const handleAddRoom = async () => {
+    const { floor, max_occupancy, amenities, ...roomDataForApi } = roomForm;
 
-    setRooms(prev => [...prev, newRoom]);
-    resetRoomForm();
-    setShowAddModal(false);
+    try {
+        const response = await fetch('/api/rooms', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify(roomDataForApi)
+        });
+        if (response.ok) {
+            fetchRooms();
+            resetRoomForm();
+            setShowAddModal(false);
+        } else {
+            alert("Failed to add room");
+        }
+    } catch (error) {
+        console.error("Error adding room:", error);
+    }
   };
 
   const handleEditRoom = (room: Room) => {
@@ -89,71 +116,137 @@ export default function RoomManagement() {
       room_number: room.room_number,
       room_type: room.room_type,
       rate: room.rate,
-      floor: room.floor,
-      max_occupancy: room.max_occupancy,
-      amenities: room.amenities
+      floor: room.floor || 1,
+      max_occupancy: room.max_occupancy || 2,
+      amenities: room.amenities || []
     });
+    setShowAddModal(true);
   };
 
-  const handleUpdateRoom = () => {
+  const handleUpdateRoom = async () => {
     if (!editingRoom) return;
-    
-    setRooms(prev => prev.map(room => 
-      room.id === editingRoom.id 
-        ? { ...room, ...roomForm, amenities: roomForm.amenities }
-        : room
-    ));
-    
-    setEditingRoom(null);
-    resetRoomForm();
+
+    const { floor, max_occupancy, amenities, ...roomDataForApi } = roomForm;
+
+    try {
+        const response = await fetch(`/api/rooms/${editingRoom.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify(roomDataForApi)
+        });
+        if (response.ok) {
+            fetchRooms();
+            setEditingRoom(null);
+            resetRoomForm();
+            setShowAddModal(false);
+        } else {
+            alert("Failed to update room");
+        }
+    } catch (error) {
+        console.error("Error updating room:", error);
+    }
   };
 
-  const handleDeleteRoom = (id: number) => {
+  const handleDeleteRoom = async (id: number) => {
     if (confirm('Are you sure you want to delete this room?')) {
-      setRooms(prev => prev.filter(room => room.id !== id));
-    }
-  };
-
-  const handleCheckIn = () => {
-    if (!selectedRoom) return;
-    
-    setRooms(prev => prev.map(room => 
-      room.id === selectedRoom.id 
-        ? { 
-            ...room, 
-            status: 'occupied',
-            guest_name: guestForm.guest_name,
-            check_in_date: guestForm.check_in_date,
-            check_out_date: guestForm.check_out_date
-          }
-        : room
-    ));
-    
-    setShowGuestModal(false);
-    setSelectedRoom(null);
-    resetGuestForm();
-  };
-
-  const handleCheckOut = (roomId: number) => {
-    if (confirm('Confirm check out for this room?')) {
-      setRooms(prev => prev.map(room => 
-        room.id === roomId 
-          ? { 
-              ...room, 
-              status: 'cleaning',
-              guest_name: undefined,
-              check_in_date: undefined,
-              check_out_date: undefined
+        try {
+            const response = await fetch(`/api/rooms/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${getToken()}` }
+            });
+            if (response.ok) {
+                fetchRooms();
+            } else {
+                alert("Failed to delete room");
             }
-          : room
-      ));
+        } catch (error) {
+            console.error("Error deleting room:", error);
+        }
     }
   };
 
-  const updateRoomStatus = (roomId: number, newStatus: Room['status']) => {
-    setRooms(prev => prev.map(room => 
-      room.id === roomId ? { ...room, status: newStatus } : room
-    ));
+  const handleCheckIn = async () => {
+    if (!selectedRoom) return;
+
+    const updatedRoomData = {
+        status: 'occupied' as const,
+        guest_name: guestForm.guest_name,
+        check_in_date: guestForm.check_in_date,
+        check_out_date: guestForm.check_out_date
+    };
+
+    try {
+        const response = await fetch(`/api/rooms/${selectedRoom.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify(updatedRoomData)
+        });
+        if (response.ok) {
+            fetchRooms();
+            setShowGuestModal(false);
+            setSelectedRoom(null);
+            resetGuestForm();
+        } else {
+            alert("Failed to check in guest");
+        }
+    } catch (error) {
+        console.error("Error checking in guest:", error);
+    }
+  };
+
+  const handleCheckOut = async (roomId: number) => {
+    if (confirm('Confirm check out for this room?')) {
+        const updatedRoomData = {
+            status: 'cleaning' as const,
+            guest_name: null,
+            check_in_date: null,
+            check_out_date: null
+        };
+        try {
+            const response = await fetch(`/api/rooms/${roomId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getToken()}`
+                },
+                body: JSON.stringify(updatedRoomData)
+            });
+            if (response.ok) {
+                fetchRooms();
+            } else {
+                alert("Failed to check out guest");
+            }
+        } catch (error) {
+            console.error("Error checking out guest:", error);
+        }
+    }
+  };
+
+  const updateRoomStatus = async (roomId: number, newStatus: Room['status']) => {
+    const updatedRoomData = { status: newStatus };
+     try {
+        const response = await fetch(`/api/rooms/${roomId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify(updatedRoomData)
+        });
+        if (response.ok) {
+            fetchRooms();
+        } else {
+            alert("Failed to update room status");
+        }
+    } catch (error) {
+        console.error("Error updating room status:", error);
+    }
   };
 
   const resetRoomForm = () => {
@@ -199,7 +292,7 @@ export default function RoomManagement() {
     .filter(r => r.status === 'occupied')
     .reduce((sum, r) => sum + r.rate, 0);
 
-  const occupancyRate = ((rooms.filter(r => r.status === 'occupied').length / rooms.length) * 100).toFixed(1);
+  const occupancyRate = rooms.length > 0 ? ((rooms.filter(r => r.status === 'occupied').length / rooms.length) * 100).toFixed(1) : "0.0";
 
   return (
     <div className="space-y-6">
@@ -210,7 +303,7 @@ export default function RoomManagement() {
           <p className="text-gray-600">Manage rooms, reservations, and guest information</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => { setEditingRoom(null); resetRoomForm(); setShowAddModal(true);}}
           className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"
         >
           <Plus className="w-5 h-5" />
@@ -246,8 +339,8 @@ export default function RoomManagement() {
             <button
               onClick={() => setSelectedFloor(null)}
               className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                selectedFloor === null 
-                  ? 'bg-yellow-400 text-yellow-900' 
+                selectedFloor === null
+                  ? 'bg-yellow-400 text-yellow-900'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -258,8 +351,8 @@ export default function RoomManagement() {
                 key={floor}
                 onClick={() => setSelectedFloor(floor)}
                 className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                  selectedFloor === floor 
-                    ? 'bg-yellow-400 text-yellow-900' 
+                  selectedFloor === floor
+                    ? 'bg-yellow-400 text-yellow-900'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -267,7 +360,7 @@ export default function RoomManagement() {
               </button>
             ))}
           </div>
-          
+
           <div className="flex gap-2">
             <span className="text-sm font-medium text-gray-700 py-2">Status:</span>
             {['all', 'vacant', 'occupied', 'reserved', 'maintenance', 'cleaning'].map(status => (
@@ -275,8 +368,8 @@ export default function RoomManagement() {
                 key={status}
                 onClick={() => setSelectedStatus(status)}
                 className={`px-3 py-1 rounded-full text-sm font-medium transition-colors capitalize ${
-                  selectedStatus === status 
-                    ? 'bg-yellow-400 text-yellow-900' 
+                  selectedStatus === status
+                    ? 'bg-yellow-400 text-yellow-900'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -415,7 +508,7 @@ export default function RoomManagement() {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               {editingRoom ? 'Edit Room' : 'Add New Room'}
             </h3>
-            
+
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -423,33 +516,33 @@ export default function RoomManagement() {
                   <input
                     type="text"
                     value={roomForm.room_number}
-                    onChange={(e) => setRoomForm(prev => ({ ...prev, room_number: e.target.value }))}
+                    onChange={(e) => setRoomForm(prev => ({ ...prev, room_number: e.target.value, floor: parseInt(e.target.value.charAt(0)) || 1 }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                     required
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Floor</label>
                   <input
                     type="number"
                     value={roomForm.floor}
-                    onChange={(e) => setRoomForm(prev => ({ ...prev, floor: parseInt(e.target.value) || 1 }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent bg-gray-100"
                     min="1"
                     max="10"
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
                 <select
                   value={roomForm.room_type}
                   onChange={(e) => {
                     const type = roomTypes.find(t => t.value === e.target.value);
-                    setRoomForm(prev => ({ 
-                      ...prev, 
+                    setRoomForm(prev => ({
+                      ...prev,
                       room_type: e.target.value,
                       rate: type?.baseRate || 5000,
                       max_occupancy: type?.value === 'Suite' ? 4 : type?.value === 'Deluxe' ? 3 : 2
@@ -462,7 +555,7 @@ export default function RoomManagement() {
                   ))}
                 </select>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Rate per Night (KES)</label>
@@ -475,7 +568,7 @@ export default function RoomManagement() {
                     step="100"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Max Occupancy</label>
                   <input
@@ -488,7 +581,7 @@ export default function RoomManagement() {
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Amenities</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -512,15 +605,12 @@ export default function RoomManagement() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {
-                  if (editingRoom) {
-                    setEditingRoom(null);
-                  } else {
-                    setShowAddModal(false);
-                  }
+                  setEditingRoom(null);
+                  setShowAddModal(false);
                   resetRoomForm();
                 }}
                 className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
@@ -546,7 +636,7 @@ export default function RoomManagement() {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Check In - Room {selectedRoom.room_number}
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Guest Name</label>
@@ -558,7 +648,7 @@ export default function RoomManagement() {
                   required
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Check-in Date</label>
@@ -570,7 +660,7 @@ export default function RoomManagement() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date</label>
                   <input
@@ -584,7 +674,7 @@ export default function RoomManagement() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {

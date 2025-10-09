@@ -6,7 +6,8 @@ import MenuGrid from '@/react-app/components/MenuGrid';
 import TableLayout from '@/react-app/components/TableLayout';
 import RoomView from '@/react-app/components/RoomView';
 import QuickPOSHeader from '@/react-app/components/QuickPOSHeader';
-import { UtensilsCrossed, Car, Building, Home, Settings } from 'lucide-react';
+import DeliveryManagement from '@/react-app/components/DeliveryManagement';
+import { UtensilsCrossed, Building, Home, Settings } from 'lucide-react';
 
 interface POSProps {
   isQuickAccess?: boolean;
@@ -28,15 +29,7 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
       case 'rooms':
         return <RoomView />;
       case 'delivery':
-        return (
-          <div className="flex-1 p-6 flex items-center justify-center">
-            <div className="text-center">
-              <Car className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Delivery Management</h2>
-              <p className="text-gray-600">Delivery tracking and management interface coming soon</p>
-            </div>
-          </div>
-        );
+        return <DeliveryManagement />;
       default:
         return <MenuGrid />;
     }
@@ -170,3 +163,4 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
     </div>
   );
 }
+

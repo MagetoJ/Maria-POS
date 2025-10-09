@@ -1,16 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UtensilsCrossed, Plus, Edit3, Trash2 } from 'lucide-react';
-import { mockCategories, mockProducts, formatCurrency } from '@/react-app/data/mockData';
+import { formatCurrency } from '@/react-app/data/mockData'; // Keeping this for currency formatting
 
+// Define interfaces to match backend schema
 interface Product {
   id: number;
   category_id: number;
   name: string;
   description: string;
   price: number;
-  cost?: number;
+  cost?: number; // Assuming cost might not always be present
   is_available: boolean;
-  is_active: boolean;
+  is_active: boolean; // Assuming this is part of the product, though not in schema, will keep for UI
   image_url?: string;
   preparation_time: number;
 }
@@ -20,17 +21,17 @@ interface Category {
   name: string;
   description: string;
   is_active: boolean;
-  display_order: number;
+  display_order: number; // Assuming this is part of the category, though not in schema, will keep for UI
 }
 
 export default function MenuManagement() {
-  const [products, setProducts] = useState<Product[]>(mockProducts.map(p => ({ ...p, cost: p.price * 0.6, is_active: true })));
-  const [categories, setCategories] = useState<Category[]>(mockCategories.map(c => ({ ...c, display_order: c.id })));
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [activeTab, setActiveTab] = useState<'products' | 'categories'>('products');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<Product | Category | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  
+
   const [productForm, setProductForm] = useState({
     category_id: 1,
     name: '',
@@ -40,7 +41,7 @@ export default function MenuManagement() {
     preparation_time: 0,
     image_url: ''
   });
-  
+
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [uploading, setUploading] = useState(false);
@@ -51,48 +52,100 @@ export default function MenuManagement() {
     display_order: 0
   });
 
-  const filteredProducts = selectedCategory 
+  const getToken = () => localStorage.getItem('pos_token');
+
+  // --- Data Fetching ---
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch('/api/products');
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch products:", error);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/categories');
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch categories:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+    fetchCategories();
+  }, []);
+
+
+  const filteredProducts = selectedCategory
     ? products.filter(p => p.category_id === selectedCategory)
     : products;
+
+  // --- API Handlers ---
 
   const handleAddProduct = async () => {
     setUploading(true);
     try {
-      let imageUrl = productForm.image_url;
-      
-      // Upload image if one was selected
+
       if (selectedImageFile) {
-        imageUrl = await uploadImage(Date.now(), selectedImageFile);
+        // You would need a real product ID for image upload, so this might need adjustment
+        // For now, let's assume we create the product first, then upload the image.
+        alert("Image upload on create is not fully supported in this version. Please add the product then edit to add an image.");
       }
 
-      const newProduct: Product = {
-        id: Date.now(),
-        ...productForm,
-        image_url: imageUrl,
-        is_available: true,
-        is_active: true
-      };
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
+        },
+        body: JSON.stringify(productForm)
+      });
 
-      setProducts(prev => [...prev, newProduct]);
-      resetProductForm();
-      setShowAddModal(false);
+      if(response.ok) {
+        fetchProducts(); // Refresh product list
+        resetProductForm();
+        setShowAddModal(false);
+      } else {
+        alert('Failed to add product.');
+      }
     } catch (error) {
-      alert('Failed to upload image. Please try again.');
-      console.error('Upload error:', error);
+      alert('An error occurred. Please try again.');
+      console.error('Add product error:', error);
     }
     setUploading(false);
   };
 
-  const handleAddCategory = () => {
-    const newCategory: Category = {
-      id: Date.now(),
-      ...categoryForm,
-      is_active: true
-    };
+  const handleAddCategory = async () => {
+    try {
+        const response = await fetch('/api/categories', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify(categoryForm)
+        });
 
-    setCategories(prev => [...prev, newCategory]);
-    resetCategoryForm();
-    setShowAddModal(false);
+        if (response.ok) {
+            fetchCategories();
+            resetCategoryForm();
+            setShowAddModal(false);
+        } else {
+            alert('Failed to add category.');
+        }
+    } catch (error) {
+        alert('An error occurred while adding the category.');
+        console.error('Add category error:', error);
+    }
   };
 
   const handleEditProduct = (product: Product) => {
@@ -108,6 +161,7 @@ export default function MenuManagement() {
     });
     setImagePreview(product.image_url || '');
     setSelectedImageFile(null);
+    setShowAddModal(true); // Open the modal for editing
   };
 
   const handleEditCategory = (category: Category) => {
@@ -117,70 +171,125 @@ export default function MenuManagement() {
       description: category.description,
       display_order: category.display_order
     });
+    setShowAddModal(true); // Open the modal for editing
   };
 
   const handleUpdateProduct = async () => {
     if (!editingItem || !('category_id' in editingItem)) return;
-    
+
     setUploading(true);
     try {
       let imageUrl = productForm.image_url;
-      
-      // Upload new image if one was selected
+
       if (selectedImageFile) {
         imageUrl = await uploadImage(editingItem.id, selectedImageFile);
       }
-
-      setProducts(prev => prev.map(p => 
-        p.id === editingItem.id 
-          ? { ...p, ...productForm, image_url: imageUrl }
-          : p
-      ));
       
-      setEditingItem(null);
-      resetProductForm();
+      const finalProductData = { ...productForm, image_url: imageUrl };
+
+      const response = await fetch(`/api/products/${editingItem.id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getToken()}`
+        },
+        body: JSON.stringify(finalProductData)
+      });
+
+      if (response.ok) {
+        fetchProducts();
+        setEditingItem(null);
+        resetProductForm();
+        setShowAddModal(false);
+      } else {
+        alert('Failed to update product.');
+      }
     } catch (error) {
-      alert('Failed to upload image. Please try again.');
-      console.error('Upload error:', error);
+      alert('Failed to upload image or update product. Please try again.');
+      console.error('Update product error:', error);
     }
     setUploading(false);
   };
 
-  const handleUpdateCategory = () => {
+  const handleUpdateCategory = async () => {
     if (!editingItem || !('display_order' in editingItem)) return;
-    
-    setCategories(prev => prev.map(c => 
-      c.id === editingItem.id 
-        ? { ...c, ...categoryForm }
-        : c
-    ));
-    
-    setEditingItem(null);
-    resetCategoryForm();
+
+    const response = await fetch(`/api/categories/${editingItem.id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getToken()}`
+        },
+        body: JSON.stringify(categoryForm)
+    });
+
+    if(response.ok) {
+        fetchCategories();
+        setEditingItem(null);
+        resetCategoryForm();
+        setShowAddModal(false);
+    } else {
+        alert('Failed to update category.');
+    }
   };
 
-  const handleDeleteProduct = (id: number) => {
+  const handleDeleteProduct = async (id: number) => {
     if (confirm('Are you sure you want to delete this product?')) {
-      setProducts(prev => prev.filter(p => p.id !== id));
+        const response = await fetch(`/api/products/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        if(response.ok) {
+            fetchProducts();
+        } else {
+            alert('Failed to delete product.');
+        }
     }
   };
 
-  const handleDeleteCategory = (id: number) => {
+  const handleDeleteCategory = async (id: number) => {
     if (confirm('Are you sure you want to delete this category? All products in this category will need to be reassigned.')) {
-      setCategories(prev => prev.filter(c => c.id !== id));
+        const response = await fetch(`/api/categories/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+
+        if (response.ok) {
+            fetchCategories();
+            // Also need to handle products in the deleted category
+            fetchProducts();
+        } else {
+            alert('Failed to delete category.');
+        }
     }
   };
 
-  const toggleProductAvailability = (id: number) => {
-    setProducts(prev => prev.map(p => 
-      p.id === id ? { ...p, is_available: !p.is_available } : p
-    ));
+  const toggleProductAvailability = async (product: Product) => {
+    const updatedProduct = { ...product, is_available: !product.is_available };
+    const response = await fetch(`/api/products/${product.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+        body: JSON.stringify(updatedProduct)
+    });
+    if(response.ok) {
+        fetchProducts();
+    } else {
+        alert('Failed to toggle availability.');
+    }
   };
 
-  const toggleCategoryActive = (id: number) => {
-    setCategories(prev => prev.map(c => 
-      c.id === id ? { ...c, is_active: !c.is_active } : c
-    ));
+  const toggleCategoryActive = async (category: Category) => {
+    const updatedCategory = { ...category, is_active: !category.is_active };
+     const response = await fetch(`/api/categories/${category.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+        body: JSON.stringify(updatedCategory)
+    });
+     if(response.ok) {
+        fetchCategories();
+    } else {
+        alert('Failed to toggle category status.');
+    }
   };
 
   const resetProductForm = () => {
@@ -209,8 +318,8 @@ export default function MenuManagement() {
     return categories.find(c => c.id === categoryId)?.name || 'Unknown';
   };
 
-  const profitMargin = (price: number, cost: number) => {
-    if (cost === 0) return 0;
+  const profitMargin = (price: number, cost?: number) => {
+    if (!cost || cost === 0 || price === 0) return 0;
     return ((price - cost) / price) * 100;
   };
 
@@ -269,7 +378,7 @@ export default function MenuManagement() {
           <p className="text-gray-600">Manage products, categories, and pricing</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => { setEditingItem(null); resetProductForm(); resetCategoryForm(); setShowAddModal(true); }}
           className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"
         >
           <Plus className="w-5 h-5" />
@@ -293,7 +402,7 @@ export default function MenuManagement() {
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <div className="text-2xl font-bold text-orange-600">
-            {formatCurrency(products.reduce((sum, p) => sum + p.price, 0) / products.length)}
+            {products.length > 0 ? formatCurrency(products.reduce((sum, p) => sum + p.price, 0) / products.length) : formatCurrency(0)}
           </div>
           <div className="text-sm text-gray-600">Average Price</div>
         </div>
@@ -334,8 +443,8 @@ export default function MenuManagement() {
                 <button
                   onClick={() => setSelectedCategory(null)}
                   className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                    selectedCategory === null 
-                      ? 'bg-yellow-400 text-yellow-900' 
+                    selectedCategory === null
+                      ? 'bg-yellow-400 text-yellow-900'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -346,8 +455,8 @@ export default function MenuManagement() {
                     key={category.id}
                     onClick={() => setSelectedCategory(category.id)}
                     className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                      selectedCategory === category.id 
-                        ? 'bg-yellow-400 text-yellow-900' 
+                      selectedCategory === category.id
+                        ? 'bg-yellow-400 text-yellow-900'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
@@ -405,7 +514,7 @@ export default function MenuManagement() {
                             <div>Price: <span className="font-semibold">{formatCurrency(product.price)}</span></div>
                             <div>Cost: {formatCurrency(product.cost || 0)}</div>
                             <div className="text-xs text-green-600">
-                              Margin: {profitMargin(product.price, product.cost || 0).toFixed(1)}%
+                              Margin: {profitMargin(product.price, product.cost).toFixed(1)}%
                             </div>
                           </div>
                         </td>
@@ -414,7 +523,7 @@ export default function MenuManagement() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <button
-                            onClick={() => toggleProductAvailability(product.id)}
+                            onClick={() => toggleProductAvailability(product)}
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer ${
                               product.is_available
                                 ? 'bg-green-100 text-green-800 hover:bg-green-200'
@@ -479,7 +588,7 @@ export default function MenuManagement() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <button
-                            onClick={() => toggleCategoryActive(category.id)}
+                            onClick={() => toggleCategoryActive(category)}
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer ${
                               category.is_active
                                 ? 'bg-green-100 text-green-800 hover:bg-green-200'
@@ -516,16 +625,16 @@ export default function MenuManagement() {
       </div>
 
       {/* Add/Edit Modal */}
-      {(showAddModal || editingItem) && (
+      {(showAddModal) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {editingItem 
+              {editingItem
                 ? `Edit ${activeTab === 'products' ? 'Product' : 'Category'}`
                 : `Add New ${activeTab === 'products' ? 'Product' : 'Category'}`
               }
             </h3>
-            
+
             {activeTab === 'products' ? (
               <div className="space-y-4">
                 <div>
@@ -538,7 +647,7 @@ export default function MenuManagement() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                   <textarea
@@ -548,7 +657,7 @@ export default function MenuManagement() {
                     rows={3}
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                   <select
@@ -561,7 +670,7 @@ export default function MenuManagement() {
                     ))}
                   </select>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Price (KES)</label>
@@ -575,7 +684,7 @@ export default function MenuManagement() {
                       required
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Cost (KES)</label>
                     <input
@@ -588,7 +697,7 @@ export default function MenuManagement() {
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Preparation Time (minutes)</label>
                   <input
@@ -599,7 +708,7 @@ export default function MenuManagement() {
                     min="0"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
                   <div className="space-y-3">
@@ -647,7 +756,7 @@ export default function MenuManagement() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                   <textarea
@@ -657,7 +766,7 @@ export default function MenuManagement() {
                     rows={3}
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
                   <input
@@ -670,15 +779,12 @@ export default function MenuManagement() {
                 </div>
               </div>
             )}
-            
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {
-                  if (editingItem) {
-                    setEditingItem(null);
-                  } else {
-                    setShowAddModal(false);
-                  }
+                  setEditingItem(null);
+                  setShowAddModal(false);
                   resetProductForm();
                   resetCategoryForm();
                 }}

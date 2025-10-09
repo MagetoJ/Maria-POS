@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/react-app/contexts/AuthContext';
 import Header from '@/react-app/components/Header';
 import StaffManagement from '@/react-app/components/admin/StaffManagement';
@@ -6,6 +6,7 @@ import InventoryManagement from '@/react-app/components/admin/InventoryManagemen
 import MenuManagement from '@/react-app/components/admin/MenuManagement';
 import RoomManagement from '@/react-app/components/admin/RoomManagement';
 import ReportsManagement from '@/react-app/components/admin/ReportsManagement';
+import SettingsManagement from '@/react-app/components/admin/SettingsManagement';
 import { 
   BarChart3, 
   Users, 
@@ -14,16 +15,79 @@ import {
   FileText, 
   UtensilsCrossed,
   Bed,
-  Clock,
-  TrendingUp,
   AlertTriangle,
-  DollarSign
+  DollarSign,
+  Loader2
 } from 'lucide-react';
 import { formatCurrency } from '@/react-app/data/mockData';
+
+// Interface for the fetched overview data
+interface OverviewStats {
+    todaysRevenue: number;
+    ordersToday: number;
+    activeStaff: number;
+    lowStockItems: number;
+    recentOrders: {
+        id: number;
+        order_number: string;
+        location: string;
+        total_amount: number;
+        created_at: string;
+    }[];
+}
+
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
+  const [overviewData, setOverviewData] = useState<OverviewStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const getToken = () => localStorage.getItem('pos_token');
+
+  useEffect(() => {
+      const fetchOverviewData = async () => {
+          if (activeTab === 'overview') {
+              setIsLoading(true);
+              try {
+                  const response = await fetch('/api/dashboard/overview-stats', {
+                      headers: { 'Authorization': `Bearer ${getToken()}` }
+                  });
+                  if (response.ok) {
+                      const data = await response.json();
+                      setOverviewData(data);
+                  } else {
+                      console.error("Failed to fetch overview stats");
+                  }
+              } catch (error) {
+                  console.error("Error fetching overview stats:", error);
+              } finally {
+                  setIsLoading(false);
+              }
+          }
+      };
+
+      fetchOverviewData();
+  }, [activeTab]);
+
+  // Helper to calculate time ago
+  const timeAgo = (dateString: string) => {
+      const date = new Date(dateString);
+      const now = new Date();
+      const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+      let interval = seconds / 31536000;
+      if (interval > 1) return Math.floor(interval) + " years ago";
+      interval = seconds / 2592000;
+      if (interval > 1) return Math.floor(interval) + " months ago";
+      interval = seconds / 86400;
+      if (interval > 1) return Math.floor(interval) + " days ago";
+      interval = seconds / 3600;
+      if (interval > 1) return Math.floor(interval) + " hours ago";
+      interval = seconds / 60;
+      if (interval > 1) return Math.floor(interval) + " minutes ago";
+      return Math.floor(seconds) + " seconds ago";
+  };
+
 
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -35,138 +99,120 @@ export default function AdminDashboard() {
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
-  const renderOverview = () => (
-    <div className="space-y-6">
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Today's Revenue</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(85420)}</p>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center">
-            <TrendingUp className="w-4 h-4 text-green-500" />
-            <span className="text-green-500 text-sm ml-1">+12% from yesterday</span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <FileText className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Orders Today</p>
-              <p className="text-2xl font-bold text-gray-900">142</p>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center">
-            <TrendingUp className="w-4 h-4 text-green-500" />
-            <span className="text-green-500 text-sm ml-1">+8% from yesterday</span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Users className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active Staff</p>
-              <p className="text-2xl font-bold text-gray-900">12</p>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center">
-            <Clock className="w-4 h-4 text-gray-500" />
-            <span className="text-gray-500 text-sm ml-1">8 on shift now</span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Low Stock Items</p>
-              <p className="text-2xl font-bold text-gray-900">5</p>
-            </div>
-          </div>
-          <div className="mt-4">
-            <span className="text-yellow-600 text-sm">Requires attention</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Activity & Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Orders</h3>
-          <div className="space-y-3">
-            {[
-              { id: 'ORD-145', table: 'T03', amount: 2400, time: '2 min ago' },
-              { id: 'ORD-144', room: '201', amount: 1800, time: '5 min ago' },
-              { id: 'ORD-143', table: 'T07', amount: 3200, time: '8 min ago' },
-              { id: 'ORD-142', table: 'T02', amount: 1500, time: '12 min ago' },
-            ].map((order) => (
-              <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="font-medium text-gray-900">{order.id}</p>
-                  <p className="text-sm text-gray-600">
-                    {order.table ? `Table ${order.table}` : `Room ${order.room}`}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium text-gray-900">{formatCurrency(order.amount)}</p>
-                  <p className="text-sm text-gray-600">{order.time}</p>
-                </div>
+  const renderOverview = () => {
+      if (isLoading) {
+          return (
+              <div className="flex justify-center items-center h-full">
+                  <Loader2 className="w-8 h-8 animate-spin text-yellow-500" />
               </div>
-            ))}
-          </div>
+          );
+      }
+      if (!overviewData) {
+          return <div className="text-center">Could not load dashboard data.</div>;
+      }
+
+      return (
+        <div className="space-y-6">
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+            <div className="flex items-center">
+                <div className="p-2 bg-green-100 rounded-lg">
+                <DollarSign className="w-6 h-6 text-green-600" />
+                </div>
+                <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Today's Revenue</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(overviewData.todaysRevenue)}</p>
+                </div>
+            </div>
+            </div>
+
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+            <div className="flex items-center">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                <FileText className="w-6 h-6 text-blue-600" />
+                </div>
+                <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Orders Today</p>
+                <p className="text-2xl font-bold text-gray-900">{overviewData.ordersToday}</p>
+                </div>
+            </div>
+            </div>
+
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+            <div className="flex items-center">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                <Users className="w-6 h-6 text-purple-600" />
+                </div>
+                <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Active Staff</p>
+                <p className="text-2xl font-bold text-gray-900">{overviewData.activeStaff}</p>
+                </div>
+            </div>
+            </div>
+
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+            <div className="flex items-center">
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                <AlertTriangle className="w-6 h-6 text-yellow-600" />
+                </div>
+                <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Low Stock Items</p>
+                <p className="text-2xl font-bold text-gray-900">{overviewData.lowStockItems}</p>
+                </div>
+            </div>
+            <div className="mt-4">
+                <span className="text-yellow-600 text-sm">Requires attention</span>
+            </div>
+            </div>
         </div>
 
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <button className="flex flex-col items-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
-              <Users className="w-8 h-8 text-blue-600 mb-2" />
-              <span className="text-sm font-medium text-blue-900">Add Staff</span>
-            </button>
-            <button className="flex flex-col items-center p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
-              <Package className="w-8 h-8 text-green-600 mb-2" />
-              <span className="text-sm font-medium text-green-900">Update Inventory</span>
-            </button>
-            <button className="flex flex-col items-center p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
-              <FileText className="w-8 h-8 text-purple-600 mb-2" />
-              <span className="text-sm font-medium text-purple-900">Generate Report</span>
-            </button>
-            <button className="flex flex-col items-center p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors">
-              <Settings className="w-8 h-8 text-yellow-600 mb-2" />
-              <span className="text-sm font-medium text-yellow-900">System Settings</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+        {/* Recent Activity & Quick Actions */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Orders</h3>
+            <div className="space-y-3">
+                {overviewData.recentOrders.map((order) => (
+                <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                    <p className="font-medium text-gray-900">{order.order_number}</p>
+                    <p className="text-sm text-gray-600">{order.location}</p>
+                    </div>
+                    <div className="text-right">
+                    <p className="font-medium text-gray-900">{formatCurrency(order.total_amount)}</p>
+                    <p className="text-sm text-gray-600">{timeAgo(order.created_at)}</p>
+                    </div>
+                </div>
+                ))}
+            </div>
+            </div>
 
-  const renderPlaceholder = (title: string, description: string) => (
-    <div className="flex flex-col items-center justify-center py-12">
-      <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center mb-4">
-        <Settings className="w-8 h-8 text-gray-400" />
-      </div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">{title}</h3>
-      <p className="text-gray-600 text-center max-w-md">{description}</p>
-      <button className="mt-4 px-6 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-lg font-medium transition-colors">
-        Coming Soon
-      </button>
-    </div>
-  );
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setActiveTab('staff')} className="flex flex-col items-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                <Users className="w-8 h-8 text-blue-600 mb-2" />
+                <span className="text-sm font-medium text-blue-900">Add Staff</span>
+                </button>
+                <button onClick={() => setActiveTab('inventory')} className="flex flex-col items-center p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
+                <Package className="w-8 h-8 text-green-600 mb-2" />
+                <span className="text-sm font-medium text-green-900">Update Inventory</span>
+                </button>
+                <button onClick={() => setActiveTab('reports')} className="flex flex-col items-center p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
+                <FileText className="w-8 h-8 text-purple-600 mb-2" />
+                <span className="text-sm font-medium text-purple-900">Generate Report</span>
+                </button>
+                <button onClick={() => setActiveTab('settings')} className="flex flex-col items-center p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors">
+                <Settings className="w-8 h-8 text-yellow-600 mb-2" />
+                <span className="text-sm font-medium text-yellow-900">System Settings</span>
+                </button>
+            </div>
+            </div>
+        </div>
+        </div>
+      );
+  };
+
 
   const renderContent = () => {
     switch (activeTab) {
@@ -183,10 +229,7 @@ export default function AdminDashboard() {
       case 'reports':
         return <ReportsManagement />;
       case 'settings':
-        return renderPlaceholder(
-          'System Settings',
-          'Configure API integrations, payment gateways, system preferences, and manage security settings for the POS system.'
-        );
+        return <SettingsManagement />;
       default:
         return renderOverview();
     }
@@ -243,3 +286,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+

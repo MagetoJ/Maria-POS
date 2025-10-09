@@ -369,7 +369,113 @@ app.delete('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manage
         res.status(500).json({ message: 'Error deleting table' });
     }
 });
+// --- Maintenance Management ---
+app.get('/api/maintenance-requests', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping'), async (req, res) => {
+    try {
+        const requests = await db('maintenance_requests').select('*').whereNot('status', 'completed').orderBy('reported_at', 'desc');
+        res.json(requests);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching maintenance requests' });
+    }
+});
 
+app.post('/api/maintenance-requests', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping', 'receptionist'), async (req, res) => {
+    try {
+        const [newRequest] = await db('maintenance_requests').insert(req.body).returning('*');
+        res.status(201).json(newRequest);
+    } catch (err) {
+        res.status(500).json({ message: 'Error creating maintenance request' });
+    }
+});
+// --- Maintenance Request Management ---
+app.put('/api/maintenance-requests/:id', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [updatedRequest] = await db('maintenance_requests').where({ id }).update(req.body).returning('*');
+        res.json(updatedRequest);
+    } catch (err) {
+        res.status(500).json({ message: 'Error updating maintenance request' });
+    }
+});
+// --- Delivery Management ---
+app.get('/api/deliveries', authenticateToken, authorizeRoles('admin', 'manager', 'delivery'), async (req, res) => {
+    try {
+        const activeDeliveries = await db('orders')
+            .where({ order_type: 'delivery' })
+            .whereNot('delivery_status', 'delivered')
+            .orderBy('created_at', 'asc');
+        
+        for (const order of activeDeliveries) {
+            (order as any).items = await db('order_items')
+                .join('products', 'order_items.product_id', 'products.id')
+                .where('order_id', order.id)
+                .select('order_items.quantity', 'products.name as product_name');
+        }
+
+        res.json(activeDeliveries);
+    } catch (err) {
+        console.error("Delivery orders fetch error:", err);
+        res.status(500).json({ message: 'Error fetching delivery orders' });
+    }
+});
+
+app.put('/api/deliveries/:orderId/status', authenticateToken, authorizeRoles('admin', 'manager', 'delivery'), async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { status } = req.body;
+        
+        const validStatuses = ['unassigned', 'assigned', 'out_for_delivery', 'delivered'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ message: 'Invalid delivery status' });
+        }
+
+        const [updatedOrder] = await db('orders')
+            .where({ id: orderId, order_type: 'delivery' })
+            .update({ delivery_status: status })
+            .returning('*');
+        
+        if (updatedOrder) {
+            res.json(updatedOrder);
+        } else {
+            res.status(404).json({ message: 'Delivery order not found' });
+        }
+    } catch (err) {
+        console.error("Delivery status update error:", err);
+        res.status(500).json({ message: 'Error updating delivery status' });
+    }
+});
+// --- Settings Management ---
+app.get('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const settingsArray = await db('settings').select('*');
+        // Convert array to a key-value object
+        const settingsObject = settingsArray.reduce((acc, setting) => {
+            acc[setting.key] = setting.value;
+            return acc;
+        }, {});
+        res.json(settingsObject);
+    } catch (err) {
+        console.error("Error fetching settings:", err);
+        res.status(500).json({ message: 'Error fetching settings' });
+    }
+});
+
+app.put('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    const settings = req.body; // Expects an object like { business_name: 'New Name', ... }
+    try {
+        await db.transaction(async trx => {
+            for (const key in settings) {
+                if (Object.prototype.hasOwnProperty.call(settings, key)) {
+                    await trx('settings').where({ key }).update({ value: settings[key] });
+                }
+            }
+        });
+        res.status(200).json({ message: 'Settings updated successfully' });
+    } catch (err) {
+        console.error("Error updating settings:", err);
+        res.status(500).json({ message: 'Error updating settings' });
+    }
+});
 // --- Reporting Endpoints ---
 app.get('/api/reports/overview', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {

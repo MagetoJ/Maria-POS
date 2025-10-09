@@ -1,17 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/react-app/contexts/AuthContext';
 import Header from '@/react-app/components/Header';
-import { mockRooms, formatCurrency } from '@/react-app/data/mockData';
-import { 
-  Bed, 
-  CheckCircle, 
-  User, 
+import { formatCurrency } from '@/react-app/data/mockData';
+import {
+  Bed,
+  CheckCircle,
+  User,
   Wrench,
-  Sparkles
+  Sparkles,
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
+import { Room } from '@/react-app/contexts/POSContext';
 
 interface MaintenanceRequest {
   id: number;
+  room_id: number;
   room_number: string;
   issue: string;
   priority: 'low' | 'medium' | 'high';
@@ -20,58 +24,97 @@ interface MaintenanceRequest {
   reported_by: string;
 }
 
-const mockMaintenanceRequests: MaintenanceRequest[] = [
-  {
-    id: 1,
-    room_number: '203',
-    issue: 'Air conditioning not working',
-    priority: 'high',
-    status: 'pending',
-    reported_at: '2024-10-09T13:30:00Z',
-    reported_by: 'Front Desk'
-  },
-  {
-    id: 2,
-    room_number: '105',
-    issue: 'Bathroom faucet leaking',
-    priority: 'medium',
-    status: 'in_progress',
-    reported_at: '2024-10-09T12:15:00Z',
-    reported_by: 'Housekeeping'
-  },
-  {
-    id: 3,
-    room_number: '201',
-    issue: 'TV remote not working',
-    priority: 'low',
-    status: 'pending',
-    reported_at: '2024-10-09T11:45:00Z',
-    reported_by: 'Guest'
-  }
-];
-
 export default function HousekeepingDashboard() {
-  const { } = useAuth();
-  const [rooms, setRooms] = useState(mockRooms);
-  const [maintenanceRequests, setMaintenanceRequests] = useState(mockMaintenanceRequests);
-  const [selectedRoom, setSelectedRoom] = useState<any>(null);
+  useAuth();
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const updateRoomStatus = (roomId: number, newStatus: 'vacant' | 'occupied' | 'reserved' | 'maintenance' | 'cleaning') => {
-    setRooms(prev => prev.map(room => 
-      room.id === roomId ? { ...room, status: newStatus } : room
-    ));
-    
-    // Auto-close modal after status update
-    if (selectedRoom?.id === roomId) {
-      setSelectedRoom(null);
+  const getToken = () => localStorage.getItem('pos_token');
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const [roomsRes, maintenanceRes] = await Promise.all([
+        fetch('/api/rooms', { headers: { 'Authorization': `Bearer ${getToken()}` } }),
+        fetch('/api/maintenance-requests', { headers: { 'Authorization': `Bearer ${getToken()}` } })
+      ]);
+
+      if (!roomsRes.ok || !maintenanceRes.ok) {
+        throw new Error('Failed to fetch data.');
+      }
+
+      const roomsData = await roomsRes.json();
+      const maintenanceData = await maintenanceRes.json();
+
+      setRooms(roomsData);
+      setMaintenanceRequests(maintenanceData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const updateMaintenanceStatus = (requestId: number, newStatus: 'pending' | 'in_progress' | 'completed') => {
-    setMaintenanceRequests(prev => prev.map(request =>
-      request.id === requestId ? { ...request, status: newStatus } : request
-    ));
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const updateRoomStatus = async (roomId: number, newStatus: Room['status']) => {
+    try {
+      const response = await fetch(`/api/rooms/${roomId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (response.ok) {
+        setRooms(prev => prev.map(room =>
+          room.id === roomId ? { ...room, status: newStatus } : room
+        ));
+        if (selectedRoom?.id === roomId) {
+          setSelectedRoom(null);
+        }
+      } else {
+        alert('Failed to update room status.');
+      }
+    } catch (error) {
+      console.error('Error updating room status:', error);
+    }
   };
+
+  const updateMaintenanceStatus = async (requestId: number, newStatus: MaintenanceRequest['status']) => {
+    try {
+        const response = await fetch(`/api/maintenance-requests/${requestId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify({ status: newStatus })
+        });
+        if (response.ok) {
+            // If completed, remove from list, otherwise update it
+            if (newStatus === 'completed') {
+                setMaintenanceRequests(prev => prev.filter(req => req.id !== requestId));
+            } else {
+                setMaintenanceRequests(prev => prev.map(request =>
+                    request.id === requestId ? { ...request, status: newStatus } : request
+                ));
+            }
+        } else {
+            alert('Failed to update maintenance status.');
+        }
+    } catch (error) {
+        console.error('Error updating maintenance status:', error);
+    }
+  };
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -116,10 +159,28 @@ export default function HousekeepingDashboard() {
     }
   };
 
+  if (isLoading) {
+    return (
+        <div className="flex h-screen items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-yellow-500" />
+            <p className="ml-4 text-gray-600">Loading Housekeeping Data...</p>
+        </div>
+    );
+  }
+
+  if (error) {
+     return (
+        <div className="flex h-screen items-center justify-center bg-red-50">
+            <AlertTriangle className="w-8 h-8 text-red-500" />
+            <p className="ml-4 font-semibold text-red-700">Failed to load data: {error}</p>
+        </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <Header />
-      
+
       <div className="flex-1 p-6 overflow-y-auto">
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-4">
@@ -159,7 +220,7 @@ export default function HousekeepingDashboard() {
           </div>
           <div className="bg-white rounded-lg p-4 border border-gray-200">
             <div className="text-2xl font-bold text-orange-600">
-              {maintenanceRequests.filter(r => r.status === 'pending').length}
+              {maintenanceRequests.length}
             </div>
             <div className="text-sm text-gray-600">Pending Requests</div>
           </div>
@@ -213,16 +274,16 @@ export default function HousekeepingDashboard() {
                         {request.priority}
                       </span>
                     </div>
-                    
+
                     <p className="text-sm text-gray-600 mb-3">{request.issue}</p>
-                    
+
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-gray-500">
                         {new Date(request.reported_at).toLocaleDateString()}
                       </div>
                       <select
                         value={request.status}
-                        onChange={(e) => updateMaintenanceStatus(request.id, e.target.value as 'pending' | 'in_progress' | 'completed')}
+                        onChange={(e) => updateMaintenanceStatus(request.id, e.target.value as MaintenanceRequest['status'])}
                         className={`text-xs px-2 py-1 rounded-md ${getMaintenanceStatusColor(request.status)}`}
                       >
                         <option value="pending">Pending</option>
@@ -232,11 +293,11 @@ export default function HousekeepingDashboard() {
                     </div>
                   </div>
                 ))}
-                
+
                 {maintenanceRequests.length === 0 && (
                   <div className="text-center py-6 text-gray-500">
                     <Wrench className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                    <p>No maintenance requests</p>
+                    <p>No active maintenance requests</p>
                   </div>
                 )}
               </div>
@@ -288,7 +349,7 @@ export default function HousekeepingDashboard() {
                       <Sparkles className="w-5 h-5 mx-auto mb-1 text-purple-600" />
                       <span className="text-sm font-medium text-purple-700">Cleaning</span>
                     </button>
-                    
+
                     <button
                       onClick={() => updateRoomStatus(selectedRoom.id, 'vacant')}
                       className="p-3 bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-colors"
@@ -297,7 +358,7 @@ export default function HousekeepingDashboard() {
                       <CheckCircle className="w-5 h-5 mx-auto mb-1 text-green-600" />
                       <span className="text-sm font-medium text-green-700">Clean</span>
                     </button>
-                    
+
                     <button
                       onClick={() => updateRoomStatus(selectedRoom.id, 'maintenance')}
                       className="p-3 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors"
@@ -306,7 +367,7 @@ export default function HousekeepingDashboard() {
                       <Wrench className="w-5 h-5 mx-auto mb-1 text-red-600" />
                       <span className="text-sm font-medium text-red-700">Maintenance</span>
                     </button>
-                    
+
                     <button
                       onClick={() => updateRoomStatus(selectedRoom.id, 'occupied')}
                       className="p-3 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors"
