@@ -1,10 +1,29 @@
-import { usePOS } from '@/react-app/contexts/POSContext';
-import { mockTables } from '@/react-app/data/mockData';
+// src/react-app/components/TableLayout.tsx
+import { useState, useEffect } from 'react';
+import { usePOS, Table } from '@/react-app/contexts/POSContext';
 import { Users } from 'lucide-react';
 
 export default function TableLayout() {
   const { currentOrder, setCurrentOrder } = usePOS();
+  const [tables, setTables] = useState<Table[]>([]);
 
+  // --- FETCH TABLES FROM BACKEND ---
+  useEffect(() => {
+    const fetchTables = async () => {
+      try {
+        const response = await fetch('/api/tables');
+        if (!response.ok) throw new Error('Failed to fetch tables');
+        const data = await response.json();
+        setTables(data);
+      } catch (error) {
+        console.error('Error fetching tables:', error);
+      }
+    };
+
+    fetchTables();
+  }, []);
+
+  // --- STATUS COLOR HELPER ---
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'available':
@@ -20,19 +39,21 @@ export default function TableLayout() {
     }
   };
 
-  const handleTableSelect = (table: any) => {
+  // --- HANDLE TABLE SELECTION ---
+  const handleTableSelect = (table: Table) => {
     if (table.status === 'available') {
       if (currentOrder) {
         setCurrentOrder({
           ...currentOrder,
           order_type: 'dine_in',
-          table_id: table.id
+          table_id: table.id,
         });
       }
       alert(`Table ${table.table_number} selected for current order`);
     }
   };
 
+  // --- RENDER ---
   return (
     <div className="flex-1 p-6">
       <div className="mb-6">
@@ -62,7 +83,7 @@ export default function TableLayout() {
 
       {/* Table Grid */}
       <div className="grid grid-cols-4 lg:grid-cols-6 gap-4">
-        {mockTables.map((table) => (
+        {tables.map((table) => (
           <div
             key={table.id}
             onClick={() => handleTableSelect(table)}
@@ -83,7 +104,7 @@ export default function TableLayout() {
                 {table.status.replace('_', ' ')}
               </div>
             </div>
-            
+
             {currentOrder?.table_id === table.id && (
               <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
                 ✓
@@ -97,26 +118,24 @@ export default function TableLayout() {
       <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <div className="text-2xl font-bold text-green-600">
-            {mockTables.filter(t => t.status === 'available').length}
+            {tables.filter((t) => t.status === 'available').length}
           </div>
           <div className="text-sm text-gray-600">Available Tables</div>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <div className="text-2xl font-bold text-red-600">
-            {mockTables.filter(t => t.status === 'occupied').length}
+            {tables.filter((t) => t.status === 'occupied').length}
           </div>
           <div className="text-sm text-gray-600">Occupied Tables</div>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <div className="text-2xl font-bold text-yellow-600">
-            {mockTables.filter(t => t.status === 'reserved').length}
+            {tables.filter((t) => t.status === 'reserved').length}
           </div>
           <div className="text-sm text-gray-600">Reserved Tables</div>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200">
-          <div className="text-2xl font-bold text-gray-600">
-            {mockTables.length}
-          </div>
+          <div className="text-2xl font-bold text-gray-600">{tables.length}</div>
           <div className="text-sm text-gray-600">Total Tables</div>
         </div>
       </div>

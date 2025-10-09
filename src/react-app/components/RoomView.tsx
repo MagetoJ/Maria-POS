@@ -1,9 +1,25 @@
-import { usePOS } from '@/react-app/contexts/POSContext';
-import { mockRooms, formatCurrency } from '@/react-app/data/mockData';
+import { useState, useEffect } from 'react';
+import { usePOS, Room } from '@/react-app/contexts/POSContext';
+import { formatCurrency } from '@/react-app/data/mockData';
 import { Bed, User, Calendar, DollarSign } from 'lucide-react';
 
 export default function RoomView() {
   const { currentOrder, setCurrentOrder } = usePOS();
+  const [rooms, setRooms] = useState<Room[]>([]);
+
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const response = await fetch('/api/rooms');
+        if (!response.ok) throw new Error('Failed to fetch rooms');
+        const data = await response.json();
+        setRooms(data);
+      } catch (error) {
+        console.error('Error fetching rooms:', error);
+      }
+    };
+    fetchRooms();
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -57,31 +73,23 @@ export default function RoomView() {
 
       {/* Legend */}
       <div className="flex gap-4 mb-6">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
-          <span className="text-sm text-gray-600">Vacant</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
-          <span className="text-sm text-gray-600">Occupied</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></div>
-          <span className="text-sm text-gray-600">Reserved</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-orange-100 border border-orange-300 rounded"></div>
-          <span className="text-sm text-gray-600">Maintenance</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
-          <span className="text-sm text-gray-600">Cleaning</span>
-        </div>
+        {[
+          { color: 'bg-green-100 border-green-300', label: 'Vacant' },
+          { color: 'bg-red-100 border-red-300', label: 'Occupied' },
+          { color: 'bg-yellow-100 border-yellow-300', label: 'Reserved' },
+          { color: 'bg-orange-100 border-orange-300', label: 'Maintenance' },
+          { color: 'bg-gray-100 border-gray-300', label: 'Cleaning' },
+        ].map((item, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <div className={`w-4 h-4 rounded border ${item.color}`}></div>
+            <span className="text-sm text-gray-600">{item.label}</span>
+          </div>
+        ))}
       </div>
 
       {/* Rooms Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {mockRooms.map((room) => (
+        {rooms.map((room) => (
           <div
             key={room.id}
             onClick={() => handleRoomSelect(room)}
@@ -106,27 +114,30 @@ export default function RoomView() {
               <div className="text-sm font-medium capitalize">
                 {room.status.replace('_', ' ')}
               </div>
-              
+
               {room.guest_name && (
                 <div className="flex items-center gap-2 text-sm">
                   <User className="w-4 h-4" />
                   <span>{room.guest_name}</span>
                 </div>
               )}
-              
+
               {room.check_in_date && room.check_out_date && (
                 <div className="flex items-center gap-2 text-sm">
                   <Calendar className="w-4 h-4" />
-                  <span>{new Date(room.check_in_date).toLocaleDateString()} - {new Date(room.check_out_date).toLocaleDateString()}</span>
+                  <span>
+                    {new Date(room.check_in_date).toLocaleDateString()} -{' '}
+                    {new Date(room.check_out_date).toLocaleDateString()}
+                  </span>
                 </div>
               )}
-              
+
               <div className="flex items-center gap-2 text-sm">
                 <DollarSign className="w-4 h-4" />
                 <span>{formatCurrency(room.rate)}/night</span>
               </div>
             </div>
-            
+
             {currentOrder?.room_id === room.id && (
               <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
                 ✓
@@ -140,31 +151,31 @@ export default function RoomView() {
       <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <div className="text-2xl font-bold text-green-600">
-            {mockRooms.filter(r => r.status === 'vacant').length}
+            {rooms.filter(r => r.status === 'vacant').length}
           </div>
           <div className="text-sm text-gray-600">Vacant Rooms</div>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <div className="text-2xl font-bold text-red-600">
-            {mockRooms.filter(r => r.status === 'occupied').length}
+            {rooms.filter(r => r.status === 'occupied').length}
           </div>
           <div className="text-sm text-gray-600">Occupied Rooms</div>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <div className="text-2xl font-bold text-yellow-600">
-            {mockRooms.filter(r => r.status === 'reserved').length}
+            {rooms.filter(r => r.status === 'reserved').length}
           </div>
           <div className="text-sm text-gray-600">Reserved Rooms</div>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <div className="text-2xl font-bold text-orange-600">
-            {mockRooms.filter(r => r.status === 'maintenance').length}
+            {rooms.filter(r => r.status === 'maintenance').length}
           </div>
           <div className="text-sm text-gray-600">Maintenance</div>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <div className="text-2xl font-bold text-gray-600">
-            {mockRooms.length}
+            {rooms.length}
           </div>
           <div className="text-sm text-gray-600">Total Rooms</div>
         </div>

@@ -7,8 +7,14 @@ import { mochaPlugins } from "@getmocha/vite-plugins";
 export default defineConfig({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   plugins: [...mochaPlugins(process.env as any), react(), cloudflare()],
-  server: {
+   server: { // <-- ADD THIS BLOCK
     allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     chunkSizeWarningLimit: 5000,

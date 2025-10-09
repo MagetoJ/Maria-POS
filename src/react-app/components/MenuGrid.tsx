@@ -1,16 +1,50 @@
-import { useState } from 'react';
-import { usePOS } from '@/react-app/contexts/POSContext';
-import { mockCategories, mockProducts, formatCurrency } from '@/react-app/data/mockData';
+// src/react-app/components/MenuGrid.tsx
+import { useState, useEffect } from 'react';
+import { usePOS, Product, Category } from '@/react-app/contexts/POSContext';
+import { formatCurrency } from '@/react-app/data/mockData'; // still using your currency formatter
 import { Plus, Clock } from 'lucide-react';
 
 export default function MenuGrid() {
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const { addItemToOrder } = usePOS();
 
-  const filteredProducts = selectedCategory 
-    ? mockProducts.filter(product => product.category_id === selectedCategory && product.is_available)
-    : mockProducts.filter(product => product.is_available);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
+  // --- FETCH PRODUCTS & CATEGORIES FROM BACKEND ---
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await fetch('/api/products');
+        if (!response.ok) throw new Error('Failed to fetch products');
+        const data = await response.json();
+        setProducts(data);
+      } catch (error) {
+        console.error('Failed to fetch products:', error);
+      }
+    };
+
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/categories');
+        if (!response.ok) throw new Error('Failed to fetch categories');
+        const data = await response.json();
+        setCategories(data);
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+      }
+    };
+
+    fetchProducts();
+    fetchCategories();
+  }, []);
+
+  // --- FILTER PRODUCTS BASED ON SELECTED CATEGORY ---
+  const filteredProducts = selectedCategory
+    ? products.filter((product) => product.category_id === selectedCategory && product.is_available)
+    : products.filter((product) => product.is_available);
+
+  // --- RENDER ---
   return (
     <div className="flex-1 p-6">
       {/* Category Tabs */}
@@ -25,19 +59,22 @@ export default function MenuGrid() {
         >
           All Items
         </button>
-        {mockCategories.filter(cat => cat.is_active).map((category) => (
-          <button
-            key={category.id}
-            onClick={() => setSelectedCategory(category.id)}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-              selectedCategory === category.id
-                ? 'bg-yellow-400 text-yellow-900'
-                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-          >
-            {category.name}
-          </button>
-        ))}
+
+        {categories
+          .filter((cat) => cat.is_active)
+          .map((category) => (
+            <button
+              key={category.id}
+              onClick={() => setSelectedCategory(category.id)}
+              className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+                selectedCategory === category.id
+                  ? 'bg-yellow-400 text-yellow-900'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
+            >
+              {category.name}
+            </button>
+          ))}
       </div>
 
       {/* Products Grid */}
@@ -54,35 +91,44 @@ export default function MenuGrid() {
                   alt={product.name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    // Fallback to emoji if image fails to load
                     e.currentTarget.style.display = 'none';
                     e.currentTarget.parentElement!.innerHTML = `<div class="text-4xl">${
-                      product.category_id === 1 ? '🥗' : 
-                      product.category_id === 2 ? '🍽️' : 
-                      product.category_id === 3 ? '🥤' : 
-                      product.category_id === 4 ? '🍰' : '🏨'
+                      product.category_id === 1
+                        ? '🥗'
+                        : product.category_id === 2
+                        ? '🍽️'
+                        : product.category_id === 3
+                        ? '🥤'
+                        : product.category_id === 4
+                        ? '🍰'
+                        : '🏨'
                     }</div>`;
                   }}
                 />
               ) : (
                 <div className="text-4xl">
-                  {product.category_id === 1 ? '🥗' : 
-                   product.category_id === 2 ? '🍽️' : 
-                   product.category_id === 3 ? '🥤' : 
-                   product.category_id === 4 ? '🍰' : '🏨'}
+                  {product.category_id === 1
+                    ? '🥗'
+                    : product.category_id === 2
+                    ? '🍽️'
+                    : product.category_id === 3
+                    ? '🥤'
+                    : product.category_id === 4
+                    ? '🍰'
+                    : '🏨'}
                 </div>
               )}
             </div>
-            
+
             <div className="p-4">
               <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
               <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.description}</p>
-              
+
               <div className="flex items-center gap-2 mb-3">
                 <Clock className="w-4 h-4 text-gray-400" />
                 <span className="text-sm text-gray-500">{product.preparation_time} min</span>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <span className="text-lg font-bold text-gray-900">
                   {formatCurrency(product.price)}

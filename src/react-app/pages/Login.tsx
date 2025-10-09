@@ -21,14 +21,16 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
       return;
     }
 
-    const success = await login(username, password);
+    // The 'login' function now returns an object { success, message }
+    const result = await login(username, password);
     
-    if (!success) {
-      setError('Invalid username or password');
+    if (!result.success) {
+      // We set the error state with the specific message from the backend
+      setError(result.message || 'An unknown error occurred.');
     }
+    // If login is successful, the AuthContext will handle the user state change,
+    // and the page will redirect automatically.
   };
-
-  
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-100 flex items-center justify-center p-4">
@@ -137,11 +139,6 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
               <div>Admin: admin / admin123</div>
               <div>Manager: john.manager / manager123</div>
               <div>Waiter: mary.waiter / waiter123</div>
-              <div>Cashier: james.cashier / cashier123</div>
-              <div>Chef: sarah.chef / chef123</div>
-              <div>Receptionist: rose.reception / reception123</div>
-              <div>Delivery: peter.delivery / delivery123</div>
-              <div>Housekeeping: grace.housekeeping / housekeeping123</div>
             </div>
           </div>
         </div>
@@ -149,3 +146,4 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
     </div>
   );
 }
+

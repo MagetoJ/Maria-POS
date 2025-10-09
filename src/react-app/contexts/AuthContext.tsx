@@ -7,13 +7,12 @@ export interface User {
   name: string;
   role: 'admin' | 'manager' | 'cashier' | 'waiter' | 'kitchen_staff' | 'delivery' | 'receptionist' | 'housekeeping';
   pin: string;
-  password: string;
   is_active: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   isLoading: boolean;
   validateStaffPin: (employeeId: string, pin: string) => Promise<User | null>;
@@ -21,60 +20,65 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users data
-const mockUsers: User[] = [
-  { id: 1, employee_id: 'EMP001', username: 'john.manager', name: 'John Manager', role: 'manager', pin: '1234', password: 'manager123', is_active: true },
-  { id: 2, employee_id: 'EMP002', username: 'mary.waiter', name: 'Mary Waiter', role: 'waiter', pin: '5678', password: 'waiter123', is_active: true },
-  { id: 3, employee_id: 'EMP003', username: 'james.cashier', name: 'James Cashier', role: 'cashier', pin: '9999', password: 'cashier123', is_active: true },
-  { id: 4, employee_id: 'EMP004', username: 'sarah.chef', name: 'Sarah Chef', role: 'kitchen_staff', pin: '1111', password: 'chef123', is_active: true },
-  { id: 5, employee_id: 'EMP005', username: 'admin', name: 'Admin User', role: 'admin', pin: '0000', password: 'admin123', is_active: true },
-  { id: 6, employee_id: 'EMP006', username: 'rose.reception', name: 'Rose Receptionist', role: 'receptionist', pin: '2222', password: 'reception123', is_active: true },
-  { id: 7, employee_id: 'EMP007', username: 'peter.delivery', name: 'Peter Delivery', role: 'delivery', pin: '3333', password: 'delivery123', is_active: true },
-  { id: 8, employee_id: 'EMP008', username: 'grace.housekeeping', name: 'Grace Housekeeping', role: 'housekeeping', pin: '4444', password: 'housekeeping123', is_active: true },
-];
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored session
     const storedUser = localStorage.getItem('pos_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
+    setIsLoading(false);
   }, []);
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const foundUser = mockUsers.find(
-      u => u.username === username && u.password === password && u.is_active
-    );
-    
-    if (foundUser) {
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      // If the response is not OK (like a 401 error), parse the error message from the backend.
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Login failed:', errorData.message);
+        return { success: false, message: errorData.message || 'Invalid credentials' };
+      }
+
+      // If successful, process the user data.
+      const foundUser = await response.json();
       setUser(foundUser);
       localStorage.setItem('pos_user', JSON.stringify(foundUser));
+      return { success: true };
+
+    } catch (error) {
+      console.error('Login API call failed:', error);
+      return { success: false, message: 'Could not connect to the server.' };
+    } finally {
       setIsLoading(false);
-      return true;
     }
-    
-    setIsLoading(false);
-    return false;
   };
 
   const validateStaffPin = async (employeeId: string, pin: string): Promise<User | null> => {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const foundUser = mockUsers.find(
-      u => u.employee_id === employeeId && u.pin === pin && u.is_active
-    );
-    
-    return foundUser || null;
+    // This logic remains the same
+    try {
+      const response = await fetch('/api/validate-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId, pin }),
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (error) {
+      console.error('Validate PIN API call failed:', error);
+      return null;
+    }
   };
 
   const logout = () => {
@@ -84,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isLoading, validateStaffPin }}>
-      {children}
+      {!isLoading && children}
     </AuthContext.Provider>
   );
 };
@@ -96,3 +100,4 @@ export const useAuth = () => {
   }
   return context;
 };
+
