@@ -33,7 +33,7 @@ export async function seed(knex: Knex): Promise<void> {
   await knex('staff').insert([
     { id: 1, employee_id: 'EMP001', username: 'john.manager', name: 'John Manager', role: 'manager', pin: '1234', password: 'manager123', is_active: true },
     { id: 2, employee_id: 'EMP002', username: 'mary.waiter', name: 'Mary Waiter', role: 'waiter', pin: '5678', password: 'waiter123', is_active: true },
-    // ... other staff
+    { id: 5, employee_id: 'EMP005', username: 'admin', name: 'Admin User', role: 'admin', pin: '0000', password: 'admin123', is_active: true },
   ]);
 
   // Inserts tables

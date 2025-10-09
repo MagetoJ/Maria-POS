@@ -44,21 +44,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ username, password }),
       });
 
-      // If the response is not OK (like a 401 error), parse the error message from the backend.
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Login failed:', errorData.message);
+        setIsLoading(false); 
         return { success: false, message: errorData.message || 'Invalid credentials' };
       }
 
-      // If successful, process the user data.
-      const foundUser = await response.json();
+      const { user: foundUser, token } = await response.json();
       setUser(foundUser);
       localStorage.setItem('pos_user', JSON.stringify(foundUser));
+      localStorage.setItem('pos_token', token); // Store the token
       return { success: true };
 
     } catch (error) {
       console.error('Login API call failed:', error);
+      setIsLoading(false);
       return { success: false, message: 'Could not connect to the server.' };
     } finally {
       setIsLoading(false);
@@ -66,15 +67,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const validateStaffPin = async (employeeId: string, pin: string): Promise<User | null> => {
-    // This logic remains the same
     try {
       const response = await fetch('/api/validate-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employeeId, pin }),
       });
-      if (!response.ok) return null;
-      return await response.json();
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const foundUser = await response.json();
+      return foundUser;
     } catch (error) {
       console.error('Validate PIN API call failed:', error);
       return null;
@@ -84,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     localStorage.removeItem('pos_user');
+    localStorage.removeItem('pos_token'); // Also remove token
   };
 
   return (
@@ -100,4 +106,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
