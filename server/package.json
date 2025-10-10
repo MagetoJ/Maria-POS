@@ -3,15 +3,15 @@
   "version": "1.0.0",
   "description": "Hotel & Restaurant POS Backend",
   "main": "dist/index.js",
-  "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc && npm run setup-db",
-    "start": "node dist/index.js",
-    "setup-db": "node setup-database.js",
-    "migrate": "knex migrate:latest --knexfile knexfile.ts",
-    "migrate:rollback": "knex migrate:rollback --knexfile knexfile.ts",
-    "seed": "knex seed:run --knexfile knexfile.ts",
-    "test": "jest"
+ "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:backend": "tsc -p tsconfig.backend.json",
+    "preview": "vite preview",
+    "backend": "ts-node src/backend/index.ts",
+    "backend:dev": "nodemon --watch src/backend --exec ts-node src/backend/index.ts",
+    "start": "node dist/backend/index.js",
+    "render-build": "npm install && npm run build && npm run build:backend"
   },
   "keywords": [],
   "author": "",

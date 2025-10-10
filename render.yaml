@@ -1,19 +1,17 @@
 services:
   - type: web
-    name: pos-mocha-fullstack
+    name: maria-havens-pos
     env: node
-    region: oregon
-    plan: starter
-    buildCommand: |
-      # Install and build frontend
-      npm ci
-      RENDER=true npm run build:render
-      # Install and build backend
-      cd server
-      npm ci
-      npm run build
-    startCommand: cd server && npm start
-    healthCheckPath: /health
+    buildCommand: npm install && npm run build && npm run build:backend
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.17.0
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+    healthCheckPath: /
     envVars:
       - key: NODE_ENV
         value: production

@@ -17,7 +17,7 @@
     "@eslint/js": "9.25.1",
     "@getmocha/users-service": "^0.0.4",
     "@getmocha/vite-plugins": "latest",
-    "@types/node": "22.14.1",
+    "@types/node": "^22.18.9",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@types/ws": "^8.18.1",
@@ -35,14 +35,13 @@
     "wrangler": "^4.33.0"
   },
   "scripts": {
-    "build": "tsc -b && vite build",
-    "build:render": "vite build --mode production",
-    "cf-typegen": "wrangler types",
-    "check": "tsc && vite build && wrangler deploy --dry-run",
     "dev": "vite",
-    "lint": "eslint .",
+    "build": "tsc --noEmit && vite build",
+    "build:backend": "tsc -p tsconfig.backend.json",
     "preview": "vite preview",
-    "start": "node server/dist/index.js",
-    "build:production": "NODE_ENV=production npm run build"
+    "backend": "ts-node src/backend/index.ts",
+    "backend:dev": "nodemon --watch src/backend --exec ts-node src/backend/index.ts",
+    "start": "node dist/backend/index.js",
+    "render-build": "npm install && npm run build && npm run build:backend"
   }
 }
