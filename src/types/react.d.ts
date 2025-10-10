@@ -1,55 +1,24 @@
 /// <reference types="react" />
 /// <reference types="react-dom" />
 
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      [elemName: string]: any;
-    }
-  }
-}
-
+// For React 19 compatibility with explicit re-exports
 declare module "react" {
-  export = React;
-  export as namespace React;
+  // Export hooks explicitly
+  export function useState<S>(initialState: S | (() => S)): [S, React.Dispatch<React.SetStateAction<S>>];
+  export function useState<S = undefined>(): [S | undefined, React.Dispatch<React.SetStateAction<S | undefined>>];
+  export function useEffect(effect: React.EffectCallback, deps?: React.DependencyList): void;
+  export function useContext<T>(context: React.Context<T>): T;
+  export function createContext<T>(defaultValue: T): React.Context<T>;
   
-  // Re-export common types
-  export interface ReactElement<P = any, T extends string | React.JSXElementConstructor<any> = string | React.JSXElementConstructor<any>> {
-    type: T;
-    props: P;
-    key: React.Key | null;
-  }
+  // Export components
+  export const StrictMode: React.ComponentType<{ children?: React.ReactNode }>;
   
-  export interface Component<P = {}, S = {}> extends React.ComponentLifecycle<P, S> {}
-  export class Component<P, S> {
-    constructor(props: P);
-    setState<K extends keyof S>(
-      state: ((prevState: Readonly<S>, props: Readonly<P>) => (Pick<S, K> | S | null)) | (Pick<S, K> | S | null),
-      callback?: () => void
-    ): void;
-    forceUpdate(callback?: () => void): void;
-    render(): React.ReactNode;
-    readonly props: Readonly<P> & Readonly<{ children?: React.ReactNode }>;
-    state: Readonly<S>;
-    context: any;
-    refs: {
-      [key: string]: React.ReactInstance;
-    };
-  }
-}
-
-declare module "react-dom" {
-  export = ReactDOM;
-  export as namespace ReactDOM;
-}
-
-declare module "react/jsx-runtime" {
-  export const jsx: any;
-  export const jsxs: any;
-  export const Fragment: any;
-}
-
-declare module "react/jsx-dev-runtime" {
-  export const jsxDEV: any;
-  export const Fragment: any;
+  // Export types
+  export type ReactNode = any;
+  export type ComponentType<P = {}> = React.ComponentClass<P, any> | React.FunctionComponent<P>;
+  export type FC<P = {}> = React.FunctionComponent<P>;
+  
+  // Default export for React
+  const React: typeof import('react');
+  export default React;
 }

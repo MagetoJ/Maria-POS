@@ -10,7 +10,6 @@
     "allowSyntheticDefaultImports": true,
     "allowJs": false,
     "checkJs": false,
-    "types": ["node"],
 
     "baseUrl": ".",
     "paths": {
@@ -32,6 +31,6 @@
     "noFallthroughCasesInSwitch": false,
     "noUncheckedSideEffectImports": false
   },
-  "include": ["src/react-app", "src/types"],
+  "include": ["src/react-app", "src/types", "src/config"],
   "exclude": ["node_modules", "dist", "build"]
 }
