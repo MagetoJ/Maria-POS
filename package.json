@@ -38,14 +38,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:frontend": "vite build",
+    
     "preview": "vite preview",
     "build:backend": "cd server && npm run build",
     "start:backend": "cd server && npm start",
     "dev:backend": "cd server && npm run dev",
     "install:all": "npm install && cd server && npm install",
     "render-build": "npm run build",
-   
+   "build:frontend": "cd src/react-app && npm install && npm run build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   }
 }
