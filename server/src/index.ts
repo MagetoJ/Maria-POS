@@ -6,12 +6,16 @@ import http, { IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { authenticateToken, authorizeRoles } from './middleware/auth';
 import path from 'path';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'a-very-secret-and-secure-key-that-you-should-change';
 
 const app = express();
 const server = http.createServer(app);
-const port = 3001;
+const port = process.env.PORT || 3001;
 
 // Direct database configuration (avoiding knexfile import issues)
 const db = knex({
@@ -27,7 +31,9 @@ const db = knex({
 
 // Updated CORS configuration
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'], // Add your frontend ports
+  origin: process.env.NODE_ENV === 'production' 
+    ? [process.env.FRONTEND_URL, 'https://pos-mocha-frontend.onrender.com']
+    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'],
   credentials: true
 }));
 app.use(express.json());
@@ -60,6 +66,11 @@ function broadcastToKitchens(message: object) {
 }
 
 // --- PUBLIC API Endpoints ---
+
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
 
 app.post('/api/login', async (req, res) => {
   try {
@@ -310,6 +321,21 @@ app.post('/api/products', authenticateToken, authorizeRoles('admin', 'manager'),
             error: (err as Error).message,
             errorType: (err as Error).constructor.name,
             details: String(err)
+        });
+    }
+});
+app.get('/api/products', async (req, res) => {
+    try {
+        const products = await db('products')
+            .join('categories', 'products.category_id', 'categories.id')
+            .select('products.*', 'categories.name as category_name')
+            .orderBy('products.name', 'asc');
+        res.json(products);
+    } catch (err) {
+        console.error('Error fetching products:', err);
+        res.status(500).json({ 
+            message: 'Error fetching products',
+            error: (err as Error).message 
         });
     }
 });
@@ -885,7 +911,61 @@ app.get('/api/verify-products-table', async (req, res) => {
         });
     }
 });
+app.get('/api/debug/seed-orders', async (req, res) => {
+  try {
+    // Get some data to work with
+    const staff = await db('staff').first();
+    const products = await db('products').limit(3);
+    
+    if (!staff) {
+      return res.status(400).json({ error: 'No staff found. Add staff first.' });
+    }
+    
+    if (products.length === 0) {
+      return res.status(400).json({ error: 'No products found. Add products first.' });
+    }
+    
+    // Create 5 sample orders
+    const orders = [];
+    for (let i = 0; i < 5; i++) {
+      const orderDate = new Date();
+      orderDate.setDate(orderDate.getDate() - i); // Spread across last 5 days
+      
+      const [orderId] = await db('orders').insert({
+        order_number: `ORD-${Date.now()}-${i}`,
+        order_type: i % 2 === 0 ? 'dine_in' : 'room_service',
+        location: i % 2 === 0 ? 'Table 1' : 'Room 101',
+        staff_id: staff.id,
+        total_amount: 1500 + (i * 300),
+        status: 'completed',
+        created_at: orderDate.toISOString()
+      }).returning('id');
+      
+      const actualOrderId = typeof orderId === 'number' ? orderId : orderId.id;
+      
+      // Add order items
+      await db('order_items').insert({
+        order_id: actualOrderId,
+        product_id: products[0].id,
+        quantity: 2,
+        unit_price: products[0].price,
+        total_price: products[0].price * 2
+      });
+      
+      orders.push(actualOrderId);
+    }
+    
+    res.json({ 
+      message: 'Sample orders created!', 
+      orderIds: orders,
+      count: orders.length 
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
 // --- Start Server ---
-server.listen(port, () => {
-  console.log(`🚀 Backend server is running at http://localhost:${port}`);
+server.listen(port, '0.0.0.0', () => {
+  console.log(`🚀 Backend server is running on port ${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });

@@ -3,3 +3,11 @@ node_modules/
 .wrangler/
 .dev.vars
 worker-configuration.d.ts
+.env
+.env.local
+.env.production.local
+.env.development.local
+server/database/pos.sqlite3
+server/dist/
+*.log
+.DS_Store

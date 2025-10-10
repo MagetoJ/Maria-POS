@@ -35,19 +35,19 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl mb-4 shadow-lg">
-            <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center relative">
-              <div className="w-6 h-6 bg-yellow-400 rounded-sm"></div>
-              <div className="absolute top-1 right-1 w-2 h-2 bg-white rounded-sm"></div>
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl mb-4 shadow-lg">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-lg flex items-center justify-center relative">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-yellow-400 rounded-sm"></div>
+              <div className="absolute top-1 right-1 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-sm"></div>
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Maria Havens</h1>
-          <p className="text-gray-600">Point of Sale System</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Maria Havens</h1>
+          <p className="text-sm sm:text-base text-gray-600">Point of Sale System</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          <h2 className="text-2xl font-semibold text-center text-gray-800 mb-6">Staff Login</h2>
+        <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 border border-gray-100">
+          <h2 className="text-xl sm:text-2xl font-semibold text-center text-gray-800 mb-6">Staff Login</h2>
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -61,7 +61,7 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
                   id="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all text-base"
                   placeholder="Enter your username"
                   autoComplete="username"
                   disabled={isLoading}
@@ -80,7 +80,7 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
                   id="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all text-base"
                   placeholder="Enter your password"
                   autoComplete="current-password"
                   disabled={isLoading}
@@ -98,7 +98,7 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
             <button
               type="submit"
               disabled={isLoading || !username || !password}
-              className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 text-white py-3 px-4 rounded-lg font-semibold hover:from-yellow-500 hover:to-amber-600 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 text-white py-2.5 sm:py-3 px-4 rounded-lg font-semibold hover:from-yellow-500 hover:to-amber-600 focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 text-base"
             >
               {isLoading ? (
                 <>
@@ -125,7 +125,7 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
               <button
                 onClick={onQuickPOSAccess}
                 disabled={isLoading}
-                className="w-full mt-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                className="w-full mt-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-2.5 sm:py-3 px-4 rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 text-base"
               >
                 <UtensilsCrossed className="w-5 h-5" />
                 Quick POS Access
@@ -136,14 +136,7 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
             </div>
           )}
 
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 font-medium mb-2">Demo Accounts:</p>
-            <div className="grid grid-cols-1 gap-1 text-xs text-gray-500">
-              <div>Admin: admin / admin123</div>
-              <div>Manager: john.manager / manager123</div>
-              <div>Waiter: mary.waiter / waiter123</div>
-            </div>
-          </div>
+         
         </div>
       </div>
     </div>

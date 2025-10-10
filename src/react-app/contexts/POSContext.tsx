@@ -49,6 +49,8 @@ export interface OrderItem {
 }
 
 export interface Order {
+  location: string;
+  delivery_address: null;
   id?: number;
   order_number?: string;
   order_type: 'dine_in' | 'takeaway' | 'delivery' | 'room_service';
@@ -107,13 +109,15 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (!currentOrder) {
       const newOrder: Order = {
-        order_type: 'dine_in',
-        items: [newItem],
-        subtotal: 0,
-        tax_amount: 0,
-        service_charge: 0,
-        discount_amount: 0,
-        total_amount: 0
+          order_type: 'dine_in',
+          items: [newItem],
+          subtotal: 0,
+          tax_amount: 0,
+          service_charge: 0,
+          discount_amount: 0,
+          total_amount: 0,
+          location: '',
+          delivery_address: null
       };
       setCurrentOrder(calculateOrderTotals(newOrder));
     } else {

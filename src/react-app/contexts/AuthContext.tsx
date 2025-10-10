@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-
-// API Base URL - change this to match your backend port
-const API_BASE_URL = 'http://localhost:3001';
+import { getApiUrl } from '@/config/api';
 
 export interface User {
   id: number;
@@ -39,9 +37,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      console.log('Attempting login to:', `${API_BASE_URL}/api/login`);
+      console.log('Attempting login to:', getApiUrl('/api/login'));
       
-      const response = await fetch(`${API_BASE_URL}/api/login`, {
+      const response = await fetch(getApiUrl('/api/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -75,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const validateStaffPin = async (employeeId: string, pin: string): Promise<User | null> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/validate-pin`, {
+      const response = await fetch(getApiUrl('/api/validate-pin'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employeeId, pin }),

@@ -1,3 +1,6 @@
+// COMPLETE REPLACEMENT for your ReportsManagement.tsx
+// This version has better error handling and null checks
+
 import { useState, useEffect } from 'react';
 import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '@/react-app/data/mockData';
@@ -33,15 +36,14 @@ interface RoomReportData {
     roomStatusCounts: { status: string; count: number }[];
 }
 
-
 export default function ReportsManagement() {
   const [reportData, setReportData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedReport, setSelectedReport] = useState('overview');
   const [dateRange, setDateRange] = useState({
-    start: new Date(new Date().setDate(1)).toISOString().split('T')[0], // First day of current month
-    end: new Date().toISOString().split('T')[0] // Today
+    start: new Date(new Date().setDate(1)).toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
   });
 
   useEffect(() => {
@@ -53,25 +55,31 @@ export default function ReportsManagement() {
     setError(null);
     const token = localStorage.getItem('pos_token');
 
-    // Construct query params for date range
     const query = new URLSearchParams({
         start: dateRange.start,
         end: dateRange.end,
     }).toString();
 
     try {
-      const response = await fetch(`/api/reports/${selectedReport}?${query}`, {
+      const endpoint = `/api/reports/${selectedReport}?${query}`;
+      console.log('Fetching report from:', endpoint);
+      
+      const response = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch report data.');
+        const errorText = await response.text();
+        console.error('Report fetch failed:', response.status, errorText);
+        throw new Error(`Failed to fetch report data: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('Report data received:', selectedReport, data);
       setReportData(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+      setError(errorMessage);
       console.error("Failed to fetch report data:", err);
     } finally {
       setIsLoading(false);
@@ -90,11 +98,10 @@ export default function ReportsManagement() {
     alert(`Exporting ${selectedReport} report as ${format.toUpperCase()}... (Not yet implemented)`);
   };
   
-    const renderOverviewReport = () => {
+  const renderOverviewReport = () => {
     const data = reportData as OverviewReportData;
     return (
       <div className="space-y-6">
-        {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="bg-white rounded-lg p-6 border border-gray-200">
             <div className="flex items-center">
@@ -138,7 +145,6 @@ export default function ReportsManagement() {
           </div>
         </div>
 
-        {/* Top Performing Items & Staff */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg p-6 border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Selling Items</h3>
@@ -179,7 +185,16 @@ export default function ReportsManagement() {
   }
 
   const renderSalesReport = () => {
+    if (!reportData || !reportData.salesByDay) {
+      return <div className="text-center py-10 text-gray-500">No sales data available</div>;
+    }
+    
     const data = reportData as SalesReportData;
+    
+    if (data.salesByDay.length === 0) {
+      return <div className="text-center py-10 text-gray-500">No sales in this date range</div>;
+    }
+    
     return (
         <div className="bg-white rounded-lg p-6 border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Sales</h3>
@@ -192,8 +207,8 @@ export default function ReportsManagement() {
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {data.salesByDay.map(sale => (
-                            <tr key={sale.date}>
+                        {data.salesByDay.map((sale, idx) => (
+                            <tr key={idx}>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(sale.date).toLocaleDateString()}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(sale.total)}</td>
                             </tr>
@@ -205,106 +220,133 @@ export default function ReportsManagement() {
     );
   };
   
-    const renderInventoryReport = () => {
-        const data = reportData as InventoryReportData;
-        return (
-            <div className="space-y-6">
-                <div className="bg-white rounded-lg p-6 border border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Low Stock Items</h3>
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Minimum Stock</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {data.lowStockItems.map(item => (
-                                    <tr key={item.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">{item.name}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">{item.current_stock}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.minimum_stock}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                 <div className="bg-white rounded-lg p-4 border border-gray-200">
-                    <div className="text-2xl font-bold text-green-600">{formatCurrency(data.totalValue)}</div>
-                    <div className="text-sm text-gray-600">Total Inventory Value</div>
-                </div>
+  const renderInventoryReport = () => {
+    if (!reportData) {
+      return <div className="text-center py-10 text-gray-500">No inventory data available</div>;
+    }
+    
+    const data = reportData as InventoryReportData;
+    
+    return (
+        <div className="space-y-6">
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Low Stock Items</h3>
+                {data.lowStockItems && data.lowStockItems.length > 0 ? (
+                  <div className="overflow-x-auto">
+                      <table className="w-full">
+                          <thead className="bg-gray-50">
+                              <tr>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Minimum Stock</th>
+                              </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                              {data.lowStockItems.map(item => (
+                                  <tr key={item.id}>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">{item.name}</td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">{item.current_stock}</td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.minimum_stock}</td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-4">All items are well stocked! ✓</p>
+                )}
             </div>
-        );
-    };
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <div className="text-2xl font-bold text-green-600">{formatCurrency(data.totalValue || 0)}</div>
+                <div className="text-sm text-gray-600">Total Inventory Value</div>
+            </div>
+        </div>
+    );
+  };
 
-    const renderStaffReport = () => {
-        const data = reportData as StaffReportData[];
-        return (
-             <div className="bg-white rounded-lg p-6 border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Staff Performance</h3>
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Staff Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders Taken</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Revenue</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average Order Value</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {data.map(staff => (
-                                <tr key={staff.name}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{staff.name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{staff.role}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{staff.orders}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(staff.revenue)}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(staff.avgOrderValue)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        );
-    };
+  const renderStaffReport = () => {
+    if (!reportData || !Array.isArray(reportData)) {
+      return <div className="text-center py-10 text-gray-500">No staff data available</div>;
+    }
+    
+    const data = reportData as StaffReportData[];
+    
+    if (data.length === 0) {
+      return <div className="text-center py-10 text-gray-500">No staff activity in this date range</div>;
+    }
+    
+    return (
+        <div className="bg-white rounded-lg p-6 border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Staff Performance</h3>
+          <div className="overflow-x-auto">
+              <table className="w-full">
+                  <thead className="bg-gray-50">
+                      <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Staff Name</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders Taken</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Revenue</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average Order Value</th>
+                      </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                      {data.map((staff, idx) => (
+                          <tr key={idx}>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{staff.name}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{staff.role}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{staff.orders}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(staff.revenue)}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(staff.avgOrderValue)}</td>
+                          </tr>
+                      ))}
+                  </tbody>
+              </table>
+          </div>
+        </div>
+    );
+  };
 
-    const renderRoomReport = () => {
-        const data = reportData as RoomReportData;
-        return (
-            <div className="space-y-6">
-                <div className="bg-white rounded-lg p-6 border border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Room Revenue</h3>
-                    <div className="text-3xl font-bold text-green-600">{formatCurrency(data.roomRevenue)}</div>
-                </div>
-                <div className="bg-white rounded-lg p-6 border border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Room Status</h3>
-                     <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Number of Rooms</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {data.roomStatusCounts.map(status => (
-                                    <tr key={status.status}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">{status.status}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{status.count}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+  const renderRoomReport = () => {
+    if (!reportData) {
+      return <div className="text-center py-10 text-gray-500">No room data available</div>;
+    }
+    
+    const data = reportData as RoomReportData;
+    
+    return (
+        <div className="space-y-6">
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Room Revenue</h3>
+                <div className="text-3xl font-bold text-green-600">{formatCurrency(data.roomRevenue || 0)}</div>
             </div>
-        );
-    };
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Room Status</h3>
+                {data.roomStatusCounts && data.roomStatusCounts.length > 0 ? (
+                  <div className="overflow-x-auto">
+                      <table className="w-full">
+                          <thead className="bg-gray-50">
+                              <tr>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Number of Rooms</th>
+                              </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                              {data.roomStatusCounts.map((status, idx) => (
+                                  <tr key={idx}>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">{status.status}</td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{status.count}</td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-4">No rooms configured</p>
+                )}
+            </div>
+        </div>
+    );
+  };
 
   const renderCurrentReport = () => {
     if (isLoading) {
@@ -346,7 +388,6 @@ export default function ReportsManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Reports & Analytics</h2>
@@ -363,7 +404,6 @@ export default function ReportsManagement() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="bg-white rounded-lg p-4 border border-gray-200">
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex items-center gap-2">
@@ -387,7 +427,6 @@ export default function ReportsManagement() {
         </div>
       </div>
 
-      {/* Report Type Selector */}
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="border-b border-gray-200">
           <nav className="flex overflow-x-auto">

@@ -39,6 +39,9 @@
     "cf-typegen": "wrangler types",
     "check": "tsc && vite build && wrangler deploy --dry-run",
     "dev": "vite",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "start": "npm run preview",
+    "build:production": "NODE_ENV=production npm run build"
   }
 }

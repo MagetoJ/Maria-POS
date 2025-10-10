@@ -5,3 +5,49 @@
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
+
+@layer base {
+  /* Ensure viewport meta tag works properly */
+  html {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }
+
+  /* Better touch targets for mobile */
+  button, 
+  [role="button"], 
+  input[type="submit"], 
+  input[type="button"] {
+    @apply min-h-touch min-w-touch;
+  }
+
+  /* Prevent zoom on form inputs on iOS */
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+@layer components {
+  /* Mobile-first responsive grid */
+  .responsive-grid {
+    @apply grid grid-cols-1 gap-4;
+    @apply sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5;
+  }
+
+  /* Touch-friendly buttons */
+  .btn-touch {
+    @apply min-h-touch min-w-touch px-4 py-3 text-base;
+    @apply touch:px-6 touch:py-4 touch:text-lg;
+  }
+
+  /* Mobile-optimized cards */
+  .card-mobile {
+    @apply rounded-lg shadow-md p-4;
+    @apply touch:p-6 touch:rounded-xl;
+  }
+}

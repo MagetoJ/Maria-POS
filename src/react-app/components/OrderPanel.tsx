@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { usePOS } from '@/react-app/contexts/POSContext';
 import { useAuth } from '@/react-app/contexts/AuthContext';
 import { formatCurrency } from '@/react-app/data/mockData';
+import { getApiUrl } from '@/config/api';
 import { Plus, Minus, Trash2, Receipt, CreditCard, Banknote, Smartphone, Building, Loader2, User } from 'lucide-react';
 
 interface OrderPanelProps {
@@ -23,9 +24,9 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
 
   if (!currentOrder || currentOrder.items.length === 0) {
     return (
-      <div className="w-80 bg-white border-l border-gray-200 p-6 flex flex-col items-center justify-center text-gray-500">
-        <Receipt className="w-16 h-16 mb-4 text-gray-300" />
-        <p className="text-lg font-medium">No active order</p>
+      <div className="w-full lg:w-80 bg-white border-t lg:border-t-0 lg:border-l border-gray-200 p-4 lg:p-6 flex flex-col items-center justify-center text-gray-500">
+        <Receipt className="w-12 h-12 lg:w-16 lg:h-16 mb-4 text-gray-300" />
+        <p className="text-base lg:text-lg font-medium">No active order</p>
         <p className="text-sm text-center">Add items to start creating an order</p>
       </div>
     );
@@ -43,47 +44,101 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
       return;
     }
 
+    if (pin.length !== 4) {
+      setPinError('PIN must be 4 digits');
+      return;
+    }
+
     setIsVerifying(true);
     setPinError('');
 
     try {
+      console.log('Verifying PIN for employee:', employeeId);
       const verifiedUser = await validateStaffPin(employeeId, pin);
       
-      if (verifiedUser && currentOrder) {
-        const orderToSubmit = {
-          ...currentOrder,
-          order_number: `ORD-${Date.now()}`,
-          staff_id: verifiedUser.id,
-          payment_method: selectedPaymentMethod,
-          payment_status: 'paid',
-          status: 'pending', // Kitchen will change this
-          created_at: new Date().toISOString()
-        };
-
-        // Submit order to the backend
-        const token = localStorage.getItem('pos_token');
-        const response = await fetch('/api/orders', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(orderToSubmit)
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to submit order.');
-        }
-
-        setCompletedOrder({ ...orderToSubmit, staff_name: verifiedUser.name });
-        setShowReceipt(true);
-        clearOrder();
-        resetPinForm();
-      } else {
+      if (!verifiedUser) {
         setPinError('Invalid Employee ID or PIN');
+        setIsVerifying(false);
+        return;
       }
+
+      console.log('User verified:', verifiedUser);
+      
+      if (!currentOrder) {
+        setPinError('No active order found');
+        setIsVerifying(false);
+        return;
+      }
+
+      // Format the order data to match backend expectations
+      const orderToSubmit = {
+        order_number: `ORD-${Date.now()}`,
+        order_type: currentOrder.order_type || 'dine_in',
+        location: currentOrder.location || 'Counter',
+        staff_id: verifiedUser.id,
+        table_id: currentOrder.table_id || null,
+        room_id: currentOrder.room_id || null,
+        customer_name: currentOrder.customer_name || null,
+        customer_phone: currentOrder.customer_phone || null,
+        delivery_address: currentOrder.delivery_address || null,
+        subtotal: currentOrder.subtotal,
+        tax_amount: currentOrder.tax_amount,
+        service_charge: currentOrder.service_charge || 0,
+        discount_amount: currentOrder.discount_amount || 0,
+        total_amount: currentOrder.total_amount,
+        payment_method: selectedPaymentMethod,
+        payment_status: 'paid',
+        status: 'pending',
+        delivery_status: currentOrder.order_type === 'delivery' ? 'unassigned' : null,
+        created_at: new Date().toISOString(),
+        // Items array - separate from order data
+        items: currentOrder.items.map(item => ({
+          product_id: item.product.id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+          notes: item.notes || null
+        }))
+      };
+
+      console.log('Submitting order:', orderToSubmit);
+
+      // Submit order to the backend
+      const token = localStorage.getItem('pos_token');
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(orderToSubmit)
+      });
+
+      console.log('Order submission response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        console.error('Order submission failed:', errorData);
+        throw new Error(errorData.message || 'Failed to submit order');
+      }
+
+      const result = await response.json();
+      console.log('Order submitted successfully:', result);
+
+      // Store completed order for receipt
+      setCompletedOrder({ 
+        ...orderToSubmit, 
+        staff_name: verifiedUser.name,
+        completed_at: new Date().toISOString(),
+        items: currentOrder.items // Keep full item details for receipt
+      });
+      
+      setShowReceipt(true);
+      clearOrder();
+      resetPinForm();
     } catch (error) {
-      setPinError('Verification or order submission failed. Please try again.');
+      console.error('Order verification/submission error:', error);
+      setPinError(error instanceof Error ? error.message : 'Verification or order submission failed. Please try again.');
     } finally {
       setIsVerifying(false);
     }
@@ -105,10 +160,12 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
 
   const clearPin = () => {
     setPin('');
+    setPinError('');
   };
 
   const backspacePin = () => {
     setPin(prev => prev.slice(0, -1));
+    setPinError('');
   };
 
   const printReceipt = () => {
@@ -177,7 +234,7 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
   // PIN Verification Modal
   if (showPinVerification) {
     return (
-      <div className="w-80 bg-white border-l border-gray-200 p-6">
+      <div className="w-full lg:w-80 bg-white border-t lg:border-t-0 lg:border-l border-gray-200 p-4 lg:p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold">
             {isQuickAccess ? 'Waiter Verification' : 'Staff Verification'}
@@ -218,15 +275,19 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
             <input
               type="text"
               value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                setEmployeeId(e.target.value.toUpperCase());
+                setPinError('');
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none"
               placeholder="Enter Employee ID"
+              autoFocus
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              PIN
+              PIN (4 digits)
             </label>
             <input
               type="password"
@@ -244,7 +305,8 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
                   key={digit}
                   type="button"
                   onClick={() => handlePinInput(digit.toString())}
-                  className="h-10 bg-gray-100 hover:bg-gray-200 rounded-md font-semibold transition-colors"
+                  className="h-12 bg-gray-100 hover:bg-gray-200 rounded-md font-semibold transition-colors text-lg"
+                  disabled={pin.length >= 4}
                 >
                   {digit}
                 </button>
@@ -252,21 +314,22 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
               <button
                 type="button"
                 onClick={clearPin}
-                className="h-10 bg-red-100 hover:bg-red-200 text-red-600 rounded-md text-sm font-semibold transition-colors"
+                className="h-12 bg-red-100 hover:bg-red-200 text-red-600 rounded-md text-sm font-semibold transition-colors"
               >
                 Clear
               </button>
               <button
                 type="button"
                 onClick={() => handlePinInput('0')}
-                className="h-10 bg-gray-100 hover:bg-gray-200 rounded-md font-semibold transition-colors"
+                className="h-12 bg-gray-100 hover:bg-gray-200 rounded-md font-semibold transition-colors text-lg"
+                disabled={pin.length >= 4}
               >
                 0
               </button>
               <button
                 type="button"
                 onClick={backspacePin}
-                className="h-10 bg-gray-100 hover:bg-gray-200 rounded-md font-semibold transition-colors"
+                className="h-12 bg-gray-100 hover:bg-gray-200 rounded-md font-semibold transition-colors text-lg"
               >
                 ←
               </button>
@@ -274,7 +337,7 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
           </div>
 
           {pinError && (
-            <div className="text-red-600 text-sm bg-red-50 p-2 rounded-md">
+            <div className="text-red-600 text-sm bg-red-50 p-3 rounded-md border border-red-200">
               {pinError}
             </div>
           )}
@@ -282,7 +345,7 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
           <button
             onClick={handlePinVerification}
             disabled={isVerifying || !employeeId || pin.length !== 4}
-            className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white py-2 px-4 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white py-3 px-4 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isVerifying ? (
               <>
@@ -301,7 +364,7 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
   // Receipt Modal
   if (showReceipt && completedOrder) {
     return (
-      <div className="w-80 bg-white border-l border-gray-200 p-6">
+      <div className="w-full lg:w-80 bg-white border-t lg:border-t-0 lg:border-l border-gray-200 p-4 lg:p-6">
         <div className="print:w-full print:max-w-none print:p-4">
           {/* Receipt Header */}
           <div className="text-center mb-6 print:mb-4">
@@ -333,26 +396,20 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
               <span>Served by:</span>
               <span>{completedOrder.staff_name}</span>
             </div>
-            {completedOrder.table_id && (
+            {completedOrder.location && (
               <div className="flex justify-between">
-                <span>Table:</span>
-                <span>T{String(completedOrder.table_id).padStart(2, '0')}</span>
-              </div>
-            )}
-            {completedOrder.room_id && (
-              <div className="flex justify-between">
-                <span>Room:</span>
-                <span>{completedOrder.room_id}</span>
+                <span>Location:</span>
+                <span>{completedOrder.location}</span>
               </div>
             )}
           </div>
 
           {/* Items */}
           <div className="mb-4">
-            {completedOrder.items.map((item: any) => (
-              <div key={item.id} className="flex justify-between text-sm mb-2">
+            {completedOrder.items.map((item: any, index: number) => (
+              <div key={index} className="flex justify-between text-sm mb-2">
                 <div className="flex-1">
-                  <div>{item.product.name}</div>
+                  <div>{item.product?.name || 'Item'}</div>
                   <div className="text-gray-500 text-xs">
                     {item.quantity} × {formatCurrency(item.unit_price)}
                   </div>
@@ -515,4 +572,3 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
     </div>
   );
 }
-

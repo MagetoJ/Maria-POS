@@ -13,9 +13,9 @@ interface Room {
   check_in_date?: string;
   check_out_date?: string;
   rate: number;
-  floor?: number; // Not in DB
-  max_occupancy?: number; // Not in DB
-  amenities?: string[]; // Not in DB
+  floor?: number;
+  max_occupancy?: number;
+  amenities?: string[];
 }
 
 export default function RoomManagement() {
@@ -51,8 +51,12 @@ export default function RoomManagement() {
       });
       if (response.ok) {
         const data = await response.json();
-        // Add floor to rooms for UI filtering
-        const roomsWithFloor = data.map((r: Room) => ({...r, floor: parseInt(r.room_number.charAt(0))}))
+        // Map backend price_per_night to frontend rate, and add floor
+        const roomsWithFloor = data.map((r: any) => ({
+          ...r, 
+          rate: r.price_per_night,
+          floor: r.floor || parseInt(r.room_number.toString().charAt(0)) || 1
+        }));
         setRooms(roomsWithFloor);
       } else {
         console.error("Failed to fetch rooms");
@@ -87,7 +91,14 @@ export default function RoomManagement() {
   });
 
   const handleAddRoom = async () => {
-    const { floor, max_occupancy, amenities, ...roomDataForApi } = roomForm;
+    // Map frontend 'rate' to backend 'price_per_night'
+    const { max_occupancy, amenities, rate, ...rest } = roomForm;
+    
+    const roomDataForApi = {
+      ...rest,
+      price_per_night: rate,
+      status: 'vacant'
+    };
 
     try {
         const response = await fetch('/api/rooms', {
@@ -103,10 +114,12 @@ export default function RoomManagement() {
             resetRoomForm();
             setShowAddModal(false);
         } else {
-            alert("Failed to add room");
+            const errorData = await response.json();
+            alert(`Failed to add room: ${errorData.message || 'Unknown error'}`);
         }
     } catch (error) {
         console.error("Error adding room:", error);
+        alert("Error adding room");
     }
   };
 
@@ -126,7 +139,13 @@ export default function RoomManagement() {
   const handleUpdateRoom = async () => {
     if (!editingRoom) return;
 
-    const { floor, max_occupancy, amenities, ...roomDataForApi } = roomForm;
+    // Map frontend 'rate' to backend 'price_per_night'
+    const { max_occupancy, amenities, rate, ...rest } = roomForm;
+    
+    const roomDataForApi = {
+      ...rest,
+      price_per_night: rate
+    };
 
     try {
         const response = await fetch(`/api/rooms/${editingRoom.id}`, {
@@ -143,10 +162,12 @@ export default function RoomManagement() {
             resetRoomForm();
             setShowAddModal(false);
         } else {
-            alert("Failed to update room");
+            const errorData = await response.json();
+            alert(`Failed to update room: ${errorData.message || 'Unknown error'}`);
         }
     } catch (error) {
         console.error("Error updating room:", error);
+        alert("Error updating room");
     }
   };
 
@@ -298,7 +319,7 @@ export default function RoomManagement() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
+        <div>2
           <h2 className="text-2xl font-bold text-gray-900">Room Management</h2>
           <p className="text-gray-600">Manage rooms, reservations, and guest information</p>
         </div>

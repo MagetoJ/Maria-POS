@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/react-app/contexts/AuthContext';
 import Header from '@/react-app/components/Header';
 import { Clock, CheckCircle, ChefHat } from 'lucide-react';
+import { getApiUrl } from '@/config/api';
 
 interface KitchenOrderItem {
     id: number;
@@ -32,7 +33,7 @@ export default function KitchenDisplay() {
   const fetchKitchenOrders = async () => {
     const token = localStorage.getItem('pos_token');
     try {
-        const response = await fetch('/api/orders/kitchen', {
+        const response = await fetch(`${getApiUrl()}/api/orders/kitchen`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
@@ -128,18 +129,18 @@ export default function KitchenDisplay() {
     <div className="flex flex-col h-screen bg-gray-50">
       <Header />
       
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 p-4 lg:p-6 overflow-y-auto">
         <div className="mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <ChefHat className="w-8 h-8 text-yellow-600" />
+              <ChefHat className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600" />
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Kitchen Display System</h1>
-                <p className="text-gray-600">Active orders and preparation status</p>
+                <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Kitchen Display System</h1>
+                <p className="text-sm sm:text-base text-gray-600">Active orders and preparation status</p>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-gray-900">
+            <div className="text-left sm:text-right">
+              <div className="text-lg sm:text-2xl font-bold text-gray-900">
                 {currentTime.toLocaleTimeString('en-KE', { hour12: true })}
               </div>
             </div>
@@ -147,7 +148,7 @@ export default function KitchenDisplay() {
         </div>
 
         {/* Orders Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
           {orders.map((order) => {
             const elapsed = getElapsedTime(order.created_at);
             const isOverdue = elapsed > order.total_time;
@@ -156,22 +157,22 @@ export default function KitchenDisplay() {
             return (
               <div
                 key={order.id}
-                className={`bg-white rounded-lg border-2 p-4 shadow-sm transition-all ${isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'} ${allItemsReady ? 'ring-2 ring-green-500' : ''}`}
+                className={`bg-white rounded-lg border-2 p-3 sm:p-4 shadow-sm transition-all ${isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'} ${allItemsReady ? 'ring-2 ring-green-500' : ''}`}
               >
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">{order.order_number}</h3>
-                    <p className="text-sm text-gray-600">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">{order.order_number}</h3>
+                    <p className="text-xs sm:text-sm text-gray-600">
                       {order.table_number ? `Table ${order.table_number}` : `Room ${order.room_number}`}
                       {' • '}
                       {order.order_type.replace('_', ' ')}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="flex items-center justify-between sm:flex-col sm:text-right gap-2 sm:gap-1">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(order.priority)}`}>
                       {order.priority.toUpperCase()}
                     </span>
-                    <div className="flex items-center gap-1 mt-1 text-sm">
+                    <div className="flex items-center gap-1 text-sm">
                       <Clock className="w-4 h-4" />
                       <span className={isOverdue ? 'text-red-600 font-bold' : 'text-gray-600'}>
                         {elapsed}m / {order.total_time}m
@@ -180,19 +181,19 @@ export default function KitchenDisplay() {
                   </div>
                 </div>
 
-                <div className="space-y-3 mb-4">
+                <div className="space-y-2 sm:space-y-3 mb-4">
                   {order.items.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex-1">
+                    <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg gap-2">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">{item.product_name}</span>
-                          <span className="text-sm text-gray-500">x{item.quantity}</span>
+                          <span className="font-medium text-gray-900 truncate">{item.product_name}</span>
+                          <span className="text-sm text-gray-500 flex-shrink-0">x{item.quantity}</span>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">Est. {item.preparation_time} minutes</div>
                       </div>
-                      <div className="flex gap-2">
-                        {item.status === 'pending' && <button onClick={() => updateItemStatus(order.id, item.id, 'preparing')} className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm rounded-md">Start</button>}
-                        {item.status === 'preparing' && <button onClick={() => updateItemStatus(order.id, item.id, 'ready')} className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded-md">Ready</button>}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {item.status === 'pending' && <button onClick={() => updateItemStatus(order.id, item.id, 'preparing')} className="px-2 sm:px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-xs sm:text-sm rounded-md">Start</button>}
+                        {item.status === 'preparing' && <button onClick={() => updateItemStatus(order.id, item.id, 'ready')} className="px-2 sm:px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm rounded-md">Ready</button>}
                         <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusColor(item.status)}`}>{item.status}</span>
                       </div>
                     </div>

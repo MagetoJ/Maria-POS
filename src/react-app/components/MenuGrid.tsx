@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { usePOS, Product, Category } from '@/react-app/contexts/POSContext';
 import { formatCurrency } from '@/react-app/data/mockData'; // still using your currency formatter
 import { Plus, Clock } from 'lucide-react';
+import { getApiUrl } from '@/config/api';
 
 export default function MenuGrid() {
   const { addItemToOrder } = usePOS();
@@ -15,7 +16,7 @@ export default function MenuGrid() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch('/api/products');
+        const response = await fetch(`${getApiUrl()}/api/products`);
         if (!response.ok) throw new Error('Failed to fetch products');
         const data = await response.json();
         setProducts(data);
@@ -26,7 +27,7 @@ export default function MenuGrid() {
 
     const fetchCategories = async () => {
       try {
-        const response = await fetch('/api/categories');
+        const response = await fetch(`${getApiUrl()}/api/categories`);
         if (!response.ok) throw new Error('Failed to fetch categories');
         const data = await response.json();
         setCategories(data);
@@ -46,12 +47,12 @@ export default function MenuGrid() {
 
   // --- RENDER ---
   return (
-    <div className="flex-1 p-6">
+    <div className="flex-1 p-3 sm:p-4 lg:p-6">
       {/* Category Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto">
+      <div className="flex gap-1 sm:gap-2 mb-4 sm:mb-6 overflow-x-auto pb-2">
         <button
           onClick={() => setSelectedCategory(null)}
-          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+          className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm sm:text-base font-medium whitespace-nowrap transition-colors ${
             selectedCategory === null
               ? 'bg-yellow-400 text-yellow-900'
               : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -66,7 +67,7 @@ export default function MenuGrid() {
             <button
               key={category.id}
               onClick={() => setSelectedCategory(category.id)}
-              className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm sm:text-base font-medium whitespace-nowrap transition-colors ${
                 selectedCategory === category.id
                   ? 'bg-yellow-400 text-yellow-900'
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -78,7 +79,7 @@ export default function MenuGrid() {
       </div>
 
       {/* Products Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
         {filteredProducts.map((product) => (
           <div
             key={product.id}

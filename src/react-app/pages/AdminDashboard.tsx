@@ -117,55 +117,55 @@ export default function AdminDashboard() {
       return (
         <div className="space-y-6">
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white rounded-lg p-6 border border-gray-200">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
+            <div className="bg-white rounded-lg p-3 lg:p-6 border border-gray-200">
             <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
-                <DollarSign className="w-6 h-6 text-green-600" />
+                <div className="p-1.5 lg:p-2 bg-green-100 rounded-lg">
+                <DollarSign className="w-4 h-4 lg:w-6 lg:h-6 text-green-600" />
                 </div>
-                <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Today's Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(overviewData.todaysRevenue)}</p>
+                <div className="ml-2 lg:ml-4 min-w-0">
+                <p className="text-xs lg:text-sm font-medium text-gray-600 truncate">Today's Revenue</p>
+                <p className="text-sm lg:text-2xl font-bold text-gray-900 truncate">{formatCurrency(overviewData.todaysRevenue)}</p>
                 </div>
             </div>
             </div>
 
-            <div className="bg-white rounded-lg p-6 border border-gray-200">
+            <div className="bg-white rounded-lg p-3 lg:p-6 border border-gray-200">
             <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                <FileText className="w-6 h-6 text-blue-600" />
+                <div className="p-1.5 lg:p-2 bg-blue-100 rounded-lg">
+                <FileText className="w-4 h-4 lg:w-6 lg:h-6 text-blue-600" />
                 </div>
-                <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Orders Today</p>
-                <p className="text-2xl font-bold text-gray-900">{overviewData.ordersToday}</p>
+                <div className="ml-2 lg:ml-4 min-w-0">
+                <p className="text-xs lg:text-sm font-medium text-gray-600 truncate">Orders Today</p>
+                <p className="text-sm lg:text-2xl font-bold text-gray-900 truncate">{overviewData.ordersToday}</p>
                 </div>
             </div>
             </div>
 
-            <div className="bg-white rounded-lg p-6 border border-gray-200">
+            <div className="bg-white rounded-lg p-3 lg:p-6 border border-gray-200">
             <div className="flex items-center">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                <Users className="w-6 h-6 text-purple-600" />
+                <div className="p-1.5 lg:p-2 bg-purple-100 rounded-lg">
+                <Users className="w-4 h-4 lg:w-6 lg:h-6 text-purple-600" />
                 </div>
-                <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Active Staff</p>
-                <p className="text-2xl font-bold text-gray-900">{overviewData.activeStaff}</p>
+                <div className="ml-2 lg:ml-4 min-w-0">
+                <p className="text-xs lg:text-sm font-medium text-gray-600 truncate">Active Staff</p>
+                <p className="text-sm lg:text-2xl font-bold text-gray-900 truncate">{overviewData.activeStaff}</p>
                 </div>
             </div>
             </div>
 
-            <div className="bg-white rounded-lg p-6 border border-gray-200">
+            <div className="bg-white rounded-lg p-3 lg:p-6 border border-gray-200">
             <div className="flex items-center">
-                <div className="p-2 bg-yellow-100 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-yellow-600" />
+                <div className="p-1.5 lg:p-2 bg-yellow-100 rounded-lg">
+                <AlertTriangle className="w-4 h-4 lg:w-6 lg:h-6 text-yellow-600" />
                 </div>
-                <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Low Stock Items</p>
-                <p className="text-2xl font-bold text-gray-900">{overviewData.lowStockItems}</p>
+                <div className="ml-2 lg:ml-4 min-w-0">
+                <p className="text-xs lg:text-sm font-medium text-gray-600 truncate">Low Stock Items</p>
+                <p className="text-sm lg:text-2xl font-bold text-gray-900 truncate">{overviewData.lowStockItems}</p>
                 </div>
             </div>
-            <div className="mt-4">
-                <span className="text-yellow-600 text-sm">Requires attention</span>
+            <div className="mt-2 lg:mt-4">
+                <span className="text-yellow-600 text-xs lg:text-sm">Requires attention</span>
             </div>
             </div>
         </div>
@@ -242,9 +242,24 @@ export default function AdminDashboard() {
     <div className="flex flex-col h-screen bg-gray-50">
       <Header />
       
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
-        <div className="w-64 bg-white border-r border-gray-200 p-6">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        {/* Mobile Tab Navigation */}
+        <div className="lg:hidden bg-white border-b border-gray-200 p-4">
+          <select 
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-base"
+          >
+            {menuItems.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Desktop Sidebar */}
+        <div className="hidden lg:block w-64 bg-white border-r border-gray-200 p-6">
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-gray-900">Admin Dashboard</h2>
             <p className="text-sm text-gray-600">Management & Analytics</p>
@@ -282,7 +297,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-4 lg:p-6 overflow-y-auto">
           {renderContent()}
         </div>
       </div>
