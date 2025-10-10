@@ -970,16 +970,15 @@ app.get('/api/debug/seed-orders', async (req, res) => {
     res.status(500).json({ error: (err as Error).message });
   }
 });
-// --- Start Server ---
-// --- Start Server ---
-server.listen(port, () => {
-  console.log(`🚀 Backend server is running at http://localhost:${port}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
-
-// Serve frontend build
+// Serve frontend build (must be after all API routes)
 app.use(express.static(path.join(__dirname, "../../dist/client")));
 
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "../../dist/client/index.html"));
+});
+
+// --- Start Server ---
+server.listen(port, () => {
+  console.log(`🚀 Backend server is running at http://localhost:${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });

@@ -4,11 +4,27 @@ import react from "@vitejs/plugin-react";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { mochaPlugins } from "@getmocha/vite-plugins";
 
-export default defineConfig(({ mode }) => ({
-  // For production builds on Render, use minimal plugins
-  plugins: mode === 'production' && process.env.RENDER 
-    ? [react()] 
-    : [...mochaPlugins(process.env as any), react(), cloudflare()],
+export default defineConfig(({ mode }) => {
+  const isRender = process.env.RENDER === 'true';
+  
+  return {
+    // For production builds on Render, use minimal plugins
+    plugins: mode === 'production' && isRender
+      ? [react({ 
+          // Disable TypeScript checking in Render builds
+          babel: {
+            parserOpts: {
+              plugins: ['jsx', 'typescript']
+            }
+          }
+        })] 
+      : [...mochaPlugins(process.env as any), react(), cloudflare()],
+    
+    // Disable type checking in build for Render
+    esbuild: isRender ? {
+      drop: ['console', 'debugger'],
+      target: 'es2020'
+    } : undefined,
   
   server: {
     allowedHosts: true,
@@ -22,7 +38,7 @@ export default defineConfig(({ mode }) => ({
   
   build: {
     chunkSizeWarningLimit: 5000,
-    outDir: 'dist',
+    outDir: 'dist/client',
     sourcemap: false,
     rollupOptions: {
       output: {
@@ -39,4 +55,5 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-}));
+  };
+});

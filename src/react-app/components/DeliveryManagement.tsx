@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Phone, MapPin, Package } from 'lucide-react';
 import { formatCurrency } from '@/react-app/data/mockData';
 
@@ -129,7 +129,13 @@ export default function DeliveryManagement() {
 }
 
 // Sub-component for the delivery order card
-const DeliveryCard = ({ order, onUpdateStatus }: { order: DeliveryOrder, onUpdateStatus: (id: number, status: DeliveryOrder['delivery_status']) => void }) => {
+interface DeliveryCardProps {
+    key?: React.Key;
+    order: DeliveryOrder;
+    onUpdateStatus: (id: number, status: DeliveryOrder['delivery_status']) => Promise<void>;
+}
+
+const DeliveryCard = ({ order, onUpdateStatus }: DeliveryCardProps) => {
     return (
         <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
             <div className="flex justify-between items-start mb-2">
