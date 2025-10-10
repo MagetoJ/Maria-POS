@@ -4,10 +4,13 @@ import react from "@vitejs/plugin-react";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { mochaPlugins } from "@getmocha/vite-plugins";
 
-export default defineConfig({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  plugins: [...mochaPlugins(process.env as any), react(), cloudflare()],
-   server: { // <-- ADD THIS BLOCK
+export default defineConfig(({ mode }) => ({
+  // For production builds on Render, use minimal plugins
+  plugins: mode === 'production' && process.env.RENDER 
+    ? [react()] 
+    : [...mochaPlugins(process.env as any), react(), cloudflare()],
+  
+  server: {
     allowedHosts: true,
     proxy: {
       '/api': {
@@ -16,6 +19,7 @@ export default defineConfig({
       },
     },
   },
+  
   build: {
     chunkSizeWarningLimit: 5000,
     outDir: 'dist',
@@ -29,9 +33,10 @@ export default defineConfig({
       },
     },
   },
+  
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
-});
+}));

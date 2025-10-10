@@ -22,7 +22,7 @@ services:
     name: pos-mocha-frontend
     env: static
     region: oregon
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci && npm run build:render
     staticPublishPath: ./dist
     headers:
       - path: /*
@@ -32,6 +32,8 @@ services:
         name: Cache-Control
         value: public, max-age=31536000, immutable
     envVars:
+      - key: RENDER
+        value: "true"
       - key: VITE_API_URL
         fromService:
           type: web

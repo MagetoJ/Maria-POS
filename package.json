@@ -36,6 +36,7 @@
   },
   "scripts": {
     "build": "tsc -b && vite build",
+    "build:render": "RENDER=true npm run build",
     "cf-typegen": "wrangler types",
     "check": "tsc && vite build && wrangler deploy --dry-run",
     "dev": "vite",
@@ -64,6 +65,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx"
+    
   },
   "include": [
     "src"

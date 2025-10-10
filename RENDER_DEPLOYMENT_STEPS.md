@@ -56,7 +56,7 @@ Render will automatically:
 - Expected URL: `https://pos-mocha-api.onrender.com`
 
 **Frontend Service** (`pos-mocha-frontend`):
-- Build Command: `npm ci && npm run build`
+- Build Command: `npm ci && npm run build:render`
 - Static files served from `./dist`
 - Expected URL: `https://pos-mocha-frontend.onrender.com`
 
