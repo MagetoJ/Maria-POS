@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { usePOS } from '@/react-app/contexts/POSContext';
 import { useAuth } from '@/react-app/contexts/AuthContext';
 import { formatCurrency } from '@/react-app/data/mockData';
-import { getApiUrl } from '@/config/api';
 import { Plus, Minus, Trash2, Receipt, CreditCard, Banknote, Smartphone, Building, Loader2, User } from 'lucide-react';
 
 interface OrderPanelProps {
@@ -38,14 +37,9 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
     setShowPinVerification(true);
   };
 
-  const handlePinVerification = async () => {
+const handlePinVerification = async () => {
     if (!employeeId || !pin) {
       setPinError('Please enter both Employee ID and PIN');
-      return;
-    }
-
-    if (pin.length !== 4) {
-      setPinError('PIN must be 4 digits');
       return;
     }
 
@@ -53,92 +47,55 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
     setPinError('');
 
     try {
-      console.log('Verifying PIN for employee:', employeeId);
       const verifiedUser = await validateStaffPin(employeeId, pin);
       
-      if (!verifiedUser) {
+      if (verifiedUser && currentOrder) {
+        const orderToSubmit = {
+          ...currentOrder,
+          order_number: `ORD-${Date.now()}`,
+          staff_id: verifiedUser.id,
+          payment_method: selectedPaymentMethod,
+          payment_status: 'paid',
+          status: 'pending', // Kitchen will change this
+          created_at: new Date().toISOString(),
+          completed_at: new Date().toISOString()
+        };
+
+        // Submit order to the backend
+        const token = localStorage.getItem('pos_token') || localStorage.getItem('token');
+        console.log('Submitting order with token:', token ? 'Token exists' : 'No token found');
+        console.log('Order data:', orderToSubmit);
+        
+        const response = await fetch('/api/orders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(orderToSubmit)
+        });
+
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Failed to submit order' }));
+            console.error('Order submission error:', errorData);
+            throw new Error(errorData.message || 'Failed to submit order.');
+        }
+
+        const result = await response.json();
+        console.log('Order submitted successfully:', result);
+
+        setCompletedOrder({ ...orderToSubmit, staff_name: verifiedUser.name });
+        setShowReceipt(true);
+        clearOrder();
+        resetPinForm();
+      } else {
         setPinError('Invalid Employee ID or PIN');
-        setIsVerifying(false);
-        return;
       }
-
-      console.log('User verified:', verifiedUser);
-      
-      if (!currentOrder) {
-        setPinError('No active order found');
-        setIsVerifying(false);
-        return;
-      }
-
-      // Format the order data to match backend expectations
-      const orderToSubmit = {
-        order_number: `ORD-${Date.now()}`,
-        order_type: currentOrder.order_type || 'dine_in',
-        location: currentOrder.location || 'Counter',
-        staff_id: verifiedUser.id,
-        table_id: currentOrder.table_id || null,
-        room_id: currentOrder.room_id || null,
-        customer_name: currentOrder.customer_name || null,
-        customer_phone: currentOrder.customer_phone || null,
-        delivery_address: currentOrder.delivery_address || null,
-        subtotal: currentOrder.subtotal,
-        tax_amount: currentOrder.tax_amount,
-        service_charge: currentOrder.service_charge || 0,
-        discount_amount: currentOrder.discount_amount || 0,
-        total_amount: currentOrder.total_amount,
-        payment_method: selectedPaymentMethod,
-        payment_status: 'paid',
-        status: 'pending',
-        delivery_status: currentOrder.order_type === 'delivery' ? 'unassigned' : null,
-        created_at: new Date().toISOString(),
-        // Items array - separate from order data
-        items: currentOrder.items.map(item => ({
-          product_id: item.product.id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.total_price,
-          notes: item.notes || null
-        }))
-      };
-
-      console.log('Submitting order:', orderToSubmit);
-
-      // Submit order to the backend
-      const token = localStorage.getItem('pos_token');
-      const response = await fetch('/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(orderToSubmit)
-      });
-
-      console.log('Order submission response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        console.error('Order submission failed:', errorData);
-        throw new Error(errorData.message || 'Failed to submit order');
-      }
-
-      const result = await response.json();
-      console.log('Order submitted successfully:', result);
-
-      // Store completed order for receipt
-      setCompletedOrder({ 
-        ...orderToSubmit, 
-        staff_name: verifiedUser.name,
-        completed_at: new Date().toISOString(),
-        items: currentOrder.items // Keep full item details for receipt
-      });
-      
-      setShowReceipt(true);
-      clearOrder();
-      resetPinForm();
     } catch (error) {
-      console.error('Order verification/submission error:', error);
-      setPinError(error instanceof Error ? error.message : 'Verification or order submission failed. Please try again.');
+      console.error('Order submission error:', error);
+      setPinError(`Verification or order submission failed: ${(error as Error).message}`);
     } finally {
       setIsVerifying(false);
     }

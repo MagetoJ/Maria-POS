@@ -30,10 +30,10 @@ const db = knex({
 });
 
 // Updated CORS configuration
+// Updated CORS configuration
+const allowedOrigins = ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'];
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL, 'https://pos-mocha-frontend.onrender.com']
-    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'],
+  origin: allowedOrigins,
   credentials: true
 }));
 app.use(express.json());
@@ -965,7 +965,8 @@ app.get('/api/debug/seed-orders', async (req, res) => {
   }
 });
 // --- Start Server ---
-server.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 Backend server is running on port ${port}`);
+// --- Start Server ---
+server.listen(port, () => {
+  console.log(`🚀 Backend server is running at http://localhost:${port}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });

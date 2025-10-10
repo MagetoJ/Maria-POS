@@ -1,7 +1,6 @@
-// src/react-app/components/MenuGrid.tsx
 import { useState, useEffect } from 'react';
 import { usePOS, Product, Category } from '@/react-app/contexts/POSContext';
-import { formatCurrency } from '@/react-app/data/mockData'; // still using your currency formatter
+import { formatCurrency } from '@/react-app/data/mockData';
 import { Plus, Clock } from 'lucide-react';
 import { getApiUrl } from '@/config/api';
 
@@ -16,7 +15,7 @@ export default function MenuGrid() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch(`${getApiUrl()}/api/products`);
+        const response = await fetch(getApiUrl('/api/products'));
         if (!response.ok) throw new Error('Failed to fetch products');
         const data = await response.json();
         setProducts(data);
@@ -27,7 +26,7 @@ export default function MenuGrid() {
 
     const fetchCategories = async () => {
       try {
-        const response = await fetch(`${getApiUrl()}/api/categories`);
+        const response = await fetch(getApiUrl('/api/categories'));
         if (!response.ok) throw new Error('Failed to fetch categories');
         const data = await response.json();
         setCategories(data);
@@ -40,12 +39,22 @@ export default function MenuGrid() {
     fetchCategories();
   }, []);
 
-  // --- FILTER PRODUCTS BASED ON SELECTED CATEGORY ---
+  // --- FILTER PRODUCTS ---
   const filteredProducts = selectedCategory
     ? products.filter((product) => product.category_id === selectedCategory && product.is_available)
     : products.filter((product) => product.is_available);
 
-  // --- RENDER ---
+  // --- FALLBACK EMOJI FOR CATEGORIES ---
+  const getCategoryEmoji = (categoryId: number) => {
+    switch (categoryId) {
+      case 1: return '🥗';
+      case 2: return '🍽️';
+      case 3: return '🥤';
+      case 4: return '🍰';
+      default: return '🏨';
+    }
+  };
+
   return (
     <div className="flex-1 p-3 sm:p-4 lg:p-6">
       {/* Category Tabs */}
@@ -93,31 +102,11 @@ export default function MenuGrid() {
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
-                    e.currentTarget.parentElement!.innerHTML = `<div class="text-4xl">${
-                      product.category_id === 1
-                        ? '🥗'
-                        : product.category_id === 2
-                        ? '🍽️'
-                        : product.category_id === 3
-                        ? '🥤'
-                        : product.category_id === 4
-                        ? '🍰'
-                        : '🏨'
-                    }</div>`;
+                    e.currentTarget.parentElement!.innerHTML = `<div class='text-4xl'>${getCategoryEmoji(product.category_id)}</div>`;
                   }}
                 />
               ) : (
-                <div className="text-4xl">
-                  {product.category_id === 1
-                    ? '🥗'
-                    : product.category_id === 2
-                    ? '🍽️'
-                    : product.category_id === 3
-                    ? '🥤'
-                    : product.category_id === 4
-                    ? '🍰'
-                    : '🏨'}
-                </div>
+                <div className="text-4xl">{getCategoryEmoji(product.category_id)}</div>
               )}
             </div>
 
@@ -132,7 +121,7 @@ export default function MenuGrid() {
 
               <div className="flex items-center justify-between">
                 <span className="text-lg font-bold text-gray-900">
-                  {formatCurrency(product.price)}
+                  {formatCurrency(product.price ?? 0)}
                 </span>
                 <button
                   onClick={() => addItemToOrder(product)}
