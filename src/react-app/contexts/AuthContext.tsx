@@ -18,7 +18,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   isLoading: boolean;
-  validateStaffPin: (employeeId: string, pin: string) => Promise<User | null>;
+  validateStaffPin: (username: string, pin: string) => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -75,22 +75,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const validateStaffPin = async (employeeId: string, pin: string): Promise<User | null> => {
+  const validateStaffPin = async (username: string, pin: string): Promise<User | null> => {
     try {
+      console.log('Validating PIN for username:', username);
+      
       const response = await fetch(`${API_URL}/api/validate-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId, pin }),
+        body: JSON.stringify({ username, pin })
       });
 
-      if (!response.ok) {
+      console.log('Validation response status:', response.status);
+
+      if (response.ok) {
+        const userData = await response.json();
+        console.log('Validation successful:', userData.name);
+        return userData;
+      } else {
+        const errorData = await response.json().catch(() => ({ message: 'Validation failed' }));
+        console.error('Validation failed:', errorData.message);
         return null;
       }
-
-      const foundUser = await response.json();
-      return foundUser;
     } catch (error) {
-      console.error('Validate PIN API call failed:', error);
+      console.error('PIN validation error:', error);
       return null;
     }
   };

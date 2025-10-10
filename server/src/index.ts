@@ -102,16 +102,43 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/validate-pin', async (req, res) => {
   try {
-    const { employeeId, pin } = req.body;
-    if (!employeeId || !pin) {
-      return res.status(400).json({ message: 'Employee ID and PIN are required' });
+    const { username, pin } = req.body;
+    console.log('PIN validation attempt:', { username, pin: pin ? '****' : 'missing' });
+    
+    if (!username || !pin) {
+      console.log('Validation failed: Missing username or PIN');
+      return res.status(400).json({ message: 'Username and PIN are required' });
     }
-    const user = await db('staff').where({ employee_id: employeeId, pin, is_active: true }).first();
-    if (user) {
+    
+    // Query the database
+    const user = await db('staff')
+      .where({ username, is_active: true })
+      .first();
+    
+    console.log('User found:', user ? 'Yes' : 'No');
+    
+    if (!user) {
+      console.log('No user found with username:', username);
+      return res.status(401).json({ message: 'Invalid username or PIN' });
+    }
+    
+    // Check if PIN matches (handle both string and number comparison)
+    const userPin = user.pin?.toString();
+    const providedPin = pin?.toString();
+    
+    console.log('PIN comparison:', { 
+      storedPinExists: !!userPin, 
+      providedPinExists: !!providedPin,
+      match: userPin === providedPin 
+    });
+    
+    if (userPin === providedPin) {
       const { password: _, ...userWithoutPassword } = user;
+      console.log('PIN validation successful for:', username);
       res.json(userWithoutPassword);
     } else {
-      res.status(401).json({ message: 'Invalid Employee ID or PIN' });
+      console.log('PIN mismatch for user:', username);
+      res.status(401).json({ message: 'Invalid username or PIN' });
     }
   } catch (err) {
     console.error('PIN validation error:', err);
@@ -720,7 +747,7 @@ app.get('/api/reports/sales', authenticateToken, authorizeRoles('admin', 'manage
             .orderBy('date', 'asc');
 
         const result = {
-            salesByDay: salesByDay.map(day => ({
+            salesByDay: salesByDay.map((day: any) => ({
                 date: day.date,
                 total: parseFloat(day.total || 0)
             }))
@@ -827,7 +854,7 @@ app.get('/api/reports/rooms', authenticateToken, authorizeRoles('admin', 'manage
             roomRevenue: parseFloat((roomRevenue as any)?.total || 0),
             roomStatusCounts: roomStatusCounts.map(status => ({
                 status: status.status,
-                count: parseInt(status.count || 0)
+                count: parseInt(String(status.count || 0))
             }))
         };
 
@@ -882,12 +909,12 @@ app.get('/api/debug/seed-orders', async (req, res) => {
       return res.status(400).json({ error: 'No products found. Add products first.' });
     }
     
-    const orders = [];
+    const orders: string[] = [];
     for (let i = 0; i < 5; i++) {
       const orderDate = new Date();
       orderDate.setDate(orderDate.getDate() - i);
       
-      const [orderId] = await db('orders').insert({
+      const insertResult = await db('orders').insert({
         order_number: `ORD-${Date.now()}-${i}`,
         order_type: i % 2 === 0 ? 'dine_in' : 'room_service',
         location: i % 2 === 0 ? 'Table 1' : 'Room 101',
@@ -897,7 +924,15 @@ app.get('/api/debug/seed-orders', async (req, res) => {
         created_at: orderDate.toISOString()
       }).returning('id');
       
-      const actualOrderId = typeof orderId === 'number' ? orderId : orderId.id;
+      // Extract the ID properly handling both possible return types
+      let actualOrderId: number;
+      if (typeof insertResult[0] === 'number') {
+        actualOrderId = insertResult[0];
+      } else if (insertResult[0] && typeof insertResult[0] === 'object' && 'id' in insertResult[0]) {
+        actualOrderId = insertResult[0].id as number;
+      } else {
+        throw new Error('Failed to get order ID from insert');
+      }
       
       await db('order_items').insert({
         order_id: actualOrderId,
@@ -907,7 +942,7 @@ app.get('/api/debug/seed-orders', async (req, res) => {
         total_price: products[0].price * 2
       });
       
-      orders.push(actualOrderId);
+      orders.push(String(actualOrderId));
     }
     
     res.json({ 
