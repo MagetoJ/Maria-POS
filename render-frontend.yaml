@@ -1,3 +1,4 @@
+
 services:
   - type: static_site
     name: maria-havens-pos-frontend

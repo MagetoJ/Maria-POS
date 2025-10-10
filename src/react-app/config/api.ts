@@ -1,5 +1,10 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+// Add this new function
+export const getApiUrl = (endpoint: string) => {
+  return `${API_BASE_URL}${endpoint}`;
+};
+
 export const apiClient = {
   baseURL: API_BASE_URL,
   
