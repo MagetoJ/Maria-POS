@@ -970,3 +970,10 @@ server.listen(port, () => {
   console.log(`🚀 Backend server is running at http://localhost:${port}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
+
+// Serve frontend build
+app.use(express.static(path.join(__dirname, "../../dist/client")));
+
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(__dirname, "../../dist/client/index.html"));
+});
