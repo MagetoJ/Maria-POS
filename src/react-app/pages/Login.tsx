@@ -21,15 +21,15 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
       return;
     }
 
-    // The 'login' function now returns an object { success, message }
+    console.log('Submitting login form...');
     const result = await login(username, password);
     
     if (!result.success) {
-      // We set the error state with the specific message from the backend
       setError(result.message || 'An unknown error occurred.');
+      console.error('Login failed with message:', result.message);
+    } else {
+      console.log('Login successful, redirecting...');
     }
-    // If login is successful, the AuthContext will handle the user state change,
-    // and the page will redirect automatically.
   };
 
   return (
@@ -64,6 +64,7 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all"
                   placeholder="Enter your username"
                   autoComplete="username"
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -82,13 +83,14 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all"
                   placeholder="Enter your password"
                   autoComplete="current-password"
+                  disabled={isLoading}
                 />
               </div>
             </div>
 
             {error && (
               <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg">
-                <AlertCircle className="w-5 h-5" />
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
                 <span className="text-sm">{error}</span>
               </div>
             )}
@@ -122,7 +124,8 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
               
               <button
                 onClick={onQuickPOSAccess}
-                className="w-full mt-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all flex items-center justify-center gap-2"
+                disabled={isLoading}
+                className="w-full mt-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
               >
                 <UtensilsCrossed className="w-5 h-5" />
                 Quick POS Access
@@ -146,4 +149,3 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
     </div>
   );
 }
-

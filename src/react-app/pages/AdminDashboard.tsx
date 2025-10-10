@@ -21,6 +21,9 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/react-app/data/mockData';
 
+// API Base URL
+const API_BASE_URL = 'http://localhost:3001';
+
 // Interface for the fetched overview data
 interface OverviewStats {
     todaysRevenue: number;
@@ -50,14 +53,14 @@ export default function AdminDashboard() {
           if (activeTab === 'overview') {
               setIsLoading(true);
               try {
-                  const response = await fetch('/api/dashboard/overview-stats', {
+                  const response = await fetch(`${API_BASE_URL}/api/dashboard/overview-stats`, {
                       headers: { 'Authorization': `Bearer ${getToken()}` }
                   });
                   if (response.ok) {
                       const data = await response.json();
                       setOverviewData(data);
                   } else {
-                      console.error("Failed to fetch overview stats");
+                      console.error("Failed to fetch overview stats. Status:", response.status);
                   }
               } catch (error) {
                   console.error("Error fetching overview stats:", error);
@@ -286,4 +289,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-

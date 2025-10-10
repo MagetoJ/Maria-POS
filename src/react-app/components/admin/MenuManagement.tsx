@@ -9,9 +9,9 @@ interface Product {
   name: string;
   description: string;
   price: number;
-  cost?: number; // Assuming cost might not always be present
+  cost?: number;
   is_available: boolean;
-  is_active: boolean; // Assuming this is part of the product, though not in schema, will keep for UI
+  is_active: boolean;
   image_url?: string;
   preparation_time: number;
 }
@@ -21,7 +21,7 @@ interface Category {
   name: string;
   description: string;
   is_active: boolean;
-  display_order: number; // Assuming this is part of the category, though not in schema, will keep for UI
+  display_order: number;
 }
 
 export default function MenuManagement() {
@@ -84,7 +84,6 @@ export default function MenuManagement() {
     fetchCategories();
   }, []);
 
-
   const filteredProducts = selectedCategory
     ? products.filter(p => p.category_id === selectedCategory)
     : products;
@@ -92,59 +91,121 @@ export default function MenuManagement() {
   // --- API Handlers ---
 
   const handleAddProduct = async () => {
+    // ✅ Basic validation
+    if (!productForm.name.trim()) {
+      alert('Product name is required.');
+      return;
+    }
+    if (!productForm.category_id) {
+      alert('Please select a category.');
+      return;
+    }
+    if (productForm.price <= 0) {
+      alert('Price must be greater than 0.');
+      return;
+    }
+
     setUploading(true);
     try {
+      const payload = {
+        category_id: parseInt(String(productForm.category_id)),
+        name: productForm.name.trim(),
+        description: productForm.description.trim(),
+        price: parseFloat(String(productForm.price)),
+        cost: parseFloat(String(productForm.cost)) || 0,
+        preparation_time: parseInt(String(productForm.preparation_time)) || 0,
+        image_url: productForm.image_url || '',
+        is_available: true,
+        is_active: true,
+      };
 
-      if (selectedImageFile) {
-        // You would need a real product ID for image upload, so this might need adjustment
-        // For now, let's assume we create the product first, then upload the image.
-        alert("Image upload on create is not fully supported in this version. Please add the product then edit to add an image.");
-      }
+      console.log('Sending product payload:', payload);
 
       const response = await fetch('/api/products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`
+          'Authorization': `Bearer ${getToken()}`,
         },
-        body: JSON.stringify(productForm)
+        body: JSON.stringify(payload),
       });
 
-      if(response.ok) {
-        fetchProducts(); // Refresh product list
+      const responseText = await response.text();
+      console.log('Response status:', response.status);
+      console.log('Response text:', responseText);
+
+      if (response.ok) {
+        await fetchProducts();
         resetProductForm();
         setShowAddModal(false);
+        alert('✅ Product added successfully!');
       } else {
-        alert('Failed to add product.');
+        let errorMessage = 'Unknown error';
+        try {
+          const errorJson = JSON.parse(responseText);
+          errorMessage = errorJson.message || errorJson.error || errorMessage;
+        } catch {
+          errorMessage = responseText;
+        }
+        console.error('Add product failed:', errorMessage);
+        alert(`❌ Failed to add product: ${errorMessage}`);
       }
     } catch (error) {
-      alert('An error occurred. Please try again.');
       console.error('Add product error:', error);
+      alert(`An unexpected error occurred: ${(error as Error).message}`);
     }
     setUploading(false);
   };
 
   const handleAddCategory = async () => {
-    try {
-        const response = await fetch('/api/categories', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getToken()}`
-            },
-            body: JSON.stringify(categoryForm)
-        });
+    // ✅ Basic validation
+    if (!categoryForm.name.trim()) {
+      alert('Category name is required.');
+      return;
+    }
 
-        if (response.ok) {
-            fetchCategories();
-            resetCategoryForm();
-            setShowAddModal(false);
-        } else {
-            alert('Failed to add category.');
+    try {
+      const payload = {
+        name: categoryForm.name.trim(),
+        description: categoryForm.description.trim(),
+        is_active: true,
+        display_order: parseInt(String(categoryForm.display_order)) || categories.length + 1,
+      };
+
+      console.log('Sending category payload:', payload);
+
+      const response = await fetch('/api/categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const responseText = await response.text();
+      console.log('Response status:', response.status);
+      console.log('Response text:', responseText);
+
+      if (response.ok) {
+        await fetchCategories();
+        resetCategoryForm();
+        setShowAddModal(false);
+        alert('✅ Category added successfully!');
+      } else {
+        let errorMessage = 'Unknown error';
+        try {
+          const errorJson = JSON.parse(responseText);
+          errorMessage = errorJson.message || errorJson.error || errorMessage;
+        } catch {
+          errorMessage = responseText;
         }
+        console.error('Add category failed:', errorMessage);
+        alert(`❌ Failed to add category: ${errorMessage}`);
+      }
     } catch (error) {
-        alert('An error occurred while adding the category.');
-        console.error('Add category error:', error);
+      console.error('Add category error:', error);
+      alert(`An unexpected error occurred: ${(error as Error).message}`);
     }
   };
 
@@ -161,7 +222,7 @@ export default function MenuManagement() {
     });
     setImagePreview(product.image_url || '');
     setSelectedImageFile(null);
-    setShowAddModal(true); // Open the modal for editing
+    setShowAddModal(true);
   };
 
   const handleEditCategory = (category: Category) => {
@@ -171,7 +232,7 @@ export default function MenuManagement() {
       description: category.description,
       display_order: category.display_order
     });
-    setShowAddModal(true); // Open the modal for editing
+    setShowAddModal(true);
   };
 
   const handleUpdateProduct = async () => {
@@ -185,13 +246,21 @@ export default function MenuManagement() {
         imageUrl = await uploadImage(editingItem.id, selectedImageFile);
       }
       
-      const finalProductData = { ...productForm, image_url: imageUrl };
+      const finalProductData = {
+        category_id: parseInt(String(productForm.category_id)),
+        name: productForm.name.trim(),
+        description: productForm.description.trim(),
+        price: parseFloat(String(productForm.price)),
+        cost: parseFloat(String(productForm.cost)) || 0,
+        preparation_time: parseInt(String(productForm.preparation_time)) || 0,
+        image_url: imageUrl || '',
+      };
 
       const response = await fetch(`/api/products/${editingItem.id}`, {
         method: 'PUT',
         headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${getToken()}`
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
         },
         body: JSON.stringify(finalProductData)
       });
@@ -201,8 +270,10 @@ export default function MenuManagement() {
         setEditingItem(null);
         resetProductForm();
         setShowAddModal(false);
+        alert('✅ Product updated successfully!');
       } else {
-        alert('Failed to update product.');
+        const errorText = await response.text();
+        alert(`Failed to update product: ${errorText}`);
       }
     } catch (error) {
       alert('Failed to upload image or update product. Please try again.');
@@ -214,87 +285,114 @@ export default function MenuManagement() {
   const handleUpdateCategory = async () => {
     if (!editingItem || !('display_order' in editingItem)) return;
 
+    const payload = {
+      name: categoryForm.name.trim(),
+      description: categoryForm.description.trim(),
+      display_order: parseInt(String(categoryForm.display_order)) || 0,
+    };
+
     const response = await fetch(`/api/categories/${editingItem.id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${getToken()}`
-        },
-        body: JSON.stringify(categoryForm)
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getToken()}`
+      },
+      body: JSON.stringify(payload)
     });
 
-    if(response.ok) {
-        fetchCategories();
-        setEditingItem(null);
-        resetCategoryForm();
-        setShowAddModal(false);
+    if (response.ok) {
+      fetchCategories();
+      setEditingItem(null);
+      resetCategoryForm();
+      setShowAddModal(false);
+      alert('✅ Category updated successfully!');
     } else {
-        alert('Failed to update category.');
+      const errorText = await response.text();
+      alert(`Failed to update category: ${errorText}`);
     }
   };
 
   const handleDeleteProduct = async (id: number) => {
     if (confirm('Are you sure you want to delete this product?')) {
-        const response = await fetch(`/api/products/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${getToken()}` }
-        });
-        if(response.ok) {
-            fetchProducts();
-        } else {
-            alert('Failed to delete product.');
-        }
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
+      if (response.ok) {
+        fetchProducts();
+        alert('✅ Product deleted successfully!');
+      } else {
+        const errorText = await response.text();
+        alert(`Failed to delete product: ${errorText}`);
+      }
     }
   };
 
   const handleDeleteCategory = async (id: number) => {
     if (confirm('Are you sure you want to delete this category? All products in this category will need to be reassigned.')) {
-        const response = await fetch(`/api/categories/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${getToken()}` }
-        });
+      const response = await fetch(`/api/categories/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
 
-        if (response.ok) {
-            fetchCategories();
-            // Also need to handle products in the deleted category
-            fetchProducts();
-        } else {
-            alert('Failed to delete category.');
-        }
+      if (response.ok) {
+        fetchCategories();
+        fetchProducts();
+        alert('✅ Category deleted successfully!');
+      } else {
+        const errorText = await response.text();
+        alert(`Failed to delete category: ${errorText}`);
+      }
     }
   };
 
   const toggleProductAvailability = async (product: Product) => {
-    const updatedProduct = { ...product, is_available: !product.is_available };
+    const updatedProduct = { 
+      ...product, 
+      is_available: !product.is_available 
+    };
+    
     const response = await fetch(`/api/products/${product.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
-        body: JSON.stringify(updatedProduct)
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Authorization': `Bearer ${getToken()}` 
+      },
+      body: JSON.stringify(updatedProduct)
     });
-    if(response.ok) {
-        fetchProducts();
+    
+    if (response.ok) {
+      fetchProducts();
     } else {
-        alert('Failed to toggle availability.');
+      alert('Failed to toggle availability.');
     }
   };
 
   const toggleCategoryActive = async (category: Category) => {
-    const updatedCategory = { ...category, is_active: !category.is_active };
-     const response = await fetch(`/api/categories/${category.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
-        body: JSON.stringify(updatedCategory)
+    const updatedCategory = { 
+      ...category, 
+      is_active: !category.is_active 
+    };
+    
+    const response = await fetch(`/api/categories/${category.id}`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Authorization': `Bearer ${getToken()}` 
+      },
+      body: JSON.stringify(updatedCategory)
     });
-     if(response.ok) {
-        fetchCategories();
+    
+    if (response.ok) {
+      fetchCategories();
     } else {
-        alert('Failed to toggle category status.');
+      alert('Failed to toggle category status.');
     }
   };
 
   const resetProductForm = () => {
     setProductForm({
-      category_id: 1,
+      category_id: categories.length > 0 ? categories[0].id : 1,
       name: '',
       description: '',
       price: 0,
@@ -378,7 +476,12 @@ export default function MenuManagement() {
           <p className="text-gray-600">Manage products, categories, and pricing</p>
         </div>
         <button
-          onClick={() => { setEditingItem(null); resetProductForm(); resetCategoryForm(); setShowAddModal(true); }}
+          onClick={() => { 
+            setEditingItem(null); 
+            resetProductForm(); 
+            resetCategoryForm(); 
+            setShowAddModal(true); 
+          }}
           className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"
         >
           <Plus className="w-5 h-5" />
@@ -627,7 +730,7 @@ export default function MenuManagement() {
       {/* Add/Edit Modal */}
       {(showAddModal) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               {editingItem
                 ? `Edit ${activeTab === 'products' ? 'Product' : 'Category'}`
@@ -804,7 +907,7 @@ export default function MenuManagement() {
                 className="flex-1 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 disabled:bg-gray-300 disabled:cursor-not-allowed text-yellow-900 disabled:text-gray-500 rounded-lg font-medium transition-colors"
               >
                 {uploading ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center gap-2">
                     <div className="w-4 h-4 border-2 border-yellow-900 border-t-transparent rounded-full animate-spin"></div>
                     Uploading...
                   </div>

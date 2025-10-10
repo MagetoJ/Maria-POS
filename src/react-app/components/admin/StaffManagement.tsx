@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { User as UserIcon, Plus, Edit3, Trash2 } from 'lucide-react';
 import { User } from '@/react-app/contexts/AuthContext';
 
+// API Base URL - should match your backend
+const API_BASE_URL = 'http://localhost:3001';
+
 export default function StaffManagement() {
   const [staff, setStaff] = useState<User[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -12,7 +15,8 @@ export default function StaffManagement() {
     name: '',
     role: 'waiter',
     pin: '',
-    password: ''
+    password: '',
+    is_active: true
   });
 
   useEffect(() => {
@@ -20,15 +24,19 @@ export default function StaffManagement() {
   }, []);
 
   const fetchStaff = async () => {
-    const token = localStorage.getItem('pos_token');
-    const response = await fetch('/api/staff', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (response.ok) {
+    try {
+      const token = localStorage.getItem('pos_token');
+      const response = await fetch(`${API_BASE_URL}/api/staff`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
         const data = await response.json();
         setStaff(data);
-    } else {
-        console.error("Failed to fetch staff. Check authentication.");
+      } else {
+        console.error("Failed to fetch staff. Status:", response.status);
+      }
+    } catch (error) {
+      console.error("Error fetching staff:", error);
     }
   };
 
@@ -44,14 +52,31 @@ export default function StaffManagement() {
   ];
 
   const handleAdd = async () => {
-    await fetch('/api/staff', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` },
-      body: JSON.stringify(formData)
-    });
-    fetchStaff();
-    resetForm();
-    setShowAddModal(false);
+    try {
+      console.log('Adding staff with data:', formData);
+      const response = await fetch(`${API_BASE_URL}/api/staff`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${localStorage.getItem('pos_token')}` 
+        },
+        body: JSON.stringify(formData)
+      });
+      
+      if (response.ok) {
+        console.log('Staff member added successfully');
+        fetchStaff();
+        resetForm();
+        setShowAddModal(false);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to add staff:', errorData);
+        alert(`Failed to add staff: ${errorData.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error adding staff:', error);
+      alert('Error adding staff member. Check console for details.');
+    }
   };
 
   const handleEdit = (staffMember: User) => {
@@ -62,41 +87,88 @@ export default function StaffManagement() {
       name: staffMember.name,
       role: staffMember.role,
       pin: staffMember.pin,
-      password: '' // Do not pre-fill password for security
+      password: '', // Do not pre-fill password for security
+      is_active: staffMember.is_active
     });
     setShowAddModal(true);
   };
 
   const handleUpdate = async () => {
     if (!editingStaff) return;
-    await fetch(`/api/staff/${editingStaff.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` },
-      body: JSON.stringify(formData)
-    });
-    fetchStaff();
-    setEditingStaff(null);
-    resetForm();
-    setShowAddModal(false);
+    
+    try {
+      // Only send password if it was changed
+      const updateData = formData.password 
+        ? formData 
+        : { ...formData, password: undefined };
+      
+      const response = await fetch(`${API_BASE_URL}/api/staff/${editingStaff.id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${localStorage.getItem('pos_token')}` 
+        },
+        body: JSON.stringify(updateData)
+      });
+      
+      if (response.ok) {
+        console.log('Staff member updated successfully');
+        fetchStaff();
+        setEditingStaff(null);
+        resetForm();
+        setShowAddModal(false);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to update staff:', errorData);
+        alert(`Failed to update staff: ${errorData.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error updating staff:', error);
+      alert('Error updating staff member. Check console for details.');
+    }
   };
 
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this staff member?')) {
-      await fetch(`/api/staff/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` }
-      });
-      fetchStaff();
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/staff/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` }
+        });
+        
+        if (response.ok) {
+          console.log('Staff member deleted successfully');
+          fetchStaff();
+        } else {
+          console.error('Failed to delete staff. Status:', response.status);
+          alert('Failed to delete staff member');
+        }
+      } catch (error) {
+        console.error('Error deleting staff:', error);
+        alert('Error deleting staff member. Check console for details.');
+      }
     }
   };
   
   const toggleActive = async (member: User) => {
-    await fetch(`/api/staff/${member.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` },
-      body: JSON.stringify({ is_active: !member.is_active })
-    });
-    fetchStaff();
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/staff/${member.id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${localStorage.getItem('pos_token')}` 
+        },
+        body: JSON.stringify({ is_active: !member.is_active })
+      });
+      
+      if (response.ok) {
+        fetchStaff();
+      } else {
+        console.error('Failed to toggle active status');
+      }
+    } catch (error) {
+      console.error('Error toggling active status:', error);
+    }
   };
 
   const resetForm = () => {
@@ -106,7 +178,8 @@ export default function StaffManagement() {
       name: '',
       role: 'waiter',
       pin: '',
-      password: ''
+      password: '',
+      is_active: true
     });
   };
 
@@ -218,7 +291,7 @@ export default function StaffManagement() {
                   value={formData.employee_id}
                   onChange={(e) => setFormData(prev => ({ ...prev, employee_id: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="Auto-generated if empty"
+                  placeholder="e.g., EMP001"
                 />
               </div>
               
@@ -272,7 +345,9 @@ export default function StaffManagement() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Password {editingStaff && <span className="text-gray-400">(leave blank to keep)</span>}
+                  </label>
                   <input
                     type="password"
                     value={formData.password}
@@ -294,7 +369,7 @@ export default function StaffManagement() {
               <button
                 onClick={editingStaff ? handleUpdate : handleAdd}
                 disabled={!formData.name || !formData.username || !formData.pin || (!editingStaff && !formData.password)}
-                className="flex-1 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-lg font-medium"
+                className="flex-1 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingStaff ? 'Update' : 'Add'} Staff
               </button>

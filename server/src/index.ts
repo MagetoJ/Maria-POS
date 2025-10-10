@@ -5,16 +5,31 @@ import jwt from 'jsonwebtoken';
 import http, { IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { authenticateToken, authorizeRoles } from './middleware/auth';
-const config = require('../knexfile');
+import path from 'path';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'a-very-secret-and-secure-key-that-you-should-change';
 
 const app = express();
 const server = http.createServer(app);
 const port = 3001;
-const db = knex(config.default.development);
 
-app.use(cors());
+// Direct database configuration (avoiding knexfile import issues)
+const db = knex({
+  client: 'sqlite3',
+  connection: {
+    filename: path.resolve(__dirname, '../database/pos.sqlite3')
+  },
+  useNullAsDefault: true,
+  migrations: {
+    directory: '../migrations',
+  }
+});
+
+// Updated CORS configuration
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'], // Add your frontend ports
+  credentials: true
+}));
 app.use(express.json());
 
 // --- WebSocket Setup ---
@@ -22,7 +37,6 @@ const wss = new WebSocketServer({ server });
 const kitchenSockets = new Set<WebSocket>();
 
 wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
-    // Simple routing based on URL path
     if (req.url === '/ws/kitchen') {
         console.log('Kitchen display connected');
         kitchenSockets.add(ws);
@@ -45,21 +59,27 @@ function broadcastToKitchens(message: object) {
     });
 }
 
-
 // --- PUBLIC API Endpoints ---
 
 app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
+    console.log('Login attempt for username:', username);
+    
     if (!username || !password) {
       return res.status(400).json({ message: 'Username and password are required' });
     }
+    
     const user = await db('staff').where({ username, is_active: true }).first();
+    console.log('User found:', user ? 'Yes' : 'No');
+    
     if (user && user.password === password) {
       const { password: _, ...userWithoutPassword } = user;
       const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
+      console.log('Login successful for:', username);
       res.json({ user: userWithoutPassword, token });
     } else {
+      console.log('Invalid credentials for:', username);
       res.status(401).json({ message: 'Invalid username or password' });
     }
   } catch (err) {
@@ -87,8 +107,86 @@ app.post('/api/validate-pin', async (req, res) => {
   }
 });
 
-
 // --- PROTECTED API Endpoints ---
+
+// Staff Management
+app.get('/api/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const staff = await db('staff').select('id', 'employee_id', 'username', 'name', 'role', 'pin', 'is_active', 'created_at');
+        res.json(staff);
+    } catch (err) {
+        console.error('Error fetching staff:', err);
+        res.status(500).json({ message: 'Error fetching staff' });
+    }
+});
+
+app.post('/api/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        console.log('Adding staff member:', req.body);
+        const [newStaff] = await db('staff').insert(req.body).returning('*');
+        console.log('Staff member added successfully:', newStaff);
+        res.status(201).json(newStaff);
+    } catch (err) {
+        console.error('Error adding staff member:', err);
+        res.status(500).json({ message: 'Error adding staff member', error: (err as Error).message });
+    }
+});
+
+app.put('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log('Updating staff member:', id, req.body);
+        const [updatedStaff] = await db('staff').where({ id }).update(req.body).returning('*');
+        res.json(updatedStaff);
+    } catch (err) {
+        console.error('Error updating staff member:', err);
+        res.status(500).json({ message: 'Error updating staff member' });
+    }
+});
+
+app.delete('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db('staff').where({ id }).del();
+        res.status(204).send();
+    } catch (err) {
+        console.error('Error deleting staff member:', err);
+        res.status(500).json({ message: 'Error deleting staff member' });
+    }
+});
+
+// Dashboard Overview Stats
+app.get('/api/dashboard/overview-stats', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        
+        const todaysOrders = await db('orders')
+            .where('created_at', '>=', today)
+            .select('*');
+        
+        const todaysRevenue = todaysOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+        const ordersToday = todaysOrders.length;
+        
+        const activeStaff = await db('staff').where({ is_active: true }).count('* as count').first();
+        const lowStock = await db('inventory_items').whereRaw('current_stock <= minimum_stock').count('* as count').first();
+        
+        const recentOrders = await db('orders')
+            .orderBy('created_at', 'desc')
+            .limit(5)
+            .select('id', 'order_number', 'location', 'total_amount', 'created_at');
+        
+        res.json({
+            todaysRevenue,
+            ordersToday,
+            activeStaff: (activeStaff as any)?.count || 0,
+            lowStockItems: (lowStock as any)?.count || 0,
+            recentOrders: recentOrders || []
+        });
+    } catch (err) {
+        console.error('Error fetching overview stats:', err);
+        res.status(500).json({ message: 'Error fetching overview stats' });
+    }
+});
 
 // Order Management
 app.post('/api/orders', authenticateToken, async (req, res) => {
@@ -116,9 +214,7 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
             }
         });
 
-        // Notify kitchen displays of the new order
         broadcastToKitchens({ type: 'new_order' });
-
         res.status(201).json({ message: 'Order created successfully' });
     } catch (err) {
         console.error("Order creation error:", err);
@@ -146,80 +242,77 @@ app.get('/api/orders/kitchen', authenticateToken, async (req, res) => {
     }
 });
 
-
-// Staff Management
-app.get('/api/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
-    try {
-        const staff = await db('staff').select('id', 'employee_id', 'username', 'name', 'role', 'pin', 'is_active', 'created_at');
-        res.json(staff);
-    } catch (err) {
-        res.status(500).json({ message: 'Error fetching staff' });
-    }
-});
-app.post('/api/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
-    try {
-        const [newStaff] = await db('staff').insert(req.body).returning('*');
-        res.status(201).json(newStaff);
-    } catch (err) {
-        res.status(500).json({ message: 'Error adding staff member' });
-    }
-});
-app.put('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
-    try {
-        const { id } = req.params;
-        const [updatedStaff] = await db('staff').where({ id }).update(req.body).returning('*');
-        res.json(updatedStaff);
-    } catch (err) {
-        res.status(500).json({ message: 'Error updating staff member' });
-    }
-});
-app.delete('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
-    try {
-        const { id } = req.params;
-        await db('staff').where({ id }).del();
-        res.status(204).send();
-    } catch (err) {
-        res.status(500).json({ message: 'Error deleting staff member' });
-    }
-});
-
 // Product Management
-app.get('/api/products', async (req, res) => {
-    try {
-        const products = await db('products').orderBy('name', 'asc');
-        res.json(products);
-    } catch (err) {
-        res.status(500).json({ message: 'Error fetching products' });
-    }
-});
+// Replace your POST /api/products endpoint with this version
+
 app.post('/api/products', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
-        const [newProduct] = await db('products').insert(req.body).returning('*');
+        console.log('=== ADD PRODUCT REQUEST ===');
+        console.log('Received product data:', req.body);
+        
+        // Validate required fields
+        if (!req.body.name || !req.body.category_id) {
+            console.log('Validation failed: Name and category_id are required');
+            return res.status(400).json({ message: 'Name and category_id are required' });
+        }
+
+        // Ensure numeric fields are properly typed
+        const productData = {
+            category_id: parseInt(req.body.category_id),
+            name: req.body.name,
+            description: req.body.description || '',
+            price: parseFloat(req.body.price) || 0,
+            cost: parseFloat(req.body.cost) || 0,
+            preparation_time: parseInt(req.body.preparation_time) || 0,
+            image_url: req.body.image_url || '',
+            is_available: req.body.is_available !== undefined ? req.body.is_available : true,
+            is_active: req.body.is_active !== undefined ? req.body.is_active : true
+        };
+
+        console.log('Processed product data:', productData);
+
+        // Check what columns exist in products table
+        const tableInfo = await db.raw("PRAGMA table_info(products)");
+        const existingColumns = tableInfo.map((col: any) => col.name);
+        console.log('Products table columns:', existingColumns);
+
+        // Remove fields that don't exist in the table
+        const filteredData: any = {};
+        for (const key in productData) {
+            if (existingColumns.includes(key)) {
+                filteredData[key] = (productData as any)[key];
+            } else {
+                console.log(`⚠️  Skipping column '${key}' - not in table`);
+            }
+        }
+
+        console.log('Filtered data to insert:', filteredData);
+        console.log('About to insert into database...');
+
+        // For SQLite, insert and retrieve the new record
+        const [insertId] = await db('products').insert(filteredData);
+        console.log('Insert successful! ID:', insertId);
+        
+        const newProduct = await db('products').where({ id: insertId }).first();
+        console.log('Retrieved new product:', newProduct);
+
+        console.log('=== PRODUCT ADDED SUCCESSFULLY ===');
         res.status(201).json(newProduct);
     } catch (err) {
-        res.status(500).json({ message: 'Error adding product' });
+        console.error('=== ERROR ADDING PRODUCT ===');
+        console.error('Error type:', (err as Error).constructor.name);
+        console.error('Error message:', (err as Error).message);
+        console.error('Error stack:', (err as Error).stack);
+        console.error('Full error object:', err);
+        
+        res.status(500).json({ 
+            message: 'Error adding product', 
+            error: (err as Error).message,
+            errorType: (err as Error).constructor.name,
+            details: String(err)
+        });
     }
 });
-app.put('/api/products/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
-    try {
-        const { id } = req.params;
-        const [updatedProduct] = await db('products').where({ id }).update(req.body).returning('*');
-        res.json(updatedProduct);
-    } catch (err) {
-        res.status(500).json({ message: 'Error updating product' });
-    }
-});
-app.delete('/api/products/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
-    try {
-        const { id } = req.params;
-        await db('products').where({ id }).del();
-        res.status(204).send();
-    } catch (err) {
-        res.status(500).json({ message: 'Error deleting product' });
-    }
-});
-
-
 // Category Management
 app.get('/api/categories', async (req, res) => {
     try {
@@ -229,6 +322,7 @@ app.get('/api/categories', async (req, res) => {
         res.status(500).json({ message: 'Error fetching categories' });
     }
 });
+
 app.post('/api/categories', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
         const [newCategory] = await db('categories').insert(req.body).returning('*');
@@ -237,6 +331,7 @@ app.post('/api/categories', authenticateToken, authorizeRoles('admin', 'manager'
         res.status(500).json({ message: 'Error adding category' });
     }
 });
+
 app.put('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
         const { id } = req.params;
@@ -246,6 +341,7 @@ app.put('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'manag
         res.status(500).json({ message: 'Error updating category' });
     }
 });
+
 app.delete('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
         const { id } = req.params;
@@ -257,41 +353,105 @@ app.delete('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'ma
 });
 
 // Inventory Management
+// Replace your inventory endpoints with these fixed versions
+
+// Inventory Management
 app.get('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
         const inventory = await db('inventory_items').select('*').orderBy('name', 'asc');
         res.json(inventory);
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching inventory' });
-    }
-});
-app.post('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
-    try {
-        const [newItem] = await db('inventory_items').insert(req.body).returning('*');
-        res.status(201).json(newItem);
-    } catch (err) {
-        res.status(500).json({ message: 'Error adding inventory item' });
-    }
-});
-app.put('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
-    try {
-        const { id } = req.params;
-        const [updatedItem] = await db('inventory_items').where({ id }).update(req.body).returning('*');
-        res.json(updatedItem);
-    } catch (err) {
-        res.status(500).json({ message: 'Error updating inventory item' });
-    }
-});
-app.delete('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
-    try {
-        const { id } = req.params;
-        await db('inventory_items').where({ id }).del();
-        res.status(204).send();
-    } catch (err) {
-        res.status(500).json({ message: 'Error deleting inventory item' });
+        console.error('Error fetching inventory:', err);
+        res.status(500).json({ message: 'Error fetching inventory', error: (err as Error).message });
     }
 });
 
+app.post('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        // Add timestamp for last_updated
+        const inventoryData = {
+            ...req.body,
+            last_restock_date: new Date().toISOString(),
+            is_active: req.body.is_active !== undefined ? req.body.is_active : true
+        };
+
+        console.log('Adding inventory item:', inventoryData);
+
+        // For SQLite, insert and then query back the record
+        const [insertId] = await db('inventory_items').insert(inventoryData);
+        
+        // Get the inserted record
+        const newItem = await db('inventory_items')
+            .where({ id: insertId })
+            .first();
+
+        console.log('Inventory item added successfully:', newItem);
+        res.status(201).json(newItem);
+    } catch (err) {
+        console.error('Error adding inventory item:', err);
+        res.status(500).json({ 
+            message: 'Error adding inventory item', 
+            error: (err as Error).message 
+        });
+    }
+});
+
+app.put('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Add timestamp for last_updated
+        const updateData = {
+            ...req.body,
+            last_restock_date: new Date().toISOString()
+        };
+
+        console.log('Updating inventory item:', id, updateData);
+
+        // Update the record
+        await db('inventory_items').where({ id }).update(updateData);
+        
+        // Get the updated record
+        const updatedItem = await db('inventory_items')
+            .where({ id })
+            .first();
+
+        if (!updatedItem) {
+            return res.status(404).json({ message: 'Inventory item not found' });
+        }
+
+        console.log('Inventory item updated successfully:', updatedItem);
+        res.json(updatedItem);
+    } catch (err) {
+        console.error('Error updating inventory item:', err);
+        res.status(500).json({ 
+            message: 'Error updating inventory item',
+            error: (err as Error).message
+        });
+    }
+});
+
+app.delete('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log('Deleting inventory item:', id);
+        
+        const deleted = await db('inventory_items').where({ id }).del();
+        
+        if (deleted === 0) {
+            return res.status(404).json({ message: 'Inventory item not found' });
+        }
+
+        console.log('Inventory item deleted successfully');
+        res.status(204).send();
+    } catch (err) {
+        console.error('Error deleting inventory item:', err);
+        res.status(500).json({ 
+            message: 'Error deleting inventory item',
+            error: (err as Error).message
+        });
+    }
+});
 // Room and Table Management
 app.get('/api/rooms', authenticateToken, async (req, res) => {
     try {
@@ -330,7 +490,6 @@ app.delete('/api/rooms/:id', authenticateToken, authorizeRoles('admin', 'manager
         res.status(500).json({ message: 'Error deleting room' });
     }
 });
-
 
 app.get('/api/tables', authenticateToken, async (req, res) => {
     try {
@@ -584,10 +743,149 @@ app.get('/api/reports/:reportType', authenticateToken, authorizeRoles('admin', '
         res.status(500).json({ message: 'Error generating report' });
     }
 });
+// Add these endpoints to your index.ts file (before the "Start Server" section)
 
+// Check current table structure
+app.get('/api/debug/check-inventory-table', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+    try {
+        const tableInfo = await db.raw("PRAGMA table_info(inventory_items)");
+        const sampleData = await db('inventory_items').limit(3);
+        
+        res.json({
+            message: 'Table structure retrieved',
+            columns: tableInfo,
+            sampleData: sampleData,
+            columnNames: tableInfo.map((col: any) => col.name)
+        });
+    } catch (err) {
+        res.status(500).json({ 
+            message: 'Error checking table',
+            error: (err as Error).message 
+        });
+    }
+});
 
+// Fix the inventory table by adding missing columns
+app.get('/api/debug/fix-inventory-table', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+    try {
+        const results: string[] = [];
+        
+        // Check which columns exist
+        const tableInfo = await db.raw("PRAGMA table_info(inventory_items)");
+        const existingColumns = tableInfo.map((col: any) => col.name);
+        
+        results.push(`Existing columns: ${existingColumns.join(', ')}`);
+        
+        // Add missing columns one by one
+        const columnsToAdd = [
+            { name: 'inventory_type', sql: 'ALTER TABLE inventory_items ADD COLUMN inventory_type TEXT DEFAULT "kitchen"' },
+            { name: 'is_active', sql: 'ALTER TABLE inventory_items ADD COLUMN is_active INTEGER DEFAULT 1' },
+            { name: 'last_restock_date', sql: 'ALTER TABLE inventory_items ADD COLUMN last_restock_date TEXT DEFAULT CURRENT_TIMESTAMP' }
+        ];
+        
+        for (const col of columnsToAdd) {
+            if (!existingColumns.includes(col.name)) {
+                try {
+                    await db.raw(col.sql);
+                    results.push(`✓ Added column: ${col.name}`);
+                } catch (err) {
+                    results.push(`✗ Failed to add ${col.name}: ${(err as Error).message}`);
+                }
+            } else {
+                results.push(`- Column ${col.name} already exists`);
+            }
+        }
+        
+        // Update existing rows to have default values
+        await db('inventory_items')
+            .whereNull('inventory_type')
+            .update({ inventory_type: 'kitchen' });
+        
+        await db('inventory_items')
+            .whereNull('is_active')
+            .update({ is_active: 1 });
+            
+        results.push('✓ Updated existing rows with default values');
+        
+        res.json({ 
+            message: 'Table fix completed',
+            results: results 
+        });
+    } catch (err) {
+        res.status(500).json({ 
+            message: 'Error fixing table',
+            error: (err as Error).message,
+            stack: (err as Error).stack
+        });
+    }
+});
+
+// Recreate the entire table (WARNING: Deletes all data!)
+app.get('/api/debug/recreate-inventory-table', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+    try {
+        // Backup existing data
+        const backupData = await db('inventory_items').select('*');
+        
+        await db.raw('DROP TABLE IF EXISTS inventory_items');
+        
+        await db.raw(`
+            CREATE TABLE inventory_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                unit TEXT NOT NULL,
+                current_stock INTEGER DEFAULT 0,
+                minimum_stock INTEGER DEFAULT 0,
+                cost_per_unit REAL DEFAULT 0,
+                supplier TEXT NOT NULL,
+                inventory_type TEXT DEFAULT 'kitchen',
+                is_active INTEGER DEFAULT 1,
+                last_restock_date TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        res.json({ 
+            message: 'Table recreated successfully!',
+            note: 'All data was deleted',
+            backupRowCount: backupData.length
+        });
+    } catch (err) {
+        res.status(500).json({ 
+            message: 'Error recreating table',
+            error: (err as Error).message 
+        });
+    }
+});
+// Add this temporary endpoint to check products table structure (NO AUTH)
+
+app.get('/api/verify-products-table', async (req, res) => {
+    try {
+        const tableInfo = await db.raw("PRAGMA table_info(products)");
+        const sampleProducts = await db('products').limit(3);
+        
+        res.json({
+            success: true,
+            columns: tableInfo.map((col: any) => ({
+                name: col.name,
+                type: col.type,
+                notNull: col.notnull,
+                defaultValue: col.dflt_value
+            })),
+            sampleData: sampleProducts,
+            requiredColumns: {
+                has_is_active: tableInfo.some((col: any) => col.name === 'is_active'),
+                has_cost: tableInfo.some((col: any) => col.name === 'cost'),
+                has_is_available: tableInfo.some((col: any) => col.name === 'is_available'),
+                has_preparation_time: tableInfo.some((col: any) => col.name === 'preparation_time')
+            }
+        });
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            error: (err as Error).message
+        });
+    }
+});
 // --- Start Server ---
 server.listen(port, () => {
   console.log(`🚀 Backend server is running at http://localhost:${port}`);
 });
-

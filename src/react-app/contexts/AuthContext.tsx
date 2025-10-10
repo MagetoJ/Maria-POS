@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+// API Base URL - change this to match your backend port
+const API_BASE_URL = 'http://localhost:3001';
+
 export interface User {
   id: number;
   employee_id: string;
@@ -36,7 +39,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      const response = await fetch('/api/login', {
+      console.log('Attempting login to:', `${API_BASE_URL}/api/login`);
+      
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -44,23 +49,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ username, password }),
       });
 
+      console.log('Login response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Login failed:', errorData.message);
-        setIsLoading(false); 
         return { success: false, message: errorData.message || 'Invalid credentials' };
       }
 
       const { user: foundUser, token } = await response.json();
+      console.log('Login successful:', foundUser.username);
+      
       setUser(foundUser);
       localStorage.setItem('pos_user', JSON.stringify(foundUser));
-      localStorage.setItem('pos_token', token); // Store the token
+      localStorage.setItem('pos_token', token);
       return { success: true };
 
     } catch (error) {
       console.error('Login API call failed:', error);
-      setIsLoading(false);
-      return { success: false, message: 'Could not connect to the server.' };
+      return { success: false, message: 'Could not connect to the server. Make sure the backend is running on port 3001.' };
     } finally {
       setIsLoading(false);
     }
@@ -68,7 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const validateStaffPin = async (employeeId: string, pin: string): Promise<User | null> => {
     try {
-      const response = await fetch('/api/validate-pin', {
+      const response = await fetch(`${API_BASE_URL}/api/validate-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employeeId, pin }),
@@ -89,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setUser(null);
     localStorage.removeItem('pos_user');
-    localStorage.removeItem('pos_token'); // Also remove token
+    localStorage.removeItem('pos_token');
   };
 
   return (
