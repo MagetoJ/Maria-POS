@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/react-app/contexts/AuthContext';
-import Header from '@/react-app/components/Header';
-import { formatCurrency } from '@/react-app/data/mockData';
+import { useAuth } from '../contexts/AuthContext';
+import Header from '../components/Header';
+import { formatCurrency } from '../data/mockData';
 import {
   Bed,
   CheckCircle,
@@ -11,7 +11,7 @@ import {
   Loader2,
   AlertTriangle
 } from 'lucide-react';
-import { Room } from '@/react-app/contexts/POSContext';
+import { Room } from '../contexts/POSContext';
 
 interface MaintenanceRequest {
   id: number;

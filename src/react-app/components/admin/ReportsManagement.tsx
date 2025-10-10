@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle } from 'lucide-react';
-import { formatCurrency } from '@/react-app/data/mockData';
+import { formatCurrency } from '../../data/mockData';
 
 // --- Interfaces for different report data structures ---
 

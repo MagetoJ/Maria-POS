@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { usePOS, Product, Category } from '@/react-app/contexts/POSContext';
-import { formatCurrency } from '@/react-app/data/mockData';
+import { usePOS, Product, Category } from '../contexts/POSContext';
+import { formatCurrency } from '../data/mockData';
 import { Plus, Clock } from 'lucide-react';
-import { getApiUrl } from '@/config/api';
+import { getApiUrl } from '../config/api';
 
 export default function MenuGrid() {
   const { addItemToOrder } = usePOS();

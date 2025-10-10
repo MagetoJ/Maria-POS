@@ -1,12 +1,14 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Root font */
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
 
+/* Base layer */
 @layer base {
-  /* Ensure viewport meta tag works properly */
   html {
     -webkit-text-size-adjust: 100%;
     -ms-text-size-adjust: 100%;
@@ -31,6 +33,7 @@
   }
 }
 
+/* Components layer */
 @layer components {
   /* Mobile-first responsive grid */
   .responsive-grid {
@@ -48,5 +51,15 @@
   .card-mobile {
     @apply rounded-lg shadow-md p-4;
     @apply touch:p-6 touch:rounded-xl;
+  }
+}
+
+/* Utilities layer: define custom touch classes */
+@layer utilities {
+  .min-h-touch {
+    min-height: theme('minHeight.touch');
+  }
+  .min-w-touch {
+    min-width: theme('minWidth.touch');
   }
 }

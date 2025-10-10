@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Bed, Plus, Edit3, Trash2, User, DollarSign, Calendar } from 'lucide-react';
-import { formatCurrency } from '@/react-app/data/mockData';
+import { formatCurrency } from '@/data/mockData';
 
 // This interface is more detailed than the backend, but we'll use it for the frontend
 // and only send the data the backend expects.

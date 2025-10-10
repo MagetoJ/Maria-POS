@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UtensilsCrossed, Plus, Edit3, Trash2 } from 'lucide-react';
-import { formatCurrency } from '@/react-app/data/mockData'; // Keeping this for currency formatting
+import { formatCurrency } from '@/data/mockData'; // Keeping this for currency formatting
 
 // Define interfaces to match backend schema
 interface Product {

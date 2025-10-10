@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { useAuth } from '@/react-app/contexts/AuthContext';
-import Header from '@/react-app/components/Header';
-import OrderPanel from '@/react-app/components/OrderPanel';
-import MenuGrid from '@/react-app/components/MenuGrid';
-import TableLayout from '@/react-app/components/TableLayout';
-import RoomView from '@/react-app/components/RoomView';
-import QuickPOSHeader from '@/react-app/components/QuickPOSHeader';
-import DeliveryManagement from '@/react-app/components/DeliveryManagement';
+import { useAuth } from '../contexts/AuthContext';
+import Header from '../components/Header';
+import OrderPanel from '../components/OrderPanel';
+import MenuGrid from '../components/MenuGrid';
+import TableLayout from '../components/TableLayout';
+import RoomView from '../components/RoomView';
+import QuickPOSHeader from '../components/QuickPOSHeader';
+import DeliveryManagement from '../components/DeliveryManagement';
 import { UtensilsCrossed, Building, Home, Settings } from 'lucide-react';
 
 interface POSProps {

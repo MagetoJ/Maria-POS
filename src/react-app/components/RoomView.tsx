@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { usePOS, Room } from '@/react-app/contexts/POSContext';
-import { formatCurrency } from '@/react-app/data/mockData';
+import { usePOS, Room } from '../contexts/POSContext';
+import { formatCurrency } from '../data/mockData';
 import { Bed, User, Calendar, DollarSign } from 'lucide-react';
 
 export default function RoomView() {

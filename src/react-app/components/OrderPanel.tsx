@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { usePOS } from '@/react-app/contexts/POSContext';
-import { useAuth } from '@/react-app/contexts/AuthContext';
-import { formatCurrency } from '@/react-app/data/mockData';
+import { usePOS } from '../contexts/POSContext';
+import { useAuth } from '../contexts/AuthContext';
+import { formatCurrency } from '../data/mockData';
 import { Plus, Minus, Trash2, Receipt, CreditCard, Banknote, Smartphone, Building, Loader2, User } from 'lucide-react';
 
 interface OrderPanelProps {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User as UserIcon, Plus, Edit3, Trash2 } from 'lucide-react';
-import { User } from '@/react-app/contexts/AuthContext';
+import { User } from '../../contexts/AuthContext';
 
 // API Base URL - should match your backend
 const API_BASE_URL = 'http://localhost:3001';

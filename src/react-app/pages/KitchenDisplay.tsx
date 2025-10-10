@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Header from '@/react-app/components/Header';
+import Header from '@/components/Header';
 import { Clock, CheckCircle, ChefHat } from 'lucide-react';
 import { getApiUrl } from '@/config/api';
 

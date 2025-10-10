@@ -1,4 +1,4 @@
-import { Category, Product, Table, Room } from '@/react-app/contexts/POSContext';
+import { Category, Product, Table, Room } from '../contexts/POSContext';
 
 export const mockCategories: Category[] = [
   { id: 1, name: 'Appetizers', description: 'Start your meal right', is_active: true },

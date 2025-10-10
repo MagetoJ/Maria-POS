@@ -1,6 +1,6 @@
-// src/react-app/components/TableLayout.tsx
+// src/react-app/@/components/TableLayout.tsx
 import { useState, useEffect } from 'react';
-import { usePOS, Table } from '@/react-app/contexts/POSContext';
+import { usePOS, Table } from '../contexts/POSContext';
 import { Users } from 'lucide-react';
 
 export default function TableLayout() {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Phone, MapPin, Package } from 'lucide-react';
-import { formatCurrency } from '@/react-app/data/mockData';
+import { formatCurrency } from '../data/mockData';
 
 interface DeliveryItem {
     quantity: number;

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/react-app/contexts/AuthContext';
-import Header from '@/react-app/components/Header';
-import StaffManagement from '@/react-app/components/admin/StaffManagement';
-import InventoryManagement from '@/react-app/components/admin/InventoryManagement';
-import MenuManagement from '@/react-app/components/admin/MenuManagement';
-import RoomManagement from '@/react-app/components/admin/RoomManagement';
-import ReportsManagement from '@/react-app/components/admin/ReportsManagement';
-import SettingsManagement from '@/react-app/components/admin/SettingsManagement';
+import { useAuth } from '../contexts/AuthContext';
+import Header from '../components/Header';
+import StaffManagement from '../components/admin/StaffManagement';
+import InventoryManagement from '../components/admin/InventoryManagement';
+import MenuManagement from '../components/admin/MenuManagement';
+import RoomManagement from '../components/admin/RoomManagement';
+import ReportsManagement from '../components/admin/ReportsManagement';
+import SettingsManagement from '../components/admin/SettingsManagement';
 import { 
   BarChart3, 
   Users, 
@@ -19,7 +19,7 @@ import {
   DollarSign,
   Loader2
 } from 'lucide-react';
-import { formatCurrency } from '@/react-app/data/mockData';
+import { formatCurrency } from '../data/mockData';
 
 // API Base URL
 const API_BASE_URL = 'http://localhost:3001';
