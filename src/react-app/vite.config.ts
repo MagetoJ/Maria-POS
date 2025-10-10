@@ -4,9 +4,11 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  base: '/', // Add this - important for asset paths!
   build: {
-    outDir: 'dist',  // Change from ../../dist to just dist
-    emptyOutDir: true
+    outDir: 'dist',
+    emptyOutDir: true,
+    assetsDir: 'assets'
   },
   resolve: {
     alias: {

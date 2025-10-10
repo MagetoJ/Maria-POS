@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getApiUrl } from '../config/api';
+
+// Get API URL from environment variable or use localhost for development
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export interface User {
   id: number;
@@ -34,12 +36,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
+    console.log('Submitting login form...');
     setIsLoading(true);
     
     try {
-      console.log('Attempting login to:', getApiUrl('/api/login'));
+      const loginUrl = `${API_URL}/api/login`;
+      console.log('Attempting login to:', loginUrl);
       
-      const response = await fetch(getApiUrl('/api/login'), {
+      const response = await fetch(loginUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -65,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     } catch (error) {
       console.error('Login API call failed:', error);
-      return { success: false, message: 'Could not connect to the server. Make sure the backend is running on port 3001.' };
+      return { success: false, message: 'Could not connect to the server. Please check your internet connection.' };
     } finally {
       setIsLoading(false);
     }
@@ -73,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const validateStaffPin = async (employeeId: string, pin: string): Promise<User | null> => {
     try {
-      const response = await fetch(getApiUrl('/api/validate-pin'), {
+      const response = await fetch(`${API_URL}/api/validate-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employeeId, pin }),

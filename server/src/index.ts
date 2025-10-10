@@ -8,47 +8,36 @@ import { authenticateToken, authorizeRoles } from './middleware/auth';
 import path from 'path';
 import dotenv from 'dotenv';
 
-// Load environment variables
+// --- Initialization ---
 dotenv.config();
+const app = express();
+const server = http.createServer(app);
+const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'a-very-secret-and-secure-key-that-you-should-change';
 
-const app = express();
-const server = http.createServer(app);
-const port = process.env.PORT || 3001;
-
-// Database configuration for production
+// --- Database Configuration ---
 const databasePath = process.env.DATABASE_PATH || path.resolve(__dirname, '../database/pos.sqlite3');
 const db = knex({
   client: 'sqlite3',
-  connection: {
-    filename: databasePath
-  },
+  connection: { filename: databasePath },
   useNullAsDefault: true,
-  migrations: {
-    directory: path.resolve(__dirname, '../migrations'),
-  },
-  pool: {
-    afterCreate: (conn: any, done: any) => {
-      conn.run('PRAGMA foreign_keys = ON', done);
-    }
-  }
+  migrations: { directory: path.resolve(__dirname, '../migrations') },
 });
 
-// Updated CORS configuration
-const allowedOrigins = [
-  'http://localhost:5173', 
-  'http://localhost:3000', 
-  'http://localhost:5174',
-  'https://maria-pos.com',
-  'https://maria-pos.onrender.com',
-  process.env.FRONTEND_URL || 'https://pos-mocha-frontend.onrender.com'
-];
-
+// --- CORS Configuration ---
 app.use(cors({
-  origin: allowedOrigins,
-  credentials: true
+  origin: [
+    'https://maria-havens-pos-frontend.onrender.com',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:5174',
+  ],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['POST', 'GET', 'PUT', 'DELETE', 'OPTIONS'],
 }));
+
 app.use(express.json());
 
 // --- WebSocket Setup ---
@@ -80,9 +69,8 @@ function broadcastToKitchens(message: object) {
 
 // --- PUBLIC API Endpoints ---
 
-// Health check endpoint for Render
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
 app.post('/api/login', async (req, res) => {
@@ -267,20 +255,16 @@ app.get('/api/orders/kitchen', authenticateToken, async (req, res) => {
 });
 
 // Product Management
-// Replace your POST /api/products endpoint with this version
-
 app.post('/api/products', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
         console.log('=== ADD PRODUCT REQUEST ===');
         console.log('Received product data:', req.body);
         
-        // Validate required fields
         if (!req.body.name || !req.body.category_id) {
             console.log('Validation failed: Name and category_id are required');
             return res.status(400).json({ message: 'Name and category_id are required' });
         }
 
-        // Ensure numeric fields are properly typed
         const productData = {
             category_id: parseInt(req.body.category_id),
             name: req.body.name,
@@ -293,50 +277,30 @@ app.post('/api/products', authenticateToken, authorizeRoles('admin', 'manager'),
             is_active: req.body.is_active !== undefined ? req.body.is_active : true
         };
 
-        console.log('Processed product data:', productData);
-
-        // Check what columns exist in products table
         const tableInfo = await db.raw("PRAGMA table_info(products)");
         const existingColumns = tableInfo.map((col: any) => col.name);
-        console.log('Products table columns:', existingColumns);
 
-        // Remove fields that don't exist in the table
         const filteredData: any = {};
         for (const key in productData) {
             if (existingColumns.includes(key)) {
                 filteredData[key] = (productData as any)[key];
-            } else {
-                console.log(`⚠️  Skipping column '${key}' - not in table`);
             }
         }
 
-        console.log('Filtered data to insert:', filteredData);
-        console.log('About to insert into database...');
-
-        // For SQLite, insert and retrieve the new record
         const [insertId] = await db('products').insert(filteredData);
-        console.log('Insert successful! ID:', insertId);
-        
         const newProduct = await db('products').where({ id: insertId }).first();
-        console.log('Retrieved new product:', newProduct);
 
         console.log('=== PRODUCT ADDED SUCCESSFULLY ===');
         res.status(201).json(newProduct);
     } catch (err) {
-        console.error('=== ERROR ADDING PRODUCT ===');
-        console.error('Error type:', (err as Error).constructor.name);
-        console.error('Error message:', (err as Error).message);
-        console.error('Error stack:', (err as Error).stack);
-        console.error('Full error object:', err);
-        
+        console.error('=== ERROR ADDING PRODUCT ===', err);
         res.status(500).json({ 
             message: 'Error adding product', 
-            error: (err as Error).message,
-            errorType: (err as Error).constructor.name,
-            details: String(err)
+            error: (err as Error).message
         });
     }
 });
+
 app.get('/api/products', async (req, res) => {
     try {
         const products = await db('products')
@@ -352,6 +316,7 @@ app.get('/api/products', async (req, res) => {
         });
     }
 });
+
 // Category Management
 app.get('/api/categories', async (req, res) => {
     try {
@@ -392,9 +357,6 @@ app.delete('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'ma
 });
 
 // Inventory Management
-// Replace your inventory endpoints with these fixed versions
-
-// Inventory Management
 app.get('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
         const inventory = await db('inventory_items').select('*').orderBy('name', 'asc');
@@ -407,24 +369,15 @@ app.get('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'),
 
 app.post('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
-        // Add timestamp for last_updated
         const inventoryData = {
             ...req.body,
             last_restock_date: new Date().toISOString(),
             is_active: req.body.is_active !== undefined ? req.body.is_active : true
         };
 
-        console.log('Adding inventory item:', inventoryData);
-
-        // For SQLite, insert and then query back the record
         const [insertId] = await db('inventory_items').insert(inventoryData);
-        
-        // Get the inserted record
-        const newItem = await db('inventory_items')
-            .where({ id: insertId })
-            .first();
+        const newItem = await db('inventory_items').where({ id: insertId }).first();
 
-        console.log('Inventory item added successfully:', newItem);
         res.status(201).json(newItem);
     } catch (err) {
         console.error('Error adding inventory item:', err);
@@ -438,28 +391,18 @@ app.post('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager')
 app.put('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
         const { id } = req.params;
-        
-        // Add timestamp for last_updated
         const updateData = {
             ...req.body,
             last_restock_date: new Date().toISOString()
         };
 
-        console.log('Updating inventory item:', id, updateData);
-
-        // Update the record
         await db('inventory_items').where({ id }).update(updateData);
-        
-        // Get the updated record
-        const updatedItem = await db('inventory_items')
-            .where({ id })
-            .first();
+        const updatedItem = await db('inventory_items').where({ id }).first();
 
         if (!updatedItem) {
             return res.status(404).json({ message: 'Inventory item not found' });
         }
 
-        console.log('Inventory item updated successfully:', updatedItem);
         res.json(updatedItem);
     } catch (err) {
         console.error('Error updating inventory item:', err);
@@ -473,15 +416,12 @@ app.put('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manage
 app.delete('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
         const { id } = req.params;
-        console.log('Deleting inventory item:', id);
-        
         const deleted = await db('inventory_items').where({ id }).del();
         
         if (deleted === 0) {
             return res.status(404).json({ message: 'Inventory item not found' });
         }
 
-        console.log('Inventory item deleted successfully');
         res.status(204).send();
     } catch (err) {
         console.error('Error deleting inventory item:', err);
@@ -491,6 +431,7 @@ app.delete('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'man
         });
     }
 });
+
 // Room and Table Management
 app.get('/api/rooms', authenticateToken, async (req, res) => {
     try {
@@ -567,7 +508,8 @@ app.delete('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manage
         res.status(500).json({ message: 'Error deleting table' });
     }
 });
-// --- Maintenance Management ---
+
+// Maintenance Management
 app.get('/api/maintenance-requests', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping'), async (req, res) => {
     try {
         const requests = await db('maintenance_requests').select('*').whereNot('status', 'completed').orderBy('reported_at', 'desc');
@@ -585,7 +527,7 @@ app.post('/api/maintenance-requests', authenticateToken, authorizeRoles('admin',
         res.status(500).json({ message: 'Error creating maintenance request' });
     }
 });
-// --- Maintenance Request Management ---
+
 app.put('/api/maintenance-requests/:id', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping'), async (req, res) => {
     try {
         const { id } = req.params;
@@ -595,7 +537,8 @@ app.put('/api/maintenance-requests/:id', authenticateToken, authorizeRoles('admi
         res.status(500).json({ message: 'Error updating maintenance request' });
     }
 });
-// --- Delivery Management ---
+
+// Delivery Management
 app.get('/api/deliveries', authenticateToken, authorizeRoles('admin', 'manager', 'delivery'), async (req, res) => {
     try {
         const activeDeliveries = await db('orders')
@@ -642,15 +585,15 @@ app.put('/api/deliveries/:orderId/status', authenticateToken, authorizeRoles('ad
         res.status(500).json({ message: 'Error updating delivery status' });
     }
 });
-// --- Settings Management ---
+
+// Settings Management
 app.get('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
         const settingsArray = await db('settings').select('*');
-        // Convert array to a key-value object
         const settingsObject = settingsArray.reduce((acc, setting) => {
             acc[setting.key] = setting.value;
             return acc;
-        }, {});
+        }, {} as Record<string, string>);
         res.json(settingsObject);
     } catch (err) {
         console.error("Error fetching settings:", err);
@@ -659,7 +602,7 @@ app.get('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), 
 });
 
 app.put('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
-    const settings = req.body; // Expects an object like { business_name: 'New Name', ... }
+    const settings = req.body;
     try {
         await db.transaction(async trx => {
             for (const key in settings) {
@@ -674,6 +617,7 @@ app.put('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), 
         res.status(500).json({ message: 'Error updating settings' });
     }
 });
+
 // --- Reporting Endpoints ---
 app.get('/api/reports/overview', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
@@ -682,12 +626,28 @@ app.get('/api/reports/overview', authenticateToken, authorizeRoles('admin', 'man
             return res.status(400).json({ message: 'Start and end date queries are required.' });
         }
         
-        const query = db('orders').whereBetween('created_at', [start, end]);
+        console.log(`Generating overview report for ${start} to ${end}`);
+        
+        const sales = await db('orders')
+            .whereBetween('created_at', [start, end])
+            .sum('total_amount as total')
+            .first();
 
-        const sales = await query.clone().sum('total_amount as total').first();
-        const orders = await query.clone().count('id as total').first();
-        const completedOrders = await query.clone().where('status', 'completed').count('id as total').first();
-        const avgOrderValue = await query.clone().avg('total_amount as avg').first();
+        const ordersTotal = await db('orders')
+            .whereBetween('created_at', [start, end])
+            .count('id as total')
+            .first();
+
+        const completedOrders = await db('orders')
+            .whereBetween('created_at', [start, end])
+            .where('status', 'completed')
+            .count('id as total')
+            .first();
+
+        const avgOrderValue = await db('orders')
+            .whereBetween('created_at', [start, end])
+            .avg('total_amount as avg')
+            .first();
 
         const topSellingItems = await db('order_items')
             .join('products', 'order_items.product_id', 'products.id')
@@ -696,7 +656,7 @@ app.get('/api/reports/overview', authenticateToken, authorizeRoles('admin', 'man
             .select('products.name')
             .sum('order_items.quantity as quantity')
             .sum('order_items.total_price as revenue')
-            .groupBy('products.name')
+            .groupBy('products.name', 'products.id')
             .orderBy('revenue', 'desc')
             .limit(5);
 
@@ -706,227 +666,211 @@ app.get('/api/reports/overview', authenticateToken, authorizeRoles('admin', 'man
             .select('staff.name')
             .count('orders.id as orders')
             .sum('orders.total_amount as revenue')
-            .groupBy('staff.name')
+            .groupBy('staff.name', 'staff.id')
             .orderBy('revenue', 'desc')
             .limit(4);
 
-        res.json({
-            sales: { monthly: (sales as any)?.total || 0 },
-            orders: {
-                total: (orders as any)?.total || 0,
-                completed: (completedOrders as any)?.total || 0,
-                averageValue: (avgOrderValue as any)?.avg || 0,
+        const result = {
+            sales: { 
+                monthly: parseFloat((sales as any)?.total || 0) 
             },
-            inventory: { topSellingItems },
-            staff: { topPerformers }
-        });
+            orders: {
+                total: parseInt((ordersTotal as any)?.total || 0),
+                completed: parseInt((completedOrders as any)?.total || 0),
+                averageValue: parseFloat((avgOrderValue as any)?.avg || 0)
+            },
+            inventory: { 
+                topSellingItems: topSellingItems.map(item => ({
+                    name: item.name,
+                    quantity: parseInt(item.quantity),
+                    revenue: parseFloat(item.revenue)
+                }))
+            },
+            staff: { 
+                topPerformers: topPerformers.map(staff => ({
+                    name: staff.name,
+                    orders: parseInt(staff.orders),
+                    revenue: parseFloat(staff.revenue)
+                }))
+            }
+        };
+
+        res.json(result);
     } catch (err) {
-        console.error("Report generation error:", err);
-        res.status(500).json({ message: 'Error generating report' });
+        console.error("Overview report error:", err);
+        res.status(500).json({ 
+            message: 'Error generating overview report',
+            error: (err as Error).message 
+        });
     }
 });
 
-app.get('/api/reports/:reportType', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/reports/sales', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
-        const { reportType } = req.params;
         const { start, end } = req.query;
-
         if (typeof start !== 'string' || typeof end !== 'string') {
             return res.status(400).json({ message: 'Start and end date queries are required.' });
         }
 
-        let data;
+        const salesByDay = await db('orders')
+            .whereBetween('created_at', [start, end])
+            .select(db.raw("DATE(created_at) as date"))
+            .sum('total_amount as total')
+            .groupBy(db.raw("DATE(created_at)"))
+            .orderBy('date', 'asc');
 
-        switch (reportType) {
-            case 'sales':
-                const salesByDay = await db('orders')
-                    .whereBetween('created_at', [start, end])
-                    .select(db.raw("strftime('%Y-%m-%d', created_at) as date"))
-                    .sum('total_amount as total')
-                    .groupBy('date')
-                    .orderBy('date');
-                data = { salesByDay };
-                break;
-            case 'inventory':
-                 const lowStockItems = await db('inventory_items')
-                    .whereRaw('current_stock <= minimum_stock')
-                    .select('*');
-                 const totalValue = await db('inventory_items').sum(db.raw('current_stock * cost_per_unit as total')).first();
-                 data = { lowStockItems, totalValue: (totalValue as any)?.total || 0 };
-                break;
-            case 'staff':
-                data = await db('orders')
-                    .join('staff', 'orders.staff_id', 'staff.id')
-                    .whereBetween('orders.created_at', [start, end])
-                    .select('staff.name', 'staff.role')
-                    .count('orders.id as orders')
-                    .sum('orders.total_amount as revenue')
-                    .avg('orders.total_amount as avgOrderValue')
-                    .groupBy('staff.name', 'staff.role')
-                    .orderBy('revenue', 'desc');
-                break;
-            case 'rooms':
-                const roomRevenue = await db('orders')
-                    .where('order_type', 'room_service')
-                    .whereBetween('created_at', [start, end])
-                    .sum('total_amount as total').first();
-                const roomStatusCounts = await db('rooms').select('status').count('id as count').groupBy('status');
-                data = { roomRevenue: (roomRevenue as any)?.total || 0, roomStatusCounts };
-                break;
-            default:
-                return res.status(404).json({ message: 'Report type not found' });
-        }
-        res.json(data);
-    } catch (err) {
-        console.error(`Error generating ${req.params.reportType} report:`, err);
-        res.status(500).json({ message: 'Error generating report' });
-    }
-});
-// Add these endpoints to your index.ts file (before the "Start Server" section)
+        const result = {
+            salesByDay: salesByDay.map(day => ({
+                date: day.date,
+                total: parseFloat(day.total || 0)
+            }))
+        };
 
-// Check current table structure
-app.get('/api/debug/check-inventory-table', authenticateToken, authorizeRoles('admin'), async (req, res) => {
-    try {
-        const tableInfo = await db.raw("PRAGMA table_info(inventory_items)");
-        const sampleData = await db('inventory_items').limit(3);
-        
-        res.json({
-            message: 'Table structure retrieved',
-            columns: tableInfo,
-            sampleData: sampleData,
-            columnNames: tableInfo.map((col: any) => col.name)
-        });
+        res.json(result);
     } catch (err) {
+        console.error("Sales report error:", err);
         res.status(500).json({ 
-            message: 'Error checking table',
+            message: 'Error generating sales report',
             error: (err as Error).message 
         });
     }
 });
 
-// Fix the inventory table by adding missing columns
-app.get('/api/debug/fix-inventory-table', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+app.get('/api/reports/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
-        const results: string[] = [];
-        
-        // Check which columns exist
-        const tableInfo = await db.raw("PRAGMA table_info(inventory_items)");
-        const existingColumns = tableInfo.map((col: any) => col.name);
-        
-        results.push(`Existing columns: ${existingColumns.join(', ')}`);
-        
-        // Add missing columns one by one
-        const columnsToAdd = [
-            { name: 'inventory_type', sql: 'ALTER TABLE inventory_items ADD COLUMN inventory_type TEXT DEFAULT "kitchen"' },
-            { name: 'is_active', sql: 'ALTER TABLE inventory_items ADD COLUMN is_active INTEGER DEFAULT 1' },
-            { name: 'last_restock_date', sql: 'ALTER TABLE inventory_items ADD COLUMN last_restock_date TEXT DEFAULT CURRENT_TIMESTAMP' }
-        ];
-        
-        for (const col of columnsToAdd) {
-            if (!existingColumns.includes(col.name)) {
-                try {
-                    await db.raw(col.sql);
-                    results.push(`✓ Added column: ${col.name}`);
-                } catch (err) {
-                    results.push(`✗ Failed to add ${col.name}: ${(err as Error).message}`);
-                }
-            } else {
-                results.push(`- Column ${col.name} already exists`);
-            }
-        }
-        
-        // Update existing rows to have default values
-        await db('inventory_items')
-            .whereNull('inventory_type')
-            .update({ inventory_type: 'kitchen' });
-        
-        await db('inventory_items')
-            .whereNull('is_active')
-            .update({ is_active: 1 });
-            
-        results.push('✓ Updated existing rows with default values');
-        
-        res.json({ 
-            message: 'Table fix completed',
-            results: results 
-        });
-    } catch (err) {
-        res.status(500).json({ 
-            message: 'Error fixing table',
-            error: (err as Error).message,
-            stack: (err as Error).stack
-        });
-    }
-});
+        const lowStockItems = await db('inventory_items')
+            .whereRaw('current_stock <= minimum_stock')
+            .where('is_active', 1)
+            .select('id', 'name', 'current_stock', 'minimum_stock')
+            .orderBy('current_stock', 'asc');
 
-// Recreate the entire table (WARNING: Deletes all data!)
-app.get('/api/debug/recreate-inventory-table', authenticateToken, authorizeRoles('admin'), async (req, res) => {
-    try {
-        // Backup existing data
-        const backupData = await db('inventory_items').select('*');
-        
-        await db.raw('DROP TABLE IF EXISTS inventory_items');
-        
-        await db.raw(`
-            CREATE TABLE inventory_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                unit TEXT NOT NULL,
-                current_stock INTEGER DEFAULT 0,
-                minimum_stock INTEGER DEFAULT 0,
-                cost_per_unit REAL DEFAULT 0,
-                supplier TEXT NOT NULL,
-                inventory_type TEXT DEFAULT 'kitchen',
-                is_active INTEGER DEFAULT 1,
-                last_restock_date TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        
-        res.json({ 
-            message: 'Table recreated successfully!',
-            note: 'All data was deleted',
-            backupRowCount: backupData.length
-        });
-    } catch (err) {
-        res.status(500).json({ 
-            message: 'Error recreating table',
-            error: (err as Error).message 
-        });
-    }
-});
-// Add this temporary endpoint to check products table structure (NO AUTH)
+        const totalValueResult = await db('inventory_items')
+            .where('is_active', 1)
+            .select(db.raw('SUM(current_stock * cost_per_unit) as total'))
+            .first();
 
-app.get('/api/verify-products-table', async (req, res) => {
-    try {
-        const tableInfo = await db.raw("PRAGMA table_info(products)");
-        const sampleProducts = await db('products').limit(3);
-        
-        res.json({
-            success: true,
-            columns: tableInfo.map((col: any) => ({
-                name: col.name,
-                type: col.type,
-                notNull: col.notnull,
-                defaultValue: col.dflt_value
+        const result = {
+            lowStockItems: lowStockItems.map(item => ({
+                id: item.id,
+                name: item.name,
+                current_stock: parseInt(item.current_stock || 0),
+                minimum_stock: parseInt(item.minimum_stock || 0)
             })),
-            sampleData: sampleProducts,
-            requiredColumns: {
-                has_is_active: tableInfo.some((col: any) => col.name === 'is_active'),
-                has_cost: tableInfo.some((col: any) => col.name === 'cost'),
-                has_is_available: tableInfo.some((col: any) => col.name === 'is_available'),
-                has_preparation_time: tableInfo.some((col: any) => col.name === 'preparation_time')
-            }
-        });
+            totalValue: parseFloat((totalValueResult as any)?.total || 0)
+        };
+
+        res.json(result);
     } catch (err) {
-        res.status(500).json({
-            success: false,
-            error: (err as Error).message
+        console.error("Inventory report error:", err);
+        res.status(500).json({ 
+            message: 'Error generating inventory report',
+            error: (err as Error).message 
         });
     }
 });
+
+app.get('/api/reports/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { start, end } = req.query;
+        if (typeof start !== 'string' || typeof end !== 'string') {
+            return res.status(400).json({ message: 'Start and end date queries are required.' });
+        }
+
+        const staffPerformance = await db('orders')
+            .join('staff', 'orders.staff_id', 'staff.id')
+            .whereBetween('orders.created_at', [start, end])
+            .select('staff.name', 'staff.role')
+            .count('orders.id as orders')
+            .sum('orders.total_amount as revenue')
+            .avg('orders.total_amount as avgOrderValue')
+            .groupBy('staff.name', 'staff.role', 'staff.id')
+            .orderBy('revenue', 'desc');
+
+        const result = staffPerformance.map(staff => ({
+            name: staff.name,
+            role: staff.role,
+            orders: parseInt(staff.orders || 0),
+            revenue: parseFloat(staff.revenue || 0),
+            avgOrderValue: parseFloat(staff.avgOrderValue || 0)
+        }));
+
+        res.json(result);
+    } catch (err) {
+        console.error("Staff report error:", err);
+        res.status(500).json({ 
+            message: 'Error generating staff report',
+            error: (err as Error).message 
+        });
+    }
+});
+
+app.get('/api/reports/rooms', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { start, end } = req.query;
+        if (typeof start !== 'string' || typeof end !== 'string') {
+            return res.status(400).json({ message: 'Start and end date queries are required.' });
+        }
+
+        const roomRevenue = await db('orders')
+            .where('order_type', 'room_service')
+            .whereBetween('created_at', [start, end])
+            .sum('total_amount as total')
+            .first();
+
+        const roomStatusCounts = await db('rooms')
+            .select('status')
+            .count('id as count')
+            .groupBy('status')
+            .orderBy('status', 'asc');
+
+        const result = {
+            roomRevenue: parseFloat((roomRevenue as any)?.total || 0),
+            roomStatusCounts: roomStatusCounts.map(status => ({
+                status: status.status,
+                count: parseInt(status.count || 0)
+            }))
+        };
+
+        res.json(result);
+    } catch (err) {
+        console.error("Room report error:", err);
+        res.status(500).json({ 
+            message: 'Error generating room report',
+            error: (err as Error).message 
+        });
+    }
+});
+
+// Debug Endpoints
+app.get('/api/debug/reports', async (req, res) => {
+  try {
+    const ordersCount = await db('orders').count('* as count').first();
+    const staffCount = await db('staff').count('* as count').first();
+    const roomsCount = await db('rooms').count('* as count').first();
+    const inventoryCount = await db('inventory_items').count('* as count').first();
+    
+    const sampleOrder = await db('orders').first();
+    const sampleStaff = await db('staff').first();
+    
+    res.json({
+      counts: {
+        orders: ordersCount,
+        staff: staffCount, 
+        rooms: roomsCount,
+        inventory: inventoryCount
+      },
+      samples: {
+        order: sampleOrder,
+        staff: sampleStaff
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 app.get('/api/debug/seed-orders', async (req, res) => {
   try {
-    // Get some data to work with
     const staff = await db('staff').first();
     const products = await db('products').limit(3);
     
@@ -938,11 +882,10 @@ app.get('/api/debug/seed-orders', async (req, res) => {
       return res.status(400).json({ error: 'No products found. Add products first.' });
     }
     
-    // Create 5 sample orders
     const orders = [];
     for (let i = 0; i < 5; i++) {
       const orderDate = new Date();
-      orderDate.setDate(orderDate.getDate() - i); // Spread across last 5 days
+      orderDate.setDate(orderDate.getDate() - i);
       
       const [orderId] = await db('orders').insert({
         order_number: `ORD-${Date.now()}-${i}`,
@@ -956,7 +899,6 @@ app.get('/api/debug/seed-orders', async (req, res) => {
       
       const actualOrderId = typeof orderId === 'number' ? orderId : orderId.id;
       
-      // Add order items
       await db('order_items').insert({
         order_id: actualOrderId,
         product_id: products[0].id,
@@ -976,12 +918,6 @@ app.get('/api/debug/seed-orders', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
-});
-// Serve frontend build (must be after all API routes)
-app.use(express.static(path.join(__dirname, "../../dist/client")));
-
-app.get("*", (_req, res) => {
-  res.sendFile(path.join(__dirname, "../../dist/client/index.html"));
 });
 
 // --- Start Server ---
