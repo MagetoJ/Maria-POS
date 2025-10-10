@@ -1,11 +1,14 @@
 services:
-  - type: web
-    name: maria-pos-frontend
-    env: static
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./dist/client
+  - type: static_site
+    name: maria-havens-pos-frontend
+    env: node
+    buildCommand: npm install && npm run build:frontend
+    staticPublishPath: dist/client
     envVars:
+      - key: NODE_VERSION
+        value: 20.11.1
       - key: VITE_API_URL
-        value: https://api-maria-pos.onrender.com
-    domains:
-      - maria-pos.onrender.com
+        fromService:
+          type: web
+          name: https://mariahavensbackend.onrender.com/ # The name of your backend service on Render
+          envVarKey: URL
