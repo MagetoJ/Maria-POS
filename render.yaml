@@ -15,7 +15,7 @@ services:
       - key: PORT
         value: 10000
       - key: FRONTEND_URL
-        value: https://pos-mocha-frontend.onrender.com
+        value: https://maria-pos-4.onrender.com
     autoDeploy: false
 
   - type: web
