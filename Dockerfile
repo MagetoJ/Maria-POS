@@ -1,39 +1,33 @@
-# Stage 1: Build stage
-FROM node:20-alpine AS build
+# Create this file: Dockerfile (in your root directory)
 
+FROM node:20-alpine as build
+
+# Set working directory
 WORKDIR /app
 
-# Copy package files and install all dependencies (including dev)
+# Copy package files
 COPY package*.json ./
-COPY server/package*.json ./server/
 
+# Install dependencies
 RUN npm install
-RUN cd server && npm install
 
-# Copy source files
+# Copy source code
 COPY . .
 
-# Build frontend and backend
+# Build the frontend
 RUN npm run build
-RUN cd server && npm run build
 
-# Stage 2: Production stage
-FROM node:20-alpine AS production
+# Production stage - serve with nginx
+FROM nginx:alpine
 
-WORKDIR /app
+# Copy built files to nginx
+COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy only necessary files from build stage
-COPY --from=build /app/package*.json ./
-COPY --from=build /app/server ./server
-COPY --from=build /app/dist ./dist
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Install only production dependencies
-RUN npm ci --only=production
-RUN cd server && npm ci --only=production
+# Expose port
+EXPOSE 80
 
-EXPOSE 3001
-ENV NODE_ENV=production
-ENV PORT=3001
-
-# Start server
-CMD ["npm", "start"]
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

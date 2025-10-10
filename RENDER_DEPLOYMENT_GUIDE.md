@@ -8,7 +8,7 @@ This project is configured for deployment on Render using the **Option A: Separa
 root/
   src/
     react-app/       <- Frontend (React + Vite)
-    config/         <- API configuration
+    @/config/         <- API configuration
   server/
     src/            <- Backend (Node.js + Express + TypeScript)
     database/       <- SQLite database
