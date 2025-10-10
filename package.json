@@ -41,7 +41,7 @@
     "dev": "vite",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "npm run preview",
+    "start": "node server/dist/index.js",
     "build:production": "NODE_ENV=production npm run build"
   }
 }
