@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: maria-pos-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist/client
+    envVars:
+      - key: VITE_API_URL
+        value: https://api-maria-pos.onrender.com
+    domains:
+      - maria-pos.onrender.com

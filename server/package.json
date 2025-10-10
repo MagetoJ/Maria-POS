@@ -4,14 +4,11 @@
   "description": "Hotel & Restaurant POS Backend",
   "main": "dist/index.js",
  "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "build:backend": "tsc -p tsconfig.backend.json",
-    "preview": "vite preview",
-    "backend": "ts-node src/backend/index.ts",
-    "backend:dev": "nodemon --watch src/backend --exec ts-node src/backend/index.ts",
-    "start": "node dist/backend/index.js",
-    "render-build": "npm install && npm run build && npm run build:backend"
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "render-build": "npm install && tsc",
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -27,18 +24,16 @@
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
-    "@types/dotenv": "^6.1.1",
     "@types/express": "^4.17.21",
     "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.12.12",
     "@types/supertest": "^6.0.3",
     "jest": "^30.2.0",
+    "nodemon": "^3.0.1",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.4",
     "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
-    "tsx": "^4.16.5",
     "typescript": "^5.4.5"
   },
   "engines": {

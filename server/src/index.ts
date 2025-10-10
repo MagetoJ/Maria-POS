@@ -17,15 +17,21 @@ const app = express();
 const server = http.createServer(app);
 const port = process.env.PORT || 3001;
 
-// Direct database configuration (avoiding knexfile import issues)
+// Database configuration for production
+const databasePath = process.env.DATABASE_PATH || path.resolve(__dirname, '../database/pos.sqlite3');
 const db = knex({
   client: 'sqlite3',
   connection: {
-    filename: path.resolve(__dirname, '../database/pos.sqlite3')
+    filename: databasePath
   },
   useNullAsDefault: true,
   migrations: {
-    directory: '../migrations',
+    directory: path.resolve(__dirname, '../migrations'),
+  },
+  pool: {
+    afterCreate: (conn: any, done: any) => {
+      conn.run('PRAGMA foreign_keys = ON', done);
+    }
   }
 });
 
@@ -34,7 +40,8 @@ const allowedOrigins = [
   'http://localhost:5173', 
   'http://localhost:3000', 
   'http://localhost:5174',
-  'https://maria-pos-4.onrender.com',
+  'https://maria-pos.com',
+  'https://maria-pos.onrender.com',
   process.env.FRONTEND_URL || 'https://pos-mocha-frontend.onrender.com'
 ];
 
