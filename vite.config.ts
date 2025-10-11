@@ -1,11 +1,15 @@
 import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  
+
   server: {
     port: 5173,
     proxy: {
@@ -15,27 +19,15 @@ export default defineConfig({
       },
     },
   },
-  
+
   build: {
     outDir: 'dist/client',
     sourcemap: false,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-        },
-      },
-    },
   },
-  
+
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "src"),
     },
-  },
-  
-  define: {
-    // Ensure environment variables are available at build time
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
 });
