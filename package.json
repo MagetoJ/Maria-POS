@@ -45,6 +45,7 @@
     "dev:backend": "cd server && npm run dev",
     "install:all": "npm install && cd server && npm install",
     "render-build": "npm run build",
+    "build:render": "VITE_API_URL=https://mariahavensbackend.onrender.com npm run build",
     "build:frontend": "cd src/react-app && npm install && npm run build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   }

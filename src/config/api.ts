@@ -9,3 +9,6 @@ export const getWebSocketUrl = () => {
   const baseUrl = API_BASE_URL.replace('http', 'ws');
   return `${baseUrl}/ws/kitchen`;
 };
+
+// Export this for backwards compatibility
+export default API_BASE_URL;

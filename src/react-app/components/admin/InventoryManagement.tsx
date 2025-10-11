@@ -45,7 +45,7 @@ export default function InventoryManagement() {
         return;
       }
 
-      const response = await fetch('http://localhost:3001/api/inventory', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/inventory`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -89,7 +89,7 @@ export default function InventoryManagement() {
     setError(null);
     try {
       const token = localStorage.getItem('pos_token');
-      const response = await fetch('http://localhost:3001/api/inventory', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/inventory`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json', 
@@ -141,7 +141,7 @@ export default function InventoryManagement() {
     setError(null);
     try {
       const token = localStorage.getItem('pos_token');
-      const response = await fetch(`http://localhost:3001/api/inventory/${editingItem.id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/inventory/${editingItem.id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json', 
@@ -177,7 +177,7 @@ export default function InventoryManagement() {
     setError(null);
     try {
       const token = localStorage.getItem('pos_token');
-      const response = await fetch(`http://localhost:3001/api/inventory/${id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/inventory/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -201,7 +201,7 @@ export default function InventoryManagement() {
     setError(null);
     try {
       const token = localStorage.getItem('pos_token');
-      const response = await fetch(`http://localhost:3001/api/inventory/${id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/inventory/${id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json', 

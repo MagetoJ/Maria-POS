@@ -19,11 +19,23 @@ export default defineConfig({
   build: {
     outDir: 'dist/client',
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+        },
+      },
+    },
   },
   
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  
+  define: {
+    // Ensure environment variables are available at build time
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
 });
