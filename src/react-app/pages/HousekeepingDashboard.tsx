@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
-import { formatCurrency } from '../data/mockData';
 import {
   Bed,
   CheckCircle,
@@ -12,6 +11,20 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { Room } from '../contexts/POSContext';
+
+
+// --- Helper Function ---
+// This function formats numbers as currency.
+export const formatCurrency = (amount: number) => {
+  if (typeof amount !== 'number') {
+    return '$0.00';
+  }
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
+};
+
 
 interface MaintenanceRequest {
   id: number;

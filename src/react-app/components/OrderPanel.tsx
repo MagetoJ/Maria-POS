@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { usePOS } from '../contexts/POSContext';
 import { useAuth } from '../contexts/AuthContext';
-import { formatCurrency } from '../data/mockData';
+import { API_URL } from '@/config/api';
 import { Plus, Minus, Trash2, Receipt, CreditCard, Banknote, Smartphone, Building, Loader2, User } from 'lucide-react';
 
+// Currency formatter function
+const formatCurrency = (amount: number): string => {
+  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
 interface OrderPanelProps {
   isQuickAccess?: boolean;
 }
@@ -68,7 +72,7 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
       const token = localStorage.getItem('pos_token') || localStorage.getItem('token');
       console.log('Submitting order with PIN authentication');
       
-      const response = await fetch('/api/orders', {
+     const response = await fetch(`${API_URL}/api/orders`, {
           method: 'POST',
           headers: {
               'Content-Type': 'application/json',

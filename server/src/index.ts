@@ -291,12 +291,11 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
                 staff_id: validation.staffId,
             };
 
-            const [orderResult] = await trx('orders').insert(orderToInsert).returning('id');
-            const orderId = typeof orderResult === 'number' ? orderResult : orderResult.id;
-            
-            if (!orderId) {
-                throw new Error("Failed to create order and get ID.");
-            }
+            const [{ id: orderId }] = await trx('orders').insert(orderToInsert).returning('id');
+
+if (!orderId) {
+    throw new Error("Failed to create order and get ID.");
+}
 
             const orderItems = items.map((item: any) => ({
                 order_id: orderId,
@@ -343,14 +342,14 @@ app.get('/api/orders/kitchen', authenticateToken, async (req, res) => {
     }
 });
 
-// Product Management
+// server/src/index.ts
+
 app.post('/api/products', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
         console.log('=== ADD PRODUCT REQUEST ===');
         console.log('Received product data:', req.body);
         
         if (!req.body.name || !req.body.category_id) {
-            console.log('Validation failed: Name and category_id are required');
             return res.status(400).json({ message: 'Name and category_id are required' });
         }
 
@@ -366,21 +365,21 @@ app.post('/api/products', authenticateToken, authorizeRoles('admin', 'manager'),
             is_active: req.body.is_active !== undefined ? req.body.is_active : true
         };
 
-        const tableInfo = await db.raw("PRAGMA table_info(products)");
-        const existingColumns = tableInfo.map((col: any) => col.name);
+        // --- Start of The Final Fix ---
 
-        const filteredData: any = {};
-        for (const key in productData) {
-            if (existingColumns.includes(key)) {
-                filteredData[key] = (productData as any)[key];
-            }
+        // This block safely handles the data returned from the database.
+        const returnedProducts = await db('products').insert(productData).returning('*');
+        const newProduct = returnedProducts[0]; // Get the first (and only) item from the array.
+
+        if (!newProduct) {
+            throw new Error("Product creation failed: Did not get the new product back from the database.");
         }
 
-        const [insertId] = await db('products').insert(filteredData);
-        const newProduct = await db('products').where({ id: insertId }).first();
+        // --- End of The Final Fix ---
 
         console.log('=== PRODUCT ADDED SUCCESSFULLY ===');
         res.status(201).json(newProduct);
+
     } catch (err) {
         console.error('=== ERROR ADDING PRODUCT ===', err);
         res.status(500).json({ 

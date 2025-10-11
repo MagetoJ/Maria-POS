@@ -1,11 +1,13 @@
-// COMPLETE REPLACEMENT for your ReportsManagement.tsx
-// This version has better error handling and null checks
-
 import { useState, useEffect } from 'react';
 import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle } from 'lucide-react';
-import { formatCurrency } from '../../data/mockData';
+import { API_URL } from '@/config/api';  // ← ADD THIS
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+
+// ← ADD THIS FUNCTION
+const formatCurrency = (amount: number): string => {
+  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
 
 // --- Interfaces for different report data structures ---
 

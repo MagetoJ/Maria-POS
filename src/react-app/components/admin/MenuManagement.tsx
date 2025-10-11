@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UtensilsCrossed, Plus, Edit3, Trash2 } from 'lucide-react';
-import { formatCurrency } from '@/react-app/data/mockData'; // Keeping this for currency formatting
+import { API_URL } from '@/config/api';
 
 // Define interfaces to match backend schema
 interface Product {
@@ -23,6 +23,11 @@ interface Category {
   is_active: boolean;
   display_order: number;
 }
+
+// Currency formatter function
+const formatCurrency = (amount: number): string => {
+  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
 
 export default function MenuManagement() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -57,7 +62,7 @@ export default function MenuManagement() {
   // --- Data Fetching ---
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products');
+      const response = await fetch(`${API_URL}/api/products`);
       if (response.ok) {
         const data = await response.json();
         setProducts(data);
@@ -69,7 +74,7 @@ export default function MenuManagement() {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/categories');
+      const response = await fetch(`${API_URL}/api/categories`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -91,7 +96,7 @@ export default function MenuManagement() {
   // --- API Handlers ---
 
   const handleAddProduct = async () => {
-    // ✅ Basic validation
+    // --- Basic validation ---
     if (!productForm.name.trim()) {
       alert('Product name is required.');
       return;
@@ -106,6 +111,7 @@ export default function MenuManagement() {
     }
 
     setUploading(true);
+
     try {
       const payload = {
         category_id: parseInt(String(productForm.category_id)),
@@ -119,9 +125,7 @@ export default function MenuManagement() {
         is_active: true,
       };
 
-      console.log('Sending product payload:', payload);
-
-      const response = await fetch('/api/products', {
+      const response = await fetch(`${API_URL}/api/products`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,35 +134,25 @@ export default function MenuManagement() {
         body: JSON.stringify(payload),
       });
 
-      const responseText = await response.text();
-      console.log('Response status:', response.status);
-      console.log('Response text:', responseText);
-
       if (response.ok) {
         await fetchProducts();
         resetProductForm();
         setShowAddModal(false);
         alert('✅ Product added successfully!');
       } else {
-        let errorMessage = 'Unknown error';
-        try {
-          const errorJson = JSON.parse(responseText);
-          errorMessage = errorJson.message || errorJson.error || errorMessage;
-        } catch {
-          errorMessage = responseText;
-        }
-        console.error('Add product failed:', errorMessage);
+        const errorData = await response.json();
+        const errorMessage = errorData.message || 'An error occurred.';
         alert(`❌ Failed to add product: ${errorMessage}`);
       }
     } catch (error) {
       console.error('Add product error:', error);
       alert(`An unexpected error occurred: ${(error as Error).message}`);
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   };
 
   const handleAddCategory = async () => {
-    // ✅ Basic validation
     if (!categoryForm.name.trim()) {
       alert('Category name is required.');
       return;
@@ -174,7 +168,7 @@ export default function MenuManagement() {
 
       console.log('Sending category payload:', payload);
 
-      const response = await fetch('/api/categories', {
+      const response = await fetch(`${API_URL}/api/categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -256,7 +250,7 @@ export default function MenuManagement() {
         image_url: imageUrl || '',
       };
 
-      const response = await fetch(`/api/products/${editingItem.id}`, {
+      const response = await fetch(`${API_URL}/api/products/${editingItem.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -291,7 +285,7 @@ export default function MenuManagement() {
       display_order: parseInt(String(categoryForm.display_order)) || 0,
     };
 
-    const response = await fetch(`/api/categories/${editingItem.id}`, {
+    const response = await fetch(`${API_URL}/api/categories/${editingItem.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -314,7 +308,7 @@ export default function MenuManagement() {
 
   const handleDeleteProduct = async (id: number) => {
     if (confirm('Are you sure you want to delete this product?')) {
-      const response = await fetch(`/api/products/${id}`, {
+      const response = await fetch(`${API_URL}/api/products/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${getToken()}` }
       });
@@ -330,7 +324,7 @@ export default function MenuManagement() {
 
   const handleDeleteCategory = async (id: number) => {
     if (confirm('Are you sure you want to delete this category? All products in this category will need to be reassigned.')) {
-      const response = await fetch(`/api/categories/${id}`, {
+      const response = await fetch(`${API_URL}/api/categories/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${getToken()}` }
       });
@@ -352,7 +346,7 @@ export default function MenuManagement() {
       is_available: !product.is_available 
     };
     
-    const response = await fetch(`/api/products/${product.id}`, {
+    const response = await fetch(`${API_URL}/api/products/${product.id}`, {
       method: 'PUT',
       headers: { 
         'Content-Type': 'application/json', 
@@ -374,7 +368,7 @@ export default function MenuManagement() {
       is_active: !category.is_active 
     };
     
-    const response = await fetch(`/api/categories/${category.id}`, {
+    const response = await fetch(`${API_URL}/api/categories/${category.id}`, {
       method: 'PUT',
       headers: { 
         'Content-Type': 'application/json', 
@@ -425,7 +419,7 @@ export default function MenuManagement() {
     const formData = new FormData();
     formData.append('image', file);
 
-    const response = await fetch(`/api/products/${productId}/image`, {
+    const response = await fetch(`${API_URL}/api/products/${productId}/image`, {
       method: 'POST',
       body: formData,
     });

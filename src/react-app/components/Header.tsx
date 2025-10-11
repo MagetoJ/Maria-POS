@@ -1,8 +1,17 @@
-import { useAuth } from '@/react-app/contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext'; // <-- This line is corrected
 import { LogOut, User, Clock } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 export default function Header() {
   const { user, logout } = useAuth();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update every minute
+    return () => clearInterval(timer);
+  }, []);
 
   const getRoleDisplayName = (role: string) => {
     const roleMap: { [key: string]: string } = {
@@ -39,13 +48,13 @@ export default function Header() {
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
             <Clock className="w-4 h-4" />
-            {new Date().toLocaleTimeString('en-KE', { 
-              hour: '2-digit', 
+            {currentTime.toLocaleTimeString('en-KE', {
+              hour: '2-digit',
               minute: '2-digit',
-              hour12: true 
+              hour12: true
             })}
           </div>
-          
+
           <div className="flex items-center gap-2 sm:gap-3 bg-gray-50 rounded-lg px-2 py-1 sm:px-4 sm:py-2">
             <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
             <div className="text-xs sm:text-sm min-w-0">

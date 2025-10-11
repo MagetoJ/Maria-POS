@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Save, Loader2, AlertTriangle, Building, Percent, FileText } from 'lucide-react';
+import { API_URL } from '@/config/api';  // ← ADD THIS
 
 interface AppSettings {
     [key: string]: string;

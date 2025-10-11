@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Package, Plus, Edit3, Trash2, AlertTriangle } from 'lucide-react';
+import { API_URL } from '@/config/api';  // ← ADD THIS
+
+// ← ADD THIS FUNCTION
+const formatCurrency = (amount: number): string => {
+  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
 
 interface InventoryItem {
   id: number;
@@ -45,7 +51,7 @@ export default function InventoryManagement() {
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/inventory`, {
+      const response = await fetch(`${API_URL}/api/inventory`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -89,7 +95,7 @@ export default function InventoryManagement() {
     setError(null);
     try {
       const token = localStorage.getItem('pos_token');
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/inventory`, {
+      const response = await fetch(`${API_URL}/api/inventory`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json', 
@@ -141,7 +147,7 @@ export default function InventoryManagement() {
     setError(null);
     try {
       const token = localStorage.getItem('pos_token');
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/inventory/${editingItem.id}`, {
+      const response = await fetch(`${API_URL}/api/inventory/${editingItem.id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json', 
@@ -177,7 +183,7 @@ export default function InventoryManagement() {
     setError(null);
     try {
       const token = localStorage.getItem('pos_token');
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/inventory/${id}`, {
+      const response = await fetch(`${API_URL}/api/inventory/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -201,7 +207,7 @@ export default function InventoryManagement() {
     setError(null);
     try {
       const token = localStorage.getItem('pos_token');
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/inventory/${id}`, {
+      const response = await fetch(`${API_URL}/api/inventory/${id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json', 

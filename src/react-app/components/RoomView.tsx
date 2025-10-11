@@ -1,14 +1,25 @@
 import { useState, useEffect } from 'react';
 import { usePOS, Room } from '../contexts/POSContext';
-import { formatCurrency } from '../data/mockData';
-import { Bed, User, Calendar, DollarSign } from 'lucide-react';
+import { Bed, User, Calendar, DollarSign, Loader2 } from 'lucide-react';
+
+// --- Helper Function ---
+const formatCurrency = (amount: number): string => {
+  if (typeof amount !== 'number') {
+    return 'KES 0';
+  }
+  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
 
 export default function RoomView() {
   const { currentOrder, setCurrentOrder } = usePOS();
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchRooms = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
         const response = await fetch('/api/rooms');
         if (!response.ok) throw new Error('Failed to fetch rooms');
@@ -16,6 +27,9 @@ export default function RoomView() {
         setRooms(data);
       } catch (error) {
         console.error('Error fetching rooms:', error);
+        setError('Could not load room information.');
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchRooms();
@@ -57,34 +71,33 @@ export default function RoomView() {
         setCurrentOrder({
           ...currentOrder,
           order_type: 'room_service',
+          location: `Room ${room.room_number}`, // Set location for the order
           room_id: room.id
         });
+        alert(`Room ${room.room_number} selected for the current order.`);
       }
-      alert(`Room ${room.room_number} selected for room service order`);
+    } else {
+        alert(`Room ${room.room_number} is not occupied or reserved and cannot be selected for room service.`);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-full p-6">
+        <Loader2 className="w-8 h-8 animate-spin text-yellow-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="text-center text-red-500 p-6">{error}</div>;
+  }
 
   return (
     <div className="flex-1 p-6">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Hotel Rooms</h2>
-        <p className="text-gray-600">Select an occupied room to provide room service</p>
-      </div>
-
-      {/* Legend */}
-      <div className="flex gap-4 mb-6">
-        {[
-          { color: 'bg-green-100 border-green-300', label: 'Vacant' },
-          { color: 'bg-red-100 border-red-300', label: 'Occupied' },
-          { color: 'bg-yellow-100 border-yellow-300', label: 'Reserved' },
-          { color: 'bg-orange-100 border-orange-300', label: 'Maintenance' },
-          { color: 'bg-gray-100 border-gray-300', label: 'Cleaning' },
-        ].map((item, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            <div className={`w-4 h-4 rounded border ${item.color}`}></div>
-            <span className="text-sm text-gray-600">{item.label}</span>
-          </div>
-        ))}
+        <p className="text-gray-600">Select an occupied or reserved room to start a room service order.</p>
       </div>
 
       {/* Rooms Grid */}
@@ -94,10 +107,10 @@ export default function RoomView() {
             key={room.id}
             onClick={() => handleRoomSelect(room)}
             className={`
-              relative p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md
+              relative p-4 rounded-lg border-2 transition-all
               ${getStatusColor(room.status)}
-              ${(room.status === 'occupied' || room.status === 'reserved') ? 'hover:scale-105' : 'cursor-not-allowed opacity-75'}
-              ${currentOrder?.room_id === room.id ? 'ring-2 ring-blue-500' : ''}
+              ${(room.status === 'occupied' || room.status === 'reserved') ? 'cursor-pointer hover:shadow-md hover:scale-105' : 'cursor-not-allowed opacity-70'}
+              ${currentOrder?.room_id === room.id ? 'ring-2 ring-blue-500 shadow-lg' : ''}
             `}
           >
             <div className="flex items-start justify-between mb-3">
@@ -122,16 +135,6 @@ export default function RoomView() {
                 </div>
               )}
 
-              {room.check_in_date && room.check_out_date && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="w-4 h-4" />
-                  <span>
-                    {new Date(room.check_in_date).toLocaleDateString()} -{' '}
-                    {new Date(room.check_out_date).toLocaleDateString()}
-                  </span>
-                </div>
-              )}
-
               <div className="flex items-center gap-2 text-sm">
                 <DollarSign className="w-4 h-4" />
                 <span>{formatCurrency(room.rate)}/night</span>
@@ -139,46 +142,12 @@ export default function RoomView() {
             </div>
 
             {currentOrder?.room_id === room.id && (
-              <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
+              <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold border-2 border-white">
                 ✓
               </div>
             )}
           </div>
         ))}
-      </div>
-
-      {/* Room Stats */}
-      <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg p-4 border border-gray-200">
-          <div className="text-2xl font-bold text-green-600">
-            {rooms.filter(r => r.status === 'vacant').length}
-          </div>
-          <div className="text-sm text-gray-600">Vacant Rooms</div>
-        </div>
-        <div className="bg-white rounded-lg p-4 border border-gray-200">
-          <div className="text-2xl font-bold text-red-600">
-            {rooms.filter(r => r.status === 'occupied').length}
-          </div>
-          <div className="text-sm text-gray-600">Occupied Rooms</div>
-        </div>
-        <div className="bg-white rounded-lg p-4 border border-gray-200">
-          <div className="text-2xl font-bold text-yellow-600">
-            {rooms.filter(r => r.status === 'reserved').length}
-          </div>
-          <div className="text-sm text-gray-600">Reserved Rooms</div>
-        </div>
-        <div className="bg-white rounded-lg p-4 border border-gray-200">
-          <div className="text-2xl font-bold text-orange-600">
-            {rooms.filter(r => r.status === 'maintenance').length}
-          </div>
-          <div className="text-sm text-gray-600">Maintenance</div>
-        </div>
-        <div className="bg-white rounded-lg p-4 border border-gray-200">
-          <div className="text-2xl font-bold text-gray-600">
-            {rooms.length}
-          </div>
-          <div className="text-sm text-gray-600">Total Rooms</div>
-        </div>
       </div>
     </div>
   );

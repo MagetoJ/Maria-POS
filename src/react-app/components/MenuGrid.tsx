@@ -1,59 +1,74 @@
 import { useState, useEffect } from 'react';
 import { usePOS, Product, Category } from '../contexts/POSContext';
-import { formatCurrency } from '../data/mockData';
-import { Plus, Clock } from 'lucide-react';
+import { API_URL } from '../config/api';
+import { Plus, Clock, Loader2 } from 'lucide-react';
 
+// --- Helper Function ---
+const formatCurrency = (amount: number): string => {
+  if (typeof amount !== 'number') {
+    return 'KES 0';
+  }
+  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
 
 export default function MenuGrid() {
-  const { addItemToOrder } = usePOS();
+  const { addItemToOrder } = usePOS(); // Corrected: usePOS provides 'addToCart'
 
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // --- FETCH PRODUCTS & CATEGORIES FROM BACKEND ---
+  // Fetch both products and categories from the backend when the component loads
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
-        const response = await fetch('/api/products');
-        if (!response.ok) throw new Error('Failed to fetch products');
-        const data = await response.json();
-        setProducts(data);
-      } catch (error) {
-        console.error('Failed to fetch products:', error);
+        const [productsRes, categoriesRes] = await Promise.all([
+          fetch(`${API_URL}/api/products`),
+          fetch(`${API_URL}/api/categories`)
+        ]);
+
+        if (!productsRes.ok || !categoriesRes.ok) {
+          throw new Error('Failed to fetch menu data. Please try again.');
+        }
+
+        const productsData = await productsRes.json();
+        const categoriesData = await categoriesRes.json();
+
+        setProducts(productsData);
+        setCategories(categoriesData);
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+        setError((err as Error).message);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    const fetchCategories = async () => {
-      try {
-        const response = await fetch('/api/products');
-        if (!response.ok) throw new Error('Failed to fetch categories');
-        const data = await response.json();
-        setCategories(data);
-      } catch (error) {
-        console.error('Failed to fetch categories:', error);
-      }
-    };
-
-    fetchProducts();
-    fetchCategories();
+    fetchData();
   }, []);
 
-  // --- FILTER PRODUCTS ---
+  // Filter products based on the selected category
   const filteredProducts = selectedCategory
     ? products.filter((product) => product.category_id === selectedCategory && product.is_available)
     : products.filter((product) => product.is_available);
 
-  // --- FALLBACK EMOJI FOR CATEGORIES ---
-  const getCategoryEmoji = (categoryId: number) => {
-    switch (categoryId) {
-      case 1: return '🥗';
-      case 2: return '🍽️';
-      case 3: return '🥤';
-      case 4: return '🍰';
-      default: return '🏨';
-    }
-  };
+  // Show a loading spinner while data is being fetched
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-full py-12">
+        <Loader2 className="w-10 h-10 animate-spin text-yellow-500" />
+      </div>
+    );
+  }
+
+  // Show an error message if fetching fails
+  if (error) {
+    return <div className="text-center text-red-500 p-8">Error: {error}</div>;
+  }
 
   return (
     <div className="flex-1 p-3 sm:p-4 lg:p-6">
@@ -69,7 +84,6 @@ export default function MenuGrid() {
         >
           All Items
         </button>
-
         {categories
           .filter((cat) => cat.is_active)
           .map((category) => (
@@ -92,41 +106,20 @@ export default function MenuGrid() {
         {filteredProducts.map((product) => (
           <div
             key={product.id}
-            className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+            onClick={() => addItemToOrder(product)}
+            className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-yellow-400 transition-all group"
           >
-            <div className="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center overflow-hidden">
-              {product.image_url ? (
-                <img
-                  src={product.image_url}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.parentElement!.innerHTML = `<div class='text-4xl'>${getCategoryEmoji(product.category_id)}</div>`;
-                  }}
-                />
-              ) : (
-                <div className="text-4xl">{getCategoryEmoji(product.category_id)}</div>
-              )}
+            <div className="aspect-square bg-gray-50 flex items-center justify-center">
+              {/* Image would go here if available */}
+              <span className="text-3xl text-gray-300">{product.name.charAt(0)}</span>
             </div>
-
             <div className="p-4">
-              <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{product.name}</h3>
-              <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.description}</p>
-
-              <div className="flex items-center gap-2 mb-3">
-                <Clock className="w-4 h-4 text-gray-400" />
-                <span className="text-sm text-gray-500">{product.preparation_time} min</span>
-              </div>
-
-              <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 h-12">{product.name}</h3>
+              <div className="flex items-center justify-between mt-2">
                 <span className="text-lg font-bold text-gray-900">
                   {formatCurrency(product.price ?? 0)}
                 </span>
-                <button
-                  onClick={() => addItemToOrder(product)}
-                  className="w-8 h-8 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 rounded-full flex items-center justify-center text-white transition-colors"
-                >
+                <button className="w-8 h-8 bg-green-100 group-hover:bg-green-500 rounded-full flex items-center justify-center text-green-700 group-hover:text-white transition-colors">
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
@@ -137,7 +130,7 @@ export default function MenuGrid() {
 
       {filteredProducts.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">No items available in this category</p>
+          <p className="text-gray-500 text-lg">No items available in this category.</p>
         </div>
       )}
     </div>

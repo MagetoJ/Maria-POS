@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User as UserIcon, Plus, Edit3, Trash2 } from 'lucide-react';
+import { User as UserIcon, Plus, Edit3, Trash2, Loader2 } from 'lucide-react';
 import { User } from '../../contexts/AuthContext';
 import { API_URL } from '../../config/api';
 
@@ -7,6 +7,8 @@ export default function StaffManagement() {
   const [staff, setStaff] = useState<User[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     employee_id: '',
     username: '',
@@ -22,20 +24,24 @@ export default function StaffManagement() {
   }, []);
 
   const fetchStaff = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
       const token = localStorage.getItem('pos_token');
-      const response = await fetch(`${API_URL}/api/staff`, { 
+      const response = await fetch(`${API_URL}/api/staff`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
         setStaff(data);
       } else {
-        const errorText = await response.text();
-        console.error("Failed to fetch staff. Status:", response.status, "Response:", errorText);
+        throw new Error('Failed to fetch staff.');
       }
     } catch (error) {
       console.error("Error fetching staff:", error);
+      setError('Could not load staff data.');
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -52,28 +58,24 @@ export default function StaffManagement() {
 
   const handleAdd = async () => {
     try {
-      console.log('Adding staff with data:', formData);
       const response = await fetch(`${API_URL}/api/staff`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${localStorage.getItem('pos_token')}` 
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('pos_token')}`
         },
         body: JSON.stringify(formData)
       });
-      
+
       if (response.ok) {
-        console.log('Staff member added successfully');
         fetchStaff();
         resetForm();
         setShowAddModal(false);
       } else {
         const errorData = await response.json();
-        console.error('Failed to add staff:', errorData);
         alert(`Failed to add staff: ${errorData.message || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error adding staff:', error);
       alert('Error adding staff member. Check console for details.');
     }
   };
@@ -94,42 +96,31 @@ export default function StaffManagement() {
 
   const handleUpdate = async () => {
     if (!editingStaff) return;
-    
+
     try {
-      // Only send password if it was changed
-      const updateData = formData.password 
-        ? formData 
+      const updateData = formData.password
+        ? formData
         : { ...formData, password: undefined };
-      
-      const response = await fetch(`${API_URL}/api/staff/${editingStaff.id}`, { 
+
+      const response = await fetch(`${API_URL}/api/staff/${editingStaff.id}`, {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${localStorage.getItem('pos_token')}` 
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('pos_token')}`
         },
         body: JSON.stringify(updateData)
       });
-      
+
       if (response.ok) {
-        console.log('Staff member updated successfully');
         fetchStaff();
         setEditingStaff(null);
         resetForm();
         setShowAddModal(false);
       } else {
-        // Only read the response body once
-        const responseText = await response.text();
-        try {
-          const errorData = JSON.parse(responseText);
-          console.error('Failed to update staff:', errorData);
-          alert(`Failed to update staff: ${errorData.message || 'Unknown error'}`);
-        } catch (parseError) {
-          console.error('Failed to update staff. Status:', response.status, 'Response:', responseText);
-          alert(`Failed to update staff: ${response.status} ${response.statusText}`);
-        }
+        const errorData = await response.json();
+        alert(`Failed to update staff: ${errorData.message || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error updating staff:', error);
       alert('Error updating staff member. Check console for details.');
     }
   };
@@ -137,36 +128,33 @@ export default function StaffManagement() {
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this staff member?')) {
       try {
-        const response = await fetch(`${API_URL}/api/staff/${id}`, { 
+        const response = await fetch(`${API_URL}/api/staff/${id}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` }
         });
-        
+
         if (response.ok) {
-          console.log('Staff member deleted successfully');
           fetchStaff();
         } else {
-          console.error('Failed to delete staff. Status:', response.status);
           alert('Failed to delete staff member');
         }
       } catch (error) {
-        console.error('Error deleting staff:', error);
         alert('Error deleting staff member. Check console for details.');
       }
     }
   };
-  
+
   const toggleActive = async (member: User) => {
     try {
-      const response = await fetch(`${API_URL}/api/staff/${member.id}`, { 
+      const response = await fetch(`${API_URL}/api/staff/${member.id}`, {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${localStorage.getItem('pos_token')}` 
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('pos_token')}`
         },
         body: JSON.stringify({ is_active: !member.is_active })
       });
-      
+
       if (response.ok) {
         fetchStaff();
       } else {
@@ -189,19 +177,27 @@ export default function StaffManagement() {
     });
   };
 
-  const getRoleBadgeColor = (role: string) => {
-    const colors: { [key: string]: string } = {
-      admin: 'bg-red-100 text-red-800',
-      manager: 'bg-blue-100 text-blue-800',
-      cashier: 'bg-green-100 text-green-800',
-      waiter: 'bg-yellow-100 text-yellow-800',
-      kitchen_staff: 'bg-purple-100 text-purple-800',
-      delivery: 'bg-orange-100 text-orange-800',
-      receptionist: 'bg-pink-100 text-pink-800',
-      housekeeping: 'bg-gray-100 text-gray-800'
+    const getRoleBadgeColor = (role: string) => {
+        const colors: { [key: string]: string } = {
+        admin: 'bg-red-100 text-red-800',
+        manager: 'bg-blue-100 text-blue-800',
+        cashier: 'bg-green-100 text-green-800',
+        waiter: 'bg-yellow-100 text-yellow-800',
+        kitchen_staff: 'bg-purple-100 text-purple-800',
+        delivery: 'bg-orange-100 text-orange-800',
+        receptionist: 'bg-pink-100 text-pink-800',
+        housekeeping: 'bg-gray-100 text-gray-800'
+        };
+        return colors[role] || 'bg-gray-100 text-gray-800';
     };
-    return colors[role] || 'bg-gray-100 text-gray-800';
-  };
+
+    if (isLoading) {
+        return <div className="flex justify-center items-center h-48"><Loader2 className="w-8 h-8 animate-spin" /></div>;
+    }
+
+    if (error) {
+        return <div className="text-red-500 text-center p-4">Error: {error}</div>;
+    }
 
   return (
     <div className="space-y-6">
@@ -219,7 +215,7 @@ export default function StaffManagement() {
           Add Staff Member
         </button>
       </div>
-      
+
       {/* Staff Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -281,14 +277,14 @@ export default function StaffManagement() {
         </div>
       </div>
 
-       {/* Add/Edit Modal */}
-       {(showAddModal) && (
+      {/* Add/Edit Modal */}
+      {(showAddModal) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               {editingStaff ? 'Edit Staff Member' : 'Add New Staff Member'}
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
@@ -300,7 +296,7 @@ export default function StaffManagement() {
                   placeholder="e.g., EMP001"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                 <input
@@ -311,7 +307,7 @@ export default function StaffManagement() {
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
                 <input
@@ -322,7 +318,7 @@ export default function StaffManagement() {
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <select
@@ -335,7 +331,7 @@ export default function StaffManagement() {
                   ))}
                 </select>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">PIN (4 digits)</label>
@@ -349,7 +345,7 @@ export default function StaffManagement() {
                     required
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Password {editingStaff && <span className="text-gray-400">(leave blank to keep)</span>}
@@ -364,7 +360,7 @@ export default function StaffManagement() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => { setShowAddModal(false); setEditingStaff(null); resetForm(); }}

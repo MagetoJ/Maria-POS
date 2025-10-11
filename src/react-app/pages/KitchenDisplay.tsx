@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import { Clock, CheckCircle, ChefHat } from 'lucide-react';
-import { getApiUrl } from '@/config/api';
+import { API_URL } from '@/config/api';  // 
 
 interface KitchenOrderItem {
   id: number;

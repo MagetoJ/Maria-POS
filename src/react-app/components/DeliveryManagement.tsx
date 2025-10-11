@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { User, Phone, MapPin, Package } from 'lucide-react';
-import { formatCurrency } from '../data/mockData';
+import { API_URL } from '@/config/api';  // ← ADD THIS
+
+// ← ADD THIS FUNCTION
+const formatCurrency = (amount: number): string => {
+  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
 
 interface DeliveryItem {
     quantity: number;
@@ -27,7 +32,7 @@ export default function DeliveryManagement() {
         setIsLoading(true);
         const token = localStorage.getItem('pos_token');
         try {
-            const response = await fetch('/api/deliveries', {
+            const response = await fetch(`${API_URL}/api/deliveries`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (response.ok) {
@@ -50,7 +55,7 @@ export default function DeliveryManagement() {
     const updateStatus = async (orderId: number, status: DeliveryOrder['delivery_status']) => {
         const token = localStorage.getItem('pos_token');
         try {
-            const response = await fetch(`/api/deliveries/${orderId}/status`, {
+            const response = await fetch(`${API_URL}/api/deliveries/${orderId}/status`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

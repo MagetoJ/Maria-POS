@@ -7,22 +7,52 @@ import MenuManagement from '../components/admin/MenuManagement';
 import RoomManagement from '../components/admin/RoomManagement';
 import ReportsManagement from '../components/admin/ReportsManagement';
 import SettingsManagement from '../components/admin/SettingsManagement';
-import { 
-  BarChart3, 
-  Users, 
-  Package, 
-  Settings, 
-  FileText, 
+import {
+  BarChart3,
+  Users,
+  Package,
+  Settings,
+  FileText,
   UtensilsCrossed,
   Bed,
   AlertTriangle,
   DollarSign,
   Loader2
 } from 'lucide-react';
-import { formatCurrency } from '../data/mockData';
 
-// API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// --- Helper Functions ---
+
+// This function formats numbers as currency.
+export const formatCurrency = (amount: number) => {
+  if (typeof amount !== 'number') {
+    return '$0.00';
+  }
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
+};
+
+// This function calculates how long ago a date was.
+export const timeAgo = (dateString: string) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  let interval = seconds / 31536000;
+  if (interval > 1) return Math.floor(interval) + " years ago";
+  interval = seconds / 2592000;
+  if (interval > 1) return Math.floor(interval) + " months ago";
+  interval = seconds / 86400;
+  if (interval > 1) return Math.floor(interval) + " days ago";
+  interval = seconds / 3600;
+  if (interval > 1) return Math.floor(interval) + " hours ago";
+  interval = seconds / 60;
+  if (interval > 1) return Math.floor(interval) + " minutes ago";
+  return Math.floor(seconds) + " seconds ago";
+};
+
 
 // Interface for the fetched overview data
 interface OverviewStats {
@@ -45,6 +75,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [overviewData, setOverviewData] = useState<OverviewStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const getToken = () => localStorage.getItem('pos_token');
 
@@ -52,18 +83,19 @@ export default function AdminDashboard() {
       const fetchOverviewData = async () => {
           if (activeTab === 'overview') {
               setIsLoading(true);
+              setError(null);
               try {
-                  const response = await fetch(`${API_BASE_URL}/api/dashboard/overview-stats`, {
+                  const response = await fetch('/api/dashboard/overview-stats', {
                       headers: { 'Authorization': `Bearer ${getToken()}` }
                   });
-                  if (response.ok) {
-                      const data = await response.json();
-                      setOverviewData(data);
-                  } else {
-                      console.error("Failed to fetch overview stats. Status:", response.status);
+                  if (!response.ok) {
+                      throw new Error(`Failed to fetch overview stats. Status: ${response.status}`);
                   }
+                  const data = await response.json();
+                  setOverviewData(data);
               } catch (error) {
                   console.error("Error fetching overview stats:", error);
+                  setError("Could not load dashboard data. Please try again later.");
               } finally {
                   setIsLoading(false);
               }
@@ -72,24 +104,6 @@ export default function AdminDashboard() {
 
       fetchOverviewData();
   }, [activeTab]);
-
-  // Helper to calculate time ago
-  const timeAgo = (dateString: string) => {
-      const date = new Date(dateString);
-      const now = new Date();
-      const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-      let interval = seconds / 31536000;
-      if (interval > 1) return Math.floor(interval) + " years ago";
-      interval = seconds / 2592000;
-      if (interval > 1) return Math.floor(interval) + " months ago";
-      interval = seconds / 86400;
-      if (interval > 1) return Math.floor(interval) + " days ago";
-      interval = seconds / 3600;
-      if (interval > 1) return Math.floor(interval) + " hours ago";
-      interval = seconds / 60;
-      if (interval > 1) return Math.floor(interval) + " minutes ago";
-      return Math.floor(seconds) + " seconds ago";
-  };
 
 
   const menuItems = [
@@ -109,6 +123,9 @@ export default function AdminDashboard() {
                   <Loader2 className="w-8 h-8 animate-spin text-yellow-500" />
               </div>
           );
+      }
+      if (error) {
+          return <div className="text-center text-red-500 p-4">{error}</div>;
       }
       if (!overviewData) {
           return <div className="text-center">Could not load dashboard data.</div>;
@@ -164,9 +181,6 @@ export default function AdminDashboard() {
                 <p className="text-sm lg:text-2xl font-bold text-gray-900 truncate">{overviewData.lowStockItems}</p>
                 </div>
             </div>
-            <div className="mt-2 lg:mt-4">
-                <span className="text-yellow-600 text-xs lg:text-sm">Requires attention</span>
-            </div>
             </div>
         </div>
 
@@ -175,18 +189,22 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-lg p-6 border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Orders</h3>
             <div className="space-y-3">
-                {overviewData.recentOrders.map((order) => (
-                <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                    <p className="font-medium text-gray-900">{order.order_number}</p>
-                    <p className="text-sm text-gray-600">{order.location}</p>
+                {overviewData.recentOrders && overviewData.recentOrders.length > 0 ? (
+                    overviewData.recentOrders.map((order) => (
+                    <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                        <p className="font-medium text-gray-900">{order.order_number}</p>
+                        <p className="text-sm text-gray-600">{order.location}</p>
+                        </div>
+                        <div className="text-right">
+                        <p className="font-medium text-gray-900">{formatCurrency(order.total_amount)}</p>
+                        <p className="text-sm text-gray-600">{timeAgo(order.created_at)}</p>
+                        </div>
                     </div>
-                    <div className="text-right">
-                    <p className="font-medium text-gray-900">{formatCurrency(order.total_amount)}</p>
-                    <p className="text-sm text-gray-600">{timeAgo(order.created_at)}</p>
-                    </div>
-                </div>
-                ))}
+                    ))
+                ) : (
+                    <p className="text-sm text-gray-500">No recent orders to display.</p>
+                )}
             </div>
             </div>
 
