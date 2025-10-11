@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { usePOS, Product, Category } from '../contexts/POSContext';
 import { formatCurrency } from '../data/mockData';
 import { Plus, Clock } from 'lucide-react';
-import { getApiUrl } from '../config/api';
+
 
 export default function MenuGrid() {
   const { addItemToOrder } = usePOS();
@@ -15,7 +15,7 @@ export default function MenuGrid() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch(getApiUrl('/api/products'));
+        const response = await fetch('/api/products');
         if (!response.ok) throw new Error('Failed to fetch products');
         const data = await response.json();
         setProducts(data);
@@ -26,7 +26,7 @@ export default function MenuGrid() {
 
     const fetchCategories = async () => {
       try {
-        const response = await fetch(getApiUrl('/api/categories'));
+        const response = await fetch('/api/products');
         if (!response.ok) throw new Error('Failed to fetch categories');
         const data = await response.json();
         setCategories(data);
