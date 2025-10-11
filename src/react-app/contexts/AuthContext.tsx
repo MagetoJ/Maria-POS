@@ -2,13 +2,14 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 // Import the centralized API_URL
 import { API_URL } from '../config/api';
 
+// Updated User interface - PIN is now optional and will NOT be stored locally
 export interface User {
   id: number;
   employee_id: string;
   username: string;
   name: string;
   role: 'admin' | 'manager' | 'cashier' | 'waiter' | 'kitchen_staff' | 'delivery' | 'receptionist' | 'housekeeping';
-  pin: string;
+  pin?: string; // Made optional - will NOT be returned from backend for security
   is_active: boolean;
 }
 
@@ -39,8 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      // Correct the login URL by removing the extra '/api'
-      const loginUrl = `${API_URL}/api/login`; // Note: /api/login
+      const loginUrl = `${API_URL}/api/login`;
       console.log('Attempting login to:', loginUrl);
       
       const response = await fetch(loginUrl, {
@@ -62,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { user: foundUser, token } = await response.json();
       console.log('Login successful:', foundUser.username);
       
+      // Store user without PIN (backend no longer returns it for security)
       setUser(foundUser);
       localStorage.setItem('pos_user', JSON.stringify(foundUser));
       localStorage.setItem('pos_token', token);
@@ -79,8 +80,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Validating PIN for username:', username);
       
-      // Correct the validation URL
-      const response = await fetch(`${API_URL}/validate-pin`, {
+      // Call the validate-pin endpoint
+      const response = await fetch(`${API_URL}/api/validate-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, pin })
@@ -91,6 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.ok) {
         const userData = await response.json();
         console.log('Validation successful:', userData.name);
+        // Backend no longer returns PIN in response for security
         return userData;
       } else {
         const errorData = await response.json().catch(() => ({ message: 'Validation failed' }));

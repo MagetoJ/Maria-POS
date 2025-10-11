@@ -28,12 +28,12 @@ const db = knex({
 // --- CORS Configuration ---
 app.use(cors({
   origin: [
-    'https://mariahavensfrontend.onrender.com', // Your actual frontend URL
+    'https://mariahavensfrontend.onrender.com',
     'https://mariahavensbackend.onrender.com',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:5174',
-    /\.onrender\.com$/ // Allow all Render subdomains
+    /\.onrender\.com$/
   ],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -41,6 +41,35 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// --- Helper Function for PIN Validation ---
+async function validateStaffPinForOrder(username: string, pin: string): Promise<{ valid: boolean; staffId?: number; staffName?: string }> {
+  try {
+    const user = await db('staff')
+      .where({ username, is_active: true })
+      .first();
+    
+    if (!user) {
+      return { valid: false };
+    }
+    
+    const userPin = user.pin?.toString();
+    const providedPin = pin?.toString();
+    
+    if (userPin === providedPin) {
+      return { 
+        valid: true, 
+        staffId: user.id,
+        staffName: user.name 
+      };
+    }
+    
+    return { valid: false };
+  } catch (error) {
+    console.error('PIN validation error:', error);
+    return { valid: false };
+  }
+}
 
 // --- WebSocket Setup ---
 const wss = new WebSocketServer({ server });
@@ -88,10 +117,11 @@ app.post('/api/login', async (req, res) => {
     console.log('User found:', user ? 'Yes' : 'No');
     
     if (user && user.password === password) {
-      const { password: _, ...userWithoutPassword } = user;
+      // Remove pin and password from response - SECURITY ENHANCEMENT
+      const { password: _, pin: __, ...userWithoutSensitiveData } = user;
       const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
       console.log('Login successful for:', username);
-      res.json({ user: userWithoutPassword, token });
+      res.json({ user: userWithoutSensitiveData, token });
     } else {
       console.log('Invalid credentials for:', username);
       res.status(401).json({ message: 'Invalid username or password' });
@@ -112,7 +142,6 @@ app.post('/api/validate-pin', async (req, res) => {
       return res.status(400).json({ message: 'Username and PIN are required' });
     }
     
-    // Query the database
     const user = await db('staff')
       .where({ username, is_active: true })
       .first();
@@ -124,7 +153,6 @@ app.post('/api/validate-pin', async (req, res) => {
       return res.status(401).json({ message: 'Invalid username or PIN' });
     }
     
-    // Check if PIN matches (handle both string and number comparison)
     const userPin = user.pin?.toString();
     const providedPin = pin?.toString();
     
@@ -135,9 +163,10 @@ app.post('/api/validate-pin', async (req, res) => {
     });
     
     if (userPin === providedPin) {
-      const { password: _, ...userWithoutPassword } = user;
+      // Remove pin and password from response - SECURITY ENHANCEMENT
+      const { password: _, pin: __, ...userWithoutSensitiveData } = user;
       console.log('PIN validation successful for:', username);
-      res.json(userWithoutPassword);
+      res.json(userWithoutSensitiveData);
     } else {
       console.log('PIN mismatch for user:', username);
       res.status(401).json({ message: 'Invalid username or PIN' });
@@ -229,12 +258,38 @@ app.get('/api/dashboard/overview-stats', authenticateToken, authorizeRoles('admi
     }
 });
 
-// Order Management
+// Order Management - ENHANCED WITH PIN VALIDATION
 app.post('/api/orders', authenticateToken, async (req, res) => {
-    const { items, ...orderData } = req.body;
+    const { items, staff_username, pin, ...orderData } = req.body;
+    
     try {
+        // Validate that staff_username and pin are provided
+        if (!staff_username || !pin) {
+            return res.status(400).json({ 
+                message: 'Staff username and PIN are required to place an order' 
+            });
+        }
+
+        // Validate the staff PIN
+        const validation = await validateStaffPinForOrder(staff_username, pin);
+        
+        if (!validation.valid || !validation.staffId) {
+            console.log('Invalid PIN for order placement:', staff_username);
+            return res.status(401).json({ 
+                message: 'Invalid username or PIN. Please try again.' 
+            });
+        }
+
+        console.log('PIN validated successfully for order by:', validation.staffName);
+
+        // Create the order with the validated staff_id
         await db.transaction(async trx => {
-            const [orderResult] = await trx('orders').insert(orderData).returning('id');
+            const orderToInsert = {
+                ...orderData,
+                staff_id: validation.staffId,
+            };
+
+            const [orderResult] = await trx('orders').insert(orderToInsert).returning('id');
             const orderId = typeof orderResult === 'number' ? orderResult : orderResult.id;
             
             if (!orderId) {
@@ -251,12 +306,15 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
             }));
 
             if (orderItems.length > 0) {
-              await trx('order_items').insert(orderItems);
+                await trx('order_items').insert(orderItems);
             }
         });
 
         broadcastToKitchens({ type: 'new_order' });
-        res.status(201).json({ message: 'Order created successfully' });
+        res.status(201).json({ 
+            message: 'Order created successfully',
+            staff_name: validation.staffName 
+        });
     } catch (err) {
         console.error("Order creation error:", err);
         res.status(500).json({ message: 'Failed to create order' });
@@ -926,7 +984,6 @@ app.get('/api/debug/seed-orders', async (req, res) => {
         created_at: orderDate.toISOString()
       }).returning('id');
       
-      // Extract the ID properly handling both possible return types
       let actualOrderId: number;
       if (typeof insertResult[0] === 'number') {
         actualOrderId = insertResult[0];

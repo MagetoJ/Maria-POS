@@ -10,11 +10,11 @@ interface OrderPanelProps {
 
 export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
   const { currentOrder, removeItemFromOrder, updateItemQuantity, clearOrder } = usePOS();
-  const { user, validateStaffPin } = useAuth();
+  const { user } = useAuth();
   const [showPayment, setShowPayment] = useState(false);
   const [showPinVerification, setShowPinVerification] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
-  const [employeeId, setEmployeeId] = useState('');
+  const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -37,9 +37,14 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
     setShowPinVerification(true);
   };
 
-const handlePinVerification = async () => {
-    if (!employeeId || !pin) {
-      setPinError('Please enter both Employee ID and PIN');
+  const handlePinVerification = async () => {
+    if (!username || !pin) {
+      setPinError('Please enter both Username and PIN');
+      return;
+    }
+
+    if (pin.length !== 4) {
+      setPinError('PIN must be 4 digits');
       return;
     }
 
@@ -47,55 +52,63 @@ const handlePinVerification = async () => {
     setPinError('');
 
     try {
-      const verifiedUser = await validateStaffPin(employeeId, pin);
+      // Prepare order data with staff credentials for backend validation
+      const orderToSubmit = {
+        ...currentOrder,
+        order_number: `ORD-${Date.now()}`,
+        staff_username: username, // Send username for backend validation
+        pin: pin, // Send PIN for backend validation (not stored)
+        payment_method: selectedPaymentMethod,
+        payment_status: 'paid',
+        status: 'pending',
+        created_at: new Date().toISOString(),
+        completed_at: new Date().toISOString()
+      };
+
+      const token = localStorage.getItem('pos_token') || localStorage.getItem('token');
+      console.log('Submitting order with PIN authentication');
       
-      if (verifiedUser && currentOrder) {
-        const orderToSubmit = {
-          ...currentOrder,
-          order_number: `ORD-${Date.now()}`,
-          staff_id: verifiedUser.id,
-          payment_method: selectedPaymentMethod,
-          payment_status: 'paid',
-          status: 'pending', // Kitchen will change this
-          created_at: new Date().toISOString(),
-          completed_at: new Date().toISOString()
-        };
+      const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(orderToSubmit)
+      });
 
-        // Submit order to the backend
-        const token = localStorage.getItem('pos_token') || localStorage.getItem('token');
-        console.log('Submitting order with token:', token ? 'Token exists' : 'No token found');
-        console.log('Order data:', orderToSubmit);
-        
-        const response = await fetch('/api/orders', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(orderToSubmit)
-        });
-
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Failed to submit order' }));
-            console.error('Order submission error:', errorData);
-            throw new Error(errorData.message || 'Failed to submit order.');
-        }
-
-        const result = await response.json();
-        console.log('Order submitted successfully:', result);
-
-        setCompletedOrder({ ...orderToSubmit, staff_name: verifiedUser.name });
-        setShowReceipt(true);
-        clearOrder();
-        resetPinForm();
-      } else {
-        setPinError('Invalid Employee ID or PIN');
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Failed to submit order' }));
+          console.error('Order submission error:', errorData);
+          
+          // Show specific error for invalid credentials
+          if (response.status === 401) {
+            setPinError('Invalid username or PIN. Please try again.');
+          } else if (response.status === 400) {
+            setPinError(errorData.message || 'Invalid request. Please check your inputs.');
+          } else {
+            setPinError(errorData.message || 'Failed to submit order');
+          }
+          setIsVerifying(false);
+          return;
       }
+
+      const result = await response.json();
+      console.log('Order submitted successfully:', result);
+
+      // Show receipt with staff name from backend response
+      setCompletedOrder({ 
+        ...orderToSubmit, 
+        staff_name: result.staff_name || username 
+      });
+      setShowReceipt(true);
+      clearOrder();
+      resetPinForm();
     } catch (error) {
       console.error('Order submission error:', error);
-      setPinError(`Verification or order submission failed: ${(error as Error).message}`);
+      setPinError(`Order submission failed: ${(error as Error).message}`);
     } finally {
       setIsVerifying(false);
     }
@@ -103,7 +116,7 @@ const handlePinVerification = async () => {
 
   const resetPinForm = () => {
     setShowPinVerification(false);
-    setEmployeeId('');
+    setUsername('');
     setPin('');
     setPinError('');
     setSelectedPaymentMethod('');
@@ -112,6 +125,7 @@ const handlePinVerification = async () => {
   const handlePinInput = (digit: string) => {
     if (pin.length < 4) {
       setPin(prev => prev + digit);
+      setPinError(''); // Clear error when user starts typing
     }
   };
 
@@ -194,7 +208,7 @@ const handlePinVerification = async () => {
       <div className="w-full lg:w-80 bg-white border-t lg:border-t-0 lg:border-l border-gray-200 p-4 lg:p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold">
-            {isQuickAccess ? 'Waiter Verification' : 'Staff Verification'}
+            Staff Verification
           </h3>
           <button
             onClick={resetPinForm}
@@ -205,39 +219,31 @@ const handlePinVerification = async () => {
         </div>
 
         <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-4">
-            {isQuickAccess 
-              ? `Please verify your identity to complete the payment of ${formatCurrency(currentOrder?.total_amount || 0)} via ${selectedPaymentMethod}`
-              : `Please verify your identity to complete the payment of ${formatCurrency(currentOrder?.total_amount || 0)} via ${selectedPaymentMethod}`
-            }
-          </p>
-          {isQuickAccess && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-              <div className="flex items-start gap-2">
-                <User className="w-4 h-4 text-yellow-600 mt-0.5" />
-                <div className="text-sm">
-                  <div className="font-medium text-yellow-800">Quick POS Mode</div>
-                  <div className="text-yellow-700">Enter your waiter credentials to process this order</div>
-                </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <div className="flex items-start gap-2">
+              <User className="w-4 h-4 text-blue-600 mt-0.5" />
+              <div className="text-sm">
+                <div className="font-medium text-blue-800">Secure Order Authentication</div>
+                <div className="text-blue-700">Enter your credentials to authorize this {formatCurrency(currentOrder?.total_amount || 0)} {selectedPaymentMethod} payment</div>
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Employee ID
+              Username
             </label>
             <input
               type="text"
-              value={employeeId}
+              value={username}
               onChange={(e) => {
-                setEmployeeId(e.target.value.toUpperCase());
+                setUsername(e.target.value.toLowerCase());
                 setPinError('');
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none"
-              placeholder="Enter Employee ID"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              placeholder="Enter your username"
               autoFocus
             />
           </div>
@@ -301,16 +307,16 @@ const handlePinVerification = async () => {
 
           <button
             onClick={handlePinVerification}
-            disabled={isVerifying || !employeeId || pin.length !== 4}
-            className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white py-3 px-4 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            disabled={isVerifying || !username || pin.length !== 4}
+            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 px-4 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isVerifying ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Verifying...
+                Verifying & Processing...
               </>
             ) : (
-              'Complete Payment'
+              'Authorize & Complete Payment'
             )}
           </button>
         </div>

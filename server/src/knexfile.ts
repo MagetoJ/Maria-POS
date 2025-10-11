@@ -1,37 +1,33 @@
-import type { Knex } from "knex";
-import path from "path";
-import { config as dotenvConfig } from "dotenv";
+import type { Knex } from 'knex';
+import path from 'path';
 
-dotenvConfig();
+// I have placed your Render database URL here.
+const databaseUrl = 'postgresql://mariahavens_user:BvEnYG8hb7baKudACcyxLuGkNgpxqloT@dpg-d3l72s3uibrs73cf7l60-a.oregon-postgres.render.com/mariahavens';
 
 const config: { [key: string]: Knex.Config } = {
   development: {
-    client: "sqlite3",
-    connection: {
-      filename: path.resolve(__dirname, "database", "pos.sqlite"),
-    },
-    useNullAsDefault: true,
+    client: 'pg',
+    connection: databaseUrl,
     migrations: {
-      directory: path.resolve(__dirname, "migrations"),
-      extension: "ts",
+      directory: path.resolve(__dirname, 'migrations'),
     },
     seeds: {
-      directory: path.resolve(__dirname, "seeds"),
-      extension: "ts",
+      directory: path.resolve(__dirname, 'seeds'),
     },
   },
 
   production: {
-    client: "pg",
-    connection: process.env.DATABASE_URL,
+    client: 'pg',
+    connection: {
+      connectionString: databaseUrl,
+      ssl: { rejectUnauthorized: false } // This is important for Render connections
+    },
     migrations: {
-      directory: path.resolve(__dirname, "migrations"),
-      extension: "js", // Compiled output
+      directory: path.resolve(__dirname, 'migrations'),
     },
     seeds: {
-      directory: path.resolve(__dirname, "seeds"),
-      extension: "js", // Compiled output
-    },
+      directory: path.resolve(__dirname, 'seeds'),
+    }
   },
 };
 
