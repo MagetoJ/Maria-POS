@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import knex from 'knex';
 import jwt from 'jsonwebtoken';
 import http, { IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -8,23 +7,7 @@ import { authenticateToken, authorizeRoles } from './middleware/auth';
 import path from 'path';
 import dotenv from 'dotenv';
 
-import database from './db'; // <-- your PostgreSQL connection file
-
-// Your routes here
-// app.use('/api', yourRouter);
-
-database.raw('SELECT 1')
-  .then(() => {
-    console.log('✅ Connected to PostgreSQL successfully');
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-      console.log(`🚀 Backend server running at http://localhost:${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error('❌ Database connection failed:', err.message);
-    process.exit(1);
-  });
+import db from './db'; // <-- your PostgreSQL connection file
 
 // --- Initialization ---
 dotenv.config();
@@ -33,15 +16,6 @@ const server = http.createServer(app);
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'a-very-secret-and-secure-key-that-you-should-change';
-
-// --- Database Configuration ---
-const databasePath = process.env.DATABASE_PATH || path.resolve(__dirname, '../database/pos.sqlite3');
-const db = knex({
-  client: 'sqlite3',
-  connection: { filename: databasePath },
-  useNullAsDefault: true,
-  migrations: { directory: path.resolve(__dirname, '../migrations') },
-});
 
 // --- CORS Configuration ---
 app.use(cors({
@@ -261,7 +235,17 @@ app.get('/api/dashboard/overview-stats', authenticateToken, authorizeRoles('admi
         const recentOrders = await db('orders')
             .orderBy('created_at', 'desc')
             .limit(5)
-            .select('id', 'order_number', 'location', 'total_amount', 'created_at');
+            .select('id', 'order_number', 'order_type', 'table_id', 'room_id', 'total_amount', 'created_at')
+            .then(orders => 
+                orders.map(order => ({
+                    ...order,
+                    location: order.order_type === 'table' 
+                        ? `Table ${order.table_id}` 
+                        : order.order_type === 'room' 
+                        ? `Room ${order.room_id}` 
+                        : order.order_type
+                }))
+            );
         
         res.json({
             todaysRevenue,
@@ -1036,8 +1020,16 @@ app.get('/api/debug/seed-orders', async (req, res) => {
 
 
 
-// --- Start Server ---
-server.listen(port, () => {
-  console.log(`🚀 Backend server is running at http://localhost:${port}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+// --- Start Server with Database Connection Test ---
+db.raw('SELECT 1')
+  .then(() => {
+    console.log('✅ Connected to PostgreSQL successfully');
+    server.listen(port, () => {
+      console.log(`🚀 Backend server is running at http://localhost:${port}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+  })
+  .catch((err) => {
+    console.error('❌ Database connection failed:', err.message);
+    process.exit(1);
+  });

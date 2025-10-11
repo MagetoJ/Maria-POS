@@ -31,7 +31,8 @@ export default function StaffManagement() {
         const data = await response.json();
         setStaff(data);
       } else {
-        console.error("Failed to fetch staff. Status:", response.status);
+        const errorText = await response.text();
+        console.error("Failed to fetch staff. Status:", response.status, "Response:", errorText);
       }
     } catch (error) {
       console.error("Error fetching staff:", error);
@@ -100,7 +101,7 @@ export default function StaffManagement() {
         ? formData 
         : { ...formData, password: undefined };
       
-      const response = await fetch(`${API_URL}/api/staff`, { 
+      const response = await fetch(`${API_URL}/api/staff/${editingStaff.id}`, { 
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json', 
@@ -116,9 +117,16 @@ export default function StaffManagement() {
         resetForm();
         setShowAddModal(false);
       } else {
-        const errorData = await response.json();
-        console.error('Failed to update staff:', errorData);
-        alert(`Failed to update staff: ${errorData.message || 'Unknown error'}`);
+        // Only read the response body once
+        const responseText = await response.text();
+        try {
+          const errorData = JSON.parse(responseText);
+          console.error('Failed to update staff:', errorData);
+          alert(`Failed to update staff: ${errorData.message || 'Unknown error'}`);
+        } catch (parseError) {
+          console.error('Failed to update staff. Status:', response.status, 'Response:', responseText);
+          alert(`Failed to update staff: ${response.status} ${response.statusText}`);
+        }
       }
     } catch (error) {
       console.error('Error updating staff:', error);
@@ -129,7 +137,7 @@ export default function StaffManagement() {
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this staff member?')) {
       try {
-        const response = await fetch(`${API_URL}/api/staff`, { 
+        const response = await fetch(`${API_URL}/api/staff/${id}`, { 
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` }
         });
@@ -150,7 +158,7 @@ export default function StaffManagement() {
   
   const toggleActive = async (member: User) => {
     try {
-      const response = await fetch(`${API_URL}/api/staff`, { 
+      const response = await fetch(`${API_URL}/api/staff/${member.id}`, { 
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json', 

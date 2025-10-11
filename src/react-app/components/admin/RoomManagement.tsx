@@ -54,8 +54,8 @@ export default function RoomManagement() {
         // Map backend price_per_night to frontend rate, and add floor
         const roomsWithFloor = data.map((r: any) => ({
           ...r, 
-          rate: r.price_per_night,
-          floor: r.floor || parseInt(r.room_number.toString().charAt(0)) || 1
+          rate: Number(r.price_per_night) || 0,
+          floor: r.floor || parseInt(r.room_number?.toString()?.charAt(0) || '1') || 1
         }));
         setRooms(roomsWithFloor);
       } else {
@@ -82,12 +82,13 @@ export default function RoomManagement() {
     'Balcony', 'King Bed', 'Queen Bed', 'Double Bed', 'Sitting Area'
   ];
 
-  const floors = Array.from(new Set(rooms.map(r => r.floor!))).sort();
+  const floors = Array.from(new Set((rooms || []).map(r => r.floor!).filter(Boolean))).sort();
 
-  const filteredRooms = rooms.filter(room => {
+  const filteredRooms = (rooms || []).filter(room => {
     const floorMatch = selectedFloor === null || room.floor === selectedFloor;
     const statusMatch = selectedStatus === 'all' || room.status === selectedStatus;
-    return floorMatch && statusMatch;
+    // Also filter out rooms with invalid rate values
+    return floorMatch && statusMatch && room && typeof room.rate !== 'undefined';
   });
 
   const handleAddRoom = async () => {
@@ -309,11 +310,11 @@ export default function RoomManagement() {
     return colors[type] || 'bg-gray-100 text-gray-800';
   };
 
-  const totalRevenue = rooms
-    .filter(r => r.status === 'occupied')
-    .reduce((sum, r) => sum + r.rate, 0);
+  const totalRevenue = (rooms || [])
+    .filter(r => r && r.status === 'occupied' && typeof r.rate !== 'undefined')
+    .reduce((sum, r) => sum + (Number(r.rate) || 0), 0);
 
-  const occupancyRate = rooms.length > 0 ? ((rooms.filter(r => r.status === 'occupied').length / rooms.length) * 100).toFixed(1) : "0.0";
+  const occupancyRate = (rooms || []).length > 0 ? (((rooms || []).filter(r => r && r.status === 'occupied').length / (rooms || []).length) * 100).toFixed(1) : "0.0";
 
   return (
     <div className="space-y-6">
@@ -463,7 +464,7 @@ export default function RoomManagement() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <DollarSign className="w-4 h-4 text-gray-400 mr-1" />
-                      <span className="text-sm font-medium text-gray-900">{formatCurrency(room.rate)}</span>
+                      <span className="text-sm font-medium text-gray-900">{formatCurrency(room?.rate ?? 0)}</span>
                     </div>
                     <div className="text-xs text-gray-500">per night</div>
                   </td>

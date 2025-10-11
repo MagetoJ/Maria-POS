@@ -61,6 +61,9 @@ export const mockRooms: Room[] = [
   { id: 8, room_number: '204', room_type: 'Standard', status: 'vacant', rate: 5000 },
 ];
 
-export const formatCurrency = (amount: number): string => {
+export const formatCurrency = (amount: number | undefined | null): string => {
+  if (amount === undefined || amount === null || isNaN(amount)) {
+    return 'KES 0';
+  }
   return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };

@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '../../data/mockData';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 // --- Interfaces for different report data structures ---
 
@@ -94,12 +96,68 @@ export default function ReportsManagement() {
     { id: 'rooms', label: 'Room Revenue', icon: Bed }
   ];
 
-  const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
-    alert(`Exporting ${selectedReport} report as ${format.toUpperCase()}... (Not yet implemented)`);
+  const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
+    try {
+      if (format === 'pdf') {
+        // Get the report content element
+        const reportElement = document.getElementById('report-content');
+        if (!reportElement) {
+          alert('Report content not found');
+          return;
+        }
+
+        // Create canvas from the report element
+        const canvas = await html2canvas(reportElement, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true
+        });
+
+        // Calculate PDF dimensions
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF();
+        const imgWidth = 210;
+        const pageHeight = 295;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+
+        let position = 0;
+
+        // Add first page
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        // Add additional pages if needed
+        while (heightLeft >= 0) {
+          position = heightLeft - imgHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+
+        // Save the PDF
+        const fileName = `${selectedReport}_report_${new Date().toISOString().split('T')[0]}.pdf`;
+        pdf.save(fileName);
+        
+        alert('PDF export successful!');
+      } else {
+        // For CSV and Excel, show not implemented message
+        alert(`Exporting ${selectedReport} report as ${format.toUpperCase()}... (Not yet implemented)`);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Error exporting report. Please try again.');
+    }
   };
   
   const renderOverviewReport = () => {
     const data = reportData as OverviewReportData;
+    
+    // Add null/undefined check
+    if (!data || !data.sales || !data.orders || !data.inventory || !data.staff) {
+      return <div className="text-center py-8">No data available</div>;
+    }
+    
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -110,7 +168,7 @@ export default function ReportsManagement() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(data.sales.monthly)}</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(data.sales?.monthly || 0)}</p>
               </div>
             </div>
           </div>
@@ -122,12 +180,12 @@ export default function ReportsManagement() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Orders</p>
-                <p className="text-2xl font-bold text-gray-900">{data.orders.total}</p>
+                <p className="text-2xl font-bold text-gray-900">{data.orders?.total || 0}</p>
               </div>
             </div>
-            {data.orders.total > 0 &&
+            {(data.orders?.total || 0) > 0 &&
                 <div className="mt-4">
-                    <span className="text-blue-500 text-sm">{((data.orders.completed / data.orders.total) * 100).toFixed(1)}% completion rate</span>
+                    <span className="text-blue-500 text-sm">{(((data.orders?.completed || 0) / (data.orders?.total || 1)) * 100).toFixed(1)}% completion rate</span>
                 </div>
             }
           </div>
@@ -139,7 +197,7 @@ export default function ReportsManagement() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Average Order Value</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(data.orders.averageValue)}</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(data.orders?.averageValue || 0)}</p>
               </div>
             </div>
           </div>
@@ -149,7 +207,7 @@ export default function ReportsManagement() {
           <div className="bg-white rounded-lg p-6 border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Selling Items</h3>
             <div className="space-y-3">
-              {data.inventory.topSellingItems.map((item, index) => (
+              {(data.inventory?.topSellingItems || []).map((item, index) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div>
                     <div className="font-medium text-gray-900">{item.name}</div>
@@ -160,13 +218,16 @@ export default function ReportsManagement() {
                   </div>
                 </div>
               ))}
+              {(!data.inventory?.topSellingItems || data.inventory.topSellingItems.length === 0) && (
+                <div className="text-center py-4 text-gray-500">No sales data available</div>
+              )}
             </div>
           </div>
 
           <div className="bg-white rounded-lg p-6 border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Staff Performance</h3>
             <div className="space-y-3">
-              {data.staff.topPerformers.map((staff, index) => (
+              {(data.staff?.topPerformers || []).map((staff, index) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div>
                     <div className="font-medium text-gray-900">{staff.name}</div>
@@ -177,6 +238,9 @@ export default function ReportsManagement() {
                   </div>
                 </div>
               ))}
+              {(!data.staff?.topPerformers || data.staff.topPerformers.length === 0) && (
+                <div className="text-center py-4 text-gray-500">No staff performance data available</div>
+              )}
             </div>
           </div>
         </div>
@@ -450,7 +514,7 @@ export default function ReportsManagement() {
           </nav>
         </div>
 
-        <div className="p-6">
+        <div id="report-content" className="p-6">
           {renderCurrentReport()}
         </div>
       </div>
