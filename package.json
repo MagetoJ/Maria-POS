@@ -46,7 +46,7 @@
     "install:all": "npm install && cd server && npm install",
     "render-build": "npm run build",
     "build:render": "VITE_API_URL=https://mariahavensbackend.onrender.com npm run build",
-    "build:frontend": "npm install --prefix src/react-app && vite build src/react-app",
+    "build:frontend": "vite build src/react-app",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   }
 }
