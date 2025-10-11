@@ -22,7 +22,7 @@ import {
 import { formatCurrency } from '../data/mockData';
 
 // API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // Interface for the fetched overview data
 interface OverviewStats {

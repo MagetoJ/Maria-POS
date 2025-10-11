@@ -8,6 +8,24 @@ import { authenticateToken, authorizeRoles } from './middleware/auth';
 import path from 'path';
 import dotenv from 'dotenv';
 
+import database from './db'; // <-- your PostgreSQL connection file
+
+// Your routes here
+// app.use('/api', yourRouter);
+
+database.raw('SELECT 1')
+  .then(() => {
+    console.log('✅ Connected to PostgreSQL successfully');
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+      console.log(`🚀 Backend server running at http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('❌ Database connection failed:', err.message);
+    process.exit(1);
+  });
+
 // --- Initialization ---
 dotenv.config();
 const app = express();
@@ -1013,6 +1031,10 @@ app.get('/api/debug/seed-orders', async (req, res) => {
     res.status(500).json({ error: (err as Error).message });
   }
 });
+
+
+
+
 
 // --- Start Server ---
 server.listen(port, () => {

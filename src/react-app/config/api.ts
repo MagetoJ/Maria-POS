@@ -13,7 +13,7 @@ const getApiUrl = (): string => {
   }
   
   // Fallback
-  return 'http://localhost:3001';
+  return 'http://localhost:3000';
 };
 
 export const API_URL = getApiUrl();

@@ -1,14 +1,17 @@
 import type { Knex } from "knex";
 
 export async function up(knex: Knex): Promise<void> {
-  return knex.schema.table('products', (table) => {
-    table.boolean('is_available').defaultTo(true);
-    table.boolean('is_active').defaultTo(true);
+  const hasIsAvailable = await knex.schema.hasColumn('products', 'is_available');
+  const hasIsActive = await knex.schema.hasColumn('products', 'is_active');
+
+  await knex.schema.alterTable('products', (table) => {
+    if (!hasIsAvailable) table.boolean('is_available').defaultTo(true);
+    if (!hasIsActive) table.boolean('is_active').defaultTo(true);
   });
 }
-// ... the down function remains the same
+
 export async function down(knex: Knex): Promise<void> {
-  return knex.schema.table('products', (table) => {
+  await knex.schema.alterTable('products', (table) => {
     table.dropColumn('is_available');
     table.dropColumn('is_active');
   });
