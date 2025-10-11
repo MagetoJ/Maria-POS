@@ -40,7 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       // Correct the login URL by removing the extra '/api'
-      const loginUrl = `${API_URL}/login`;
+      const loginUrl = `${API_URL}/api/login`; // Note: /api/login
       console.log('Attempting login to:', loginUrl);
       
       const response = await fetch(loginUrl, {

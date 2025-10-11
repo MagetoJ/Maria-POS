@@ -28,11 +28,12 @@ const db = knex({
 // --- CORS Configuration ---
 app.use(cors({
   origin: [
-    'https://mariahavensfrontend.onrender.com/',
-    'https://mariahavensbackend.onrender.com/',
+    'https://mariahavensfrontend.onrender.com', // Your actual frontend URL
+    'https://mariahavensbackend.onrender.com',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:5174',
+    /\.onrender\.com$/ // Allow all Render subdomains
   ],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization'],
