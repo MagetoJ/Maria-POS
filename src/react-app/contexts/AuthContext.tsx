@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-
-// Get API URL from environment variable or use localhost for development
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Import the centralized API_URL
+import { API_URL } from '../config/api';
 
 export interface User {
   id: number;
@@ -40,7 +39,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     
     try {
-      const loginUrl = `${API_URL}/api/login`;
+      // Correct the login URL by removing the extra '/api'
+      const loginUrl = `${API_URL}/login`;
       console.log('Attempting login to:', loginUrl);
       
       const response = await fetch(loginUrl, {
@@ -79,7 +79,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Validating PIN for username:', username);
       
-      const response = await fetch(`${API_URL}/api/validate-pin`, {
+      // Correct the validation URL
+      const response = await fetch(`${API_URL}/validate-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, pin })

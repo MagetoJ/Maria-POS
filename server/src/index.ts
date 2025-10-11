@@ -29,6 +29,7 @@ const db = knex({
 app.use(cors({
   origin: [
     'https://maria-havens-pos-frontend.onrender.com',
+    'https://mariahavensbackend.onrender.com/',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:5174',

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User as UserIcon, Plus, Edit3, Trash2 } from 'lucide-react';
 import { User } from '../../contexts/AuthContext';
-import API_BASE_URL from '../../config/api';
+import { API_URL } from '../../config/api';
 
 export default function StaffManagement() {
   const [staff, setStaff] = useState<User[]>([]);
@@ -24,7 +24,7 @@ export default function StaffManagement() {
   const fetchStaff = async () => {
     try {
       const token = localStorage.getItem('pos_token');
-      const response = await fetch(`${API_BASE_URL}/api/staff`, {
+      const response = await fetch(`${API_URL}/api/staff`, { 
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -52,7 +52,7 @@ export default function StaffManagement() {
   const handleAdd = async () => {
     try {
       console.log('Adding staff with data:', formData);
-      const response = await fetch(`${API_BASE_URL}/api/staff`, {
+      const response = await fetch(`${API_URL}/api/staff`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json', 
@@ -100,7 +100,7 @@ export default function StaffManagement() {
         ? formData 
         : { ...formData, password: undefined };
       
-      const response = await fetch(`${API_BASE_URL}/api/staff/${editingStaff.id}`, {
+      const response = await fetch(`${API_URL}/api/staff`, { 
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json', 
@@ -129,7 +129,7 @@ export default function StaffManagement() {
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this staff member?')) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/staff/${id}`, {
+        const response = await fetch(`${API_URL}/api/staff`, { 
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${localStorage.getItem('pos_token')}` }
         });
@@ -150,7 +150,7 @@ export default function StaffManagement() {
   
   const toggleActive = async (member: User) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/staff/${member.id}`, {
+      const response = await fetch(`${API_URL}/api/staff`, { 
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json', 

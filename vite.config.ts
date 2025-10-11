@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  base: '/', // Important for production
 
   server: {
     port: 5173,
@@ -21,8 +22,15 @@ export default defineConfig({
   },
 
   build: {
-    outDir: 'dist/client',
+    outDir: 'dist', // Changed from 'dist/client' to just 'dist'
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
   },
 
   resolve: {
