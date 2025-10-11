@@ -31,6 +31,6 @@
     "noFallthroughCasesInSwitch": false,
     "noUncheckedSideEffectImports": false
   },
-  "include": ["src/react-app", "src/types", "src/config", "vite.config.ts"],
+  "include": ["src/react-app", "src/types", "src/config", "vite.config.ts", "postcss.config.js", "tailwind.config.js"],
   "exclude": ["node_modules", "dist", "build"]
 }
