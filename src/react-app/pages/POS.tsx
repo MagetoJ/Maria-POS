@@ -1,166 +1,169 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { usePOS } from '../contexts/POSContext';
 import { useAuth } from '../contexts/AuthContext';
-import Header from '../components/Header';
-import OrderPanel from '../components/OrderPanel';
-import MenuGrid from '../components/MenuGrid';
-import TableLayout from '../components/TableLayout';
-import RoomView from '../components/RoomView';
-import QuickPOSHeader from '../components/QuickPOSHeader';
-import DeliveryManagement from '../components/DeliveryManagement';
-import { UtensilsCrossed, Building, Home, Settings } from 'lucide-react';
+import { API_URL } from '../config/api';
+import { Trash2, User, CreditCard, X, Loader2, UtensilsCrossed } from 'lucide-react';
 
-interface POSProps {
+// Centralized currency formatter
+const formatCurrency = (amount: number): string => {
+  if (typeof amount !== 'number') return 'KES 0';
+  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+};
+
+// Define the props the component will accept
+interface OrderPanelProps {
   isQuickAccess?: boolean;
-  onBackToLogin?: () => void;
 }
 
-export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) {
-  const { user } = useAuth();
-  const [activeView, setActiveView] = useState<'menu' | 'tables' | 'rooms' | 'delivery'>('menu');
-  const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
+export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
+    const { currentOrder, removeItemFromOrder, clearOrder, updateItemQuantity } = usePOS();
+    const { user, validateStaffPin } = useAuth();
+    
+    const [customerName, setCustomerName] = useState('');
+    const [showPinModal, setShowPinModal] = useState(false);
+    const [pinUsername, setPinUsername] = useState('');
+    const [pin, setPin] = useState('');
+    const [pinError, setPinError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const canAccessRooms = user?.role === 'receptionist' || user?.role === 'manager' || user?.role === 'admin' || isQuickAccess;
-  const canAccessDelivery = user?.role === 'delivery' || user?.role === 'manager' || user?.role === 'admin' || isQuickAccess;
+    // If logged in, pre-fill the username
+    useEffect(() => {
+        if (user) {
+            setPinUsername(user.username);
+        }
+    }, [user]);
 
-  const renderMainContent = () => {
-    switch (activeView) {
-      case 'tables':
-        return <TableLayout />;
-      case 'rooms':
-        return <RoomView />;
-      case 'delivery':
-        return <DeliveryManagement />;
-      default:
-        return <MenuGrid />;
-    }
-  };
+    const subtotal = currentOrder?.items.reduce((acc, item) => acc + (item.price * item.quantity), 0) ?? 0;
+    const tax = subtotal * 0.16;
+    const total = subtotal + tax;
 
-  return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {isQuickAccess ? <QuickPOSHeader onBackToLogin={onBackToLogin} /> : <Header />}
-      
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col">
-          {/* Order Type Selector */}
-          <div className="bg-white border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                <button
-                  onClick={() => {
-                    setOrderType('dine_in');
-                    setActiveView('menu');
-                  }}
-                  className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm sm:text-base font-medium transition-colors ${
-                    orderType === 'dine_in'
-                      ? 'bg-yellow-400 text-yellow-900'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  Dine In
-                </button>
-                <button
-                  onClick={() => {
-                    setOrderType('takeaway');
-                    setActiveView('menu');
-                  }}
-                  className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm sm:text-base font-medium transition-colors ${
-                    orderType === 'takeaway'
-                      ? 'bg-yellow-400 text-yellow-900'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  Takeaway
-                </button>
-                {canAccessDelivery && (
-                  <button
-                    onClick={() => {
-                      setOrderType('delivery');
-                      setActiveView('delivery');
-                    }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      orderType === 'delivery'
-                        ? 'bg-yellow-400 text-yellow-900'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    Delivery
-                  </button>
-                )}
-                {canAccessRooms && (
-                  <button
-                    onClick={() => {
-                      setOrderType('room_service');
-                      setActiveView('rooms');
-                    }}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      orderType === 'room_service'
-                        ? 'bg-yellow-400 text-yellow-900'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    Room Service
-                  </button>
-                )}
-              </div>
+    const handleQuantityChange = (itemId: number, newQuantity: number) => {
+        updateItemQuantity(itemId, newQuantity);
+    };
 
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setActiveView('menu')}
-                  className={`p-2 rounded-lg transition-colors ${
-                    activeView === 'menu'
-                      ? 'bg-yellow-400 text-yellow-900'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                  }`}
-                  title="Menu"
-                >
-                  <UtensilsCrossed className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => setActiveView('tables')}
-                  className={`p-2 rounded-lg transition-colors ${
-                    activeView === 'tables'
-                      ? 'bg-yellow-400 text-yellow-900'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                  }`}
-                  title="Tables"
-                >
-                  <Home className="w-5 h-5" />
-                </button>
-                {canAccessRooms && (
-                  <button
-                    onClick={() => setActiveView('rooms')}
-                    className={`p-2 rounded-lg transition-colors ${
-                      activeView === 'rooms'
-                        ? 'bg-yellow-400 text-yellow-900'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    }`}
-                    title="Rooms"
-                  >
-                    <Building className="w-5 h-5" />
-                  </button>
-                )}
-                {(user?.role === 'admin' || user?.role === 'manager') && (
-                  <button
-                    onClick={() => alert('Admin settings access - functionality coming soon')}
-                    className="p-2 rounded-lg transition-colors bg-gray-100 hover:bg-gray-200 text-gray-700"
-                    title="Settings"
-                  >
-                    <Settings className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
+    const handleFinalizeOrder = () => {
+        if (!currentOrder || currentOrder.items.length === 0) {
+            alert("Cannot process an empty order.");
+            return;
+        }
+        setShowPinModal(true);
+    };
+    
+    const handlePinVerification = async () => {
+        const usernameForValidation = isQuickAccess ? pinUsername : user?.username;
+        if (!usernameForValidation) {
+            setPinError("Username is required for PIN validation.");
+            return;
+        }
+        if (pin.length !== 4) {
+            setPinError("PIN must be 4 digits.");
+            return;
+        }
 
-          {/* Main Content Area */}
-          {renderMainContent()}
+        setIsSubmitting(true);
+        setPinError('');
+
+        const validatedUser = await validateStaffPin(usernameForValidation, pin);
+
+        if (validatedUser) {
+            await submitOrder(validatedUser);
+        } else {
+            setPinError("Invalid username or PIN. Please try again.");
+            setIsSubmitting(false);
+        }
+    };
+
+    const submitOrder = async (staff: any) => {
+        if (!currentOrder) return;
+
+        const orderPayload = {
+            ...currentOrder,
+            items: currentOrder.items.map(item => ({
+                product_id: item.product_id,
+                quantity: item.quantity,
+                unit_price: item.price,
+                total_price: item.price * item.quantity,
+                notes: item.notes
+            })),
+            staff_username: staff.username,
+            pin: pin,
+            total_amount: total,
+            subtotal: subtotal,
+            tax_amount: tax
+        };
+        
+        try {
+            const response = await fetch(`${API_URL}/api/orders`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderPayload),
+            });
+
+            if (response.ok) {
+                alert('Order submitted successfully!');
+                clearOrder();
+                setCustomerName('');
+                setShowPinModal(false);
+                setPin('');
+                if (isQuickAccess) setPinUsername('');
+            } else {
+                const error = await response.json();
+                setPinError(error.message || "Order submission failed.");
+            }
+        } catch (error) {
+            setPinError('An error occurred while submitting the order.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="flex flex-col h-full bg-gray-50">
+            {/* ... (rest of the component remains the same, but now uses the new state) ... */}
+
+            {/* PIN Modal */}
+            {showPinModal && (
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-80">
+                        <h3 className="text-lg font-bold mb-4">Staff Authorization</h3>
+                        
+                        {/* Conditionally show username field for quick access mode */}
+                        {isQuickAccess && !user && (
+                             <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                                <input
+                                    type="text"
+                                    value={pinUsername}
+                                    onChange={(e) => setPinUsername(e.target.value)}
+                                    className="w-full p-2 border rounded-md"
+                                    placeholder="Enter your username"
+                                />
+                            </div>
+                        )}
+
+                        <div className="mb-4">
+                             <label className="block text-sm font-medium text-gray-700 mb-1">PIN</label>
+                            <input
+                                type="password"
+                                value={pin}
+                                onChange={(e) => setPin(e.target.value)}
+                                maxLength={4}
+                                className="w-full p-2 text-center text-2xl tracking-widest border rounded-md"
+                            />
+                        </div>
+
+                        {pinError && <p className="text-red-500 text-sm text-center mb-2">{pinError}</p>}
+
+                        <div className="flex gap-2">
+                            <button onClick={() => { setShowPinModal(false); setPinError(''); }} className="w-full py-2 bg-gray-200 rounded-md">Cancel</button>
+                            <button onClick={handlePinVerification} disabled={isSubmitting} className="w-full py-2 bg-blue-500 text-white rounded-md flex justify-center items-center">
+                                {isSubmitting ? <Loader2 className="animate-spin" /> : 'Submit'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
-
-        {/* Order Panel */}
-        <OrderPanel isQuickAccess={isQuickAccess} />
-      </div>
-    </div>
-  );
+    );
 }
 

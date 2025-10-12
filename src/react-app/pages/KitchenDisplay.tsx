@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import { Clock, CheckCircle, ChefHat } from 'lucide-react';
-import { API_URL } from '@/config/api';  // 
-
+import { API_URL } from '../config/api';
 interface KitchenOrderItem {
   id: number;
   product_name: string;
@@ -31,7 +30,7 @@ export default function KitchenDisplay() {
   const fetchKitchenOrders = async () => {
     const token = localStorage.getItem('pos_token');
     try {
-      const response = await fetch(getApiUrl('/api/orders/kitchen'), {
+      const response = await fetch(`${API_URL}/api/orders/kitchen?limit=10&offset=0`, {
 
         headers: { Authorization: `Bearer ${token}` },
       });

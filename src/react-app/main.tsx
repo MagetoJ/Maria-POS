@@ -1,10 +1,21 @@
+// src/react-app/main.tsx
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import './index.css';  // ⭐ THIS IS THE ONLY CSS IMPORT YOU NEED
+import { BrowserRouter } from 'react-router-dom';
+import App from './App'; // Corrected path
+import './index.css';
+import { AuthProvider } from './contexts/AuthContext'; // Corrected path
+import { POSProvider } from './contexts/POSContext'; // Corrected path
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <BrowserRouter>
+      <AuthProvider>
+        <POSProvider>
+          <App />
+        </POSProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>,
 );

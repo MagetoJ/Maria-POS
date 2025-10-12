@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UtensilsCrossed, Plus, Edit3, Trash2 } from 'lucide-react';
-import { API_URL } from '@/config/api';
+import { API_URL } from '../../config/api';
 
 // Define interfaces to match backend schema
 interface Product {

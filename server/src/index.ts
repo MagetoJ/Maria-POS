@@ -261,7 +261,8 @@ app.get('/api/dashboard/overview-stats', authenticateToken, authorizeRoles('admi
 });
 
 // Order Management - ENHANCED WITH PIN VALIDATION
-app.post('/api/orders', authenticateToken, async (req, res) => {
+app.post('/api/orders', async (req, res) => {
+
     const { items, staff_username, pin, ...orderData } = req.body;
     
     try {

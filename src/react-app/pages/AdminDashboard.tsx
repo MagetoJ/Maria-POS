@@ -25,11 +25,11 @@ import {
 // This function formats numbers as currency.
 export const formatCurrency = (amount: number) => {
   if (typeof amount !== 'number') {
-    return '$0.00';
+    return 'KES 0';
   }
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-KE', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'KES',
   }).format(amount);
 };
 

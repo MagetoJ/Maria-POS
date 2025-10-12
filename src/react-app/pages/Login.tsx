@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Lock, AlertCircle, Loader2, UtensilsCrossed } from 'lucide-react';
 
+
 interface LoginProps {
   onQuickPOSAccess?: () => void;
 }

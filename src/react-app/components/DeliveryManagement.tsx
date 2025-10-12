@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Phone, MapPin, Package } from 'lucide-react';
-import { API_URL } from '@/config/api';  // ← ADD THIS
+import { API_URL } from '../config/api'; //
 
 // ← ADD THIS FUNCTION
 const formatCurrency = (amount: number): string => {
