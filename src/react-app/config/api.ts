@@ -7,12 +7,14 @@ const getApiUrl = (): string => {
     return import.meta.env.VITE_API_URL;
   }
   
-  // In development, use proxy (which forwards /api to localhost:3001)
+  // ⚡ FIX: In development, explicitly point to the backend port (3000).
+  // This bypasses the potentially misconfigured or failing Vite proxy.
   if (import.meta.env.DEV) {
-    return ''; // Empty string uses the proxy defined in vite.config.ts
+    // Ensure this port (3000) matches the port your Node.js/Express server is running on.
+    return 'http://localhost:3000'; 
   }
   
-  // Fallback
+  // Fallback (e.g., if neither DEV nor PROD vars are set)
   return 'http://localhost:3000';
 };
 
@@ -21,6 +23,8 @@ export const API_URL = getApiUrl();
 // Helper function for making API calls
 export const apiClient = {
   get: async (endpoint: string, options?: RequestInit) => {
+    // API_URL is now a full URL (http://localhost:3000), so the resulting path is correct:
+    // http://localhost:3000/api/performance
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers: {

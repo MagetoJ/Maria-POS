@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState } from 'react';
-import { UtensilsCrossed } from 'lucide-react';
 
 // --- INTERFACES (Ensure all are exported) ---
 export interface Product {
@@ -54,12 +53,13 @@ export interface Order {
   items: OrderItem[];
   table_id?: number;
   room_id?: number;
+  location_detail?: string; // <-- **CHANGED/ADDED LINE**
 }
 
 interface POSContextType {
   currentOrder: Order | null;
   setCurrentOrder: (order: Order | null) => void;
-  addItemToOrder: (product: Product, quantity?: number) => void;
+  addItemToOrder: (product: Product, quantity?: number, orderType?: 'dine_in' | 'takeaway' | 'delivery' | 'room_service') => void;
   removeItemFromOrder: (itemId: number) => void;
   updateItemQuantity: (itemId: number, newQuantity: number) => void;
   clearOrder: () => void;
@@ -71,7 +71,7 @@ const POSContext = createContext<POSContextType | undefined>(undefined);
 export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
-  const addItemToOrder = (product: Product, quantity: number = 1) => {
+  const addItemToOrder = (product: Product, quantity: number = 1, orderType: 'dine_in' | 'takeaway' | 'delivery' | 'room_service' = 'dine_in') => {
     const newItem: OrderItem = {
       id: Date.now(),
       product_id: product.id,
@@ -83,7 +83,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentOrder) {
       const newOrder: Order = {
         id: `temp-${Date.now()}`,
-        order_type: 'takeaway', // Default to takeaway
+        order_type: orderType, // Use the passed order type
         items: [newItem],
       };
       setCurrentOrder(newOrder);
@@ -151,4 +151,3 @@ export const usePOS = () => {
   }
   return context;
 };
-

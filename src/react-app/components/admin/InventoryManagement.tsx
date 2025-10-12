@@ -2,11 +2,6 @@ import { useState, useEffect } from 'react';
 import { Package, Plus, Edit3, Trash2, AlertTriangle } from 'lucide-react';
 import { API_URL } from '../../config/api'; 
 
-// ← ADD THIS FUNCTION
-const formatCurrency = (amount: number): string => {
-  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-};
-
 interface InventoryItem {
   id: number;
   name: string;
@@ -46,23 +41,20 @@ export default function InventoryManagement() {
     setError(null);
     try {
       const token = localStorage.getItem('pos_token');
-      if (!token) {
-        setError('No authentication token found');
-        return;
-      }
+      if (!token) return setError('No authentication token found');
 
       const response = await fetch(`${API_URL}/api/inventory`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setInventory(data);
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to fetch inventory' }));
-        setError(errorData.message || 'Failed to fetch inventory');
-        console.error("Failed to fetch inventory:", errorData);
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: 'Failed to fetch inventory' }));
+        setError(errData.message || 'Failed to fetch inventory');
+        return;
       }
+
+      const data = await response.json();
+      setInventory(data);
     } catch (err) {
       setError('Network error. Please check your connection.');
       console.error('Fetch error:', err);
@@ -104,15 +96,15 @@ export default function InventoryManagement() {
         body: JSON.stringify(formData)
       });
 
-      if (response.ok) {
-        await fetchInventory();
-        resetForm();
-        setShowAddModal(false);
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to add item' }));
-        setError(errorData.message || 'Failed to add inventory item');
-        console.error('Add error:', errorData);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: 'Failed to add item' }));
+        setError(errData.message || 'Failed to add inventory item');
+        return;
       }
+
+      await fetchInventory();
+      resetForm();
+      setShowAddModal(false);
     } catch (err) {
       setError('Network error. Please try again.');
       console.error('Add error:', err);
@@ -124,13 +116,13 @@ export default function InventoryManagement() {
   const handleEdit = (item: InventoryItem) => {
     setEditingItem(item);
     setFormData({
-      name: item.name,
-      unit: item.unit,
-      current_stock: item.current_stock,
-      minimum_stock: item.minimum_stock,
-      cost_per_unit: item.cost_per_unit,
-      supplier: item.supplier,
-      inventory_type: item.inventory_type
+      name: item.name || '',
+      unit: item.unit || '',
+      current_stock: item.current_stock ?? 0,
+      minimum_stock: item.minimum_stock ?? 0,
+      cost_per_unit: item.cost_per_unit ?? 0,
+      supplier: item.supplier || '',
+      inventory_type: item.inventory_type || 'kitchen'
     });
     setShowAddModal(true);
     setError(null);
@@ -156,16 +148,16 @@ export default function InventoryManagement() {
         body: JSON.stringify(formData)
       });
 
-      if (response.ok) {
-        await fetchInventory();
-        setEditingItem(null);
-        resetForm();
-        setShowAddModal(false);
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to update item' }));
-        setError(errorData.message || 'Failed to update inventory item');
-        console.error('Update error:', errorData);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: 'Failed to update item' }));
+        setError(errData.message || 'Failed to update inventory item');
+        return;
       }
+
+      await fetchInventory();
+      setEditingItem(null);
+      resetForm();
+      setShowAddModal(false);
     } catch (err) {
       setError('Network error. Please try again.');
       console.error('Update error:', err);
@@ -175,9 +167,7 @@ export default function InventoryManagement() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this inventory item?')) {
-      return;
-    }
+    if (!confirm('Are you sure you want to delete this inventory item?')) return;
 
     setLoading(true);
     setError(null);
@@ -188,13 +178,13 @@ export default function InventoryManagement() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (response.ok) {
-        await fetchInventory();
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to delete item' }));
-        setError(errorData.message || 'Failed to delete inventory item');
-        console.error('Delete error:', errorData);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: 'Failed to delete item' }));
+        setError(errData.message || 'Failed to delete inventory item');
+        return;
       }
+
+      await fetchInventory();
     } catch (err) {
       setError('Network error. Please try again.');
       console.error('Delete error:', err);
@@ -216,11 +206,11 @@ export default function InventoryManagement() {
         body: JSON.stringify({ current_stock: Math.max(0, newStock) })
       });
 
-      if (response.ok) {
-        await fetchInventory();
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: 'Failed to update stock' }));
+        setError(errData.message || 'Failed to update stock');
       } else {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to update stock' }));
-        setError(errorData.message || 'Failed to update stock');
+        await fetchInventory();
       }
     } catch (err) {
       setError('Network error. Please try again.');

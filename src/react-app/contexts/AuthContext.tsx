@@ -14,6 +14,7 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
+  token: string | null; // ⚡ FIX 1: Add token to the context interface
   login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   isLoading: boolean;
@@ -91,14 +92,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (response.ok) {
-        const userData = await response.json();
+        const userData: User = await response.json();
         return userData;
       } else {
-        return null;
+        return null; 
       }
     } catch (error) {
       console.error('PIN validation error:', error);
-      return null; // <-- This is the corrected line
+      return null;
     }
   };
 
@@ -109,9 +110,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('pos_token');
     navigate('/login', { replace: true });
   };
-
+  
   const value = {
     user,
+    token, // ⚡ FIX 2: Expose the token state
     login,
     logout,
     isLoading,

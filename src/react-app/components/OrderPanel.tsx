@@ -1,223 +1,660 @@
 import React, { useState, useEffect } from 'react';
-import { usePOS } from '../contexts/POSContext';
-import { useAuth } from '../contexts/AuthContext';
+import { usePOS, OrderItem, Order } from '../contexts/POSContext';
+import { useAuth, User } from '../contexts/AuthContext';
 import { API_URL } from '../config/api';
-import { Trash2, User, CreditCard, X, Loader2, UtensilsCrossed } from 'lucide-react';
+import { Trash2, UtensilsCrossed, Loader2, User as UserIcon, Printer, X } from 'lucide-react'; // <-- **CHANGED/ADDED IMPORTS**
 
 // Centralized currency formatter
 const formatCurrency = (amount: number): string => {
   if (typeof amount !== 'number') return 'KES 0';
-  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  // <-- **CHANGED: Set minimumFractionDigits to 2 for proper currency format**
+  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; 
 };
 
-// Define the props the component will accept
+// NEW: Interface for receipt details
+interface ReceiptDetails {
+  order: Order;
+  staff: User;
+  orderNumber: string;
+  subtotal: number;
+  tax: number;
+  total: number;
+  orderType: 'dine_in' | 'takeaway' | 'delivery' | 'room_service';
+  locationDetail?: string; // <-- **ADDED: Use the new property**
+}
+
+// Props
 interface OrderPanelProps {
   isQuickAccess?: boolean;
 }
 
-export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
-    const { currentOrder, removeItemFromOrder, clearOrder, updateItemQuantity } = usePOS();
-    const { user, validateStaffPin } = useAuth();
+// --- NEW: Receipt Preview Component (Internal to OrderPanel) ---
+const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => void }> = ({ details, onClose }) => {
+  const { order, staff, orderNumber, subtotal, tax, total, orderType, locationDetail } = details;
+
+  // The actual printing logic
+  const handlePrint = () => {
+    const locationLine = locationDetail ? `<div>Location: ${locationDetail}</div>` : '';
     
-    const [customerName, setCustomerName] = useState('');
-    const [showPinModal, setShowPinModal] = useState(false);
-    const [pinUsername, setPinUsername] = useState('');
-    const [pin, setPin] = useState('');
-    const [pinError, setPinError] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    // If logged in, pre-fill the username
-    useEffect(() => {
-        if (user) {
-            setPinUsername(user.username);
-        }
-    }, [user]);
-
-    const subtotal = currentOrder?.items.reduce((acc, item) => acc + (item.price * item.quantity), 0) ?? 0;
-    const tax = subtotal * 0.16;
-    const total = subtotal + tax;
-
-    const handleQuantityChange = (itemId: number, newQuantity: number) => {
-        updateItemQuantity(itemId, newQuantity);
-    };
-
-    const handleFinalizeOrder = () => {
-        if (!currentOrder || currentOrder.items.length === 0) {
-            alert("Cannot process an empty order.");
-            return;
-        }
-        setShowPinModal(true);
-    };
-    
-    const handlePinVerification = async () => {
-        const usernameForValidation = isQuickAccess ? pinUsername : user?.username;
-        if (!usernameForValidation) {
-            setPinError("Username is required for PIN validation.");
-            return;
-        }
-        if (pin.length !== 4) {
-            setPinError("PIN must be 4 digits.");
-            return;
-        }
-
-        setIsSubmitting(true);
-        setPinError('');
-
-        const validatedUser = await validateStaffPin(usernameForValidation, pin);
-
-        if (validatedUser) {
-            await submitOrder(validatedUser);
-        } else {
-            setPinError("Invalid username or PIN. Please try again.");
-            setIsSubmitting(false);
-        }
-    };
-
-    const submitOrder = async (staff: any) => {
-        if (!currentOrder) return;
-
-        const orderPayload = {
-            ...currentOrder,
-            items: currentOrder.items.map(item => ({
-                product_id: item.product_id,
-                quantity: item.quantity,
-                unit_price: item.price,
-                total_price: item.price * item.quantity,
-                notes: item.notes
-            })),
-            staff_username: staff.username,
-            pin: pin,
-            total_amount: total,
-            subtotal: subtotal,
-            tax_amount: tax
-        };
-        
-        try {
-            const response = await fetch(`${API_URL}/api/orders`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(orderPayload),
-            });
-
-            if (response.ok) {
-                alert('Order submitted successfully!');
-                clearOrder();
-                setCustomerName('');
-                setShowPinModal(false);
-                setPin('');
-                if (isQuickAccess) setPinUsername('');
-            } else {
-                const error = await response.json();
-                setPinError(error.message || "Order submission failed.");
-            }
-        } catch (error) {
-            setPinError('An error occurred while submitting the order.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="flex flex-col h-full bg-gray-50">
-            {/* Order Header */}
-            <div className="p-4 border-b bg-white">
-                <h2 className="text-xl font-bold text-gray-800">Current Order</h2>
-                <p className="text-sm text-gray-500">
-                    Order Type: <span className="font-medium capitalize">{currentOrder?.order_type.replace('_', ' ') || 'N/A'}</span>
-                </p>
+    const receiptContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt - ${orderNumber}</title>
+        <style>
+          /* Basic styling for thermal printer look */
+          body {
+            font-family: 'Courier New', monospace;
+            width: 300px; /* Standard thermal receipt width (approx 80mm) */
+            margin: 0;
+            padding: 10px;
+          }
+          .receipt {
+            text-align: center;
+          }
+          .header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+          }
+          .divider {
+            border-top: 1px dashed #000;
+            margin: 10px 0;
+          }
+          .order-info {
+            text-align: left;
+            margin: 10px 0;
+            font-size: 14px;
+          }
+          .item-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+          }
+          .totals {
+            margin-top: 10px;
+            font-weight: bold;
+            font-size: 15px;
+          }
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+          }
+          .footer {
+            margin-top: 20px;
+            font-size: 12px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="header">MARIA HAVENS</div>
+          <div>Restaurant & Hotel</div>
+          <div class="divider"></div>
+          
+          <div class="order-info">
+            <div>Order: ${orderNumber}</div>
+            <div>Date: ${new Date().toLocaleString('en-KE')}</div>
+            <div>Type: ${orderType.replace('_', ' ').toUpperCase()}</div>
+            ${locationLine} <div>Waiter: ${staff.name}</div>
+          </div>
+          
+          <div class="divider"></div>
+          
+          <div class="items">
+            ${order.items.map(item => `
+              <div class="item-row">
+                <div>${item.quantity}x ${item.name}</div>
+                <div>${formatCurrency(item.price * item.quantity)}</div>
+              </div>
+            `).join('')}
+          </div>
+          
+          <div class="divider"></div>
+          
+          <div class="totals">
+            <div class="total-row">
+              <div>Subtotal:</div>
+              <div>${formatCurrency(subtotal)}</div>
             </div>
-
-            {/* Order Items */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {currentOrder?.items.map(item => (
-                    <div key={item.id} className="flex items-center bg-white p-3 rounded-lg shadow-sm">
-                        <div className="flex-1 min-w-0">
-                            <p className="font-semibold truncate">{item.name}</p>
-                            <p className="text-sm text-gray-600">{formatCurrency(item.price)}</p>
-                        </div>
-                        <div className="flex items-center gap-2 ml-2">
-                            <input
-                                type="number"
-                                value={item.quantity}
-                                onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value))}
-                                className="w-16 p-1 text-center border rounded-md"
-                                min="1"
-                            />
-                            <button onClick={() => removeItemFromOrder(item.id)} className="text-red-500 hover:text-red-700 p-1">
-                                <Trash2 size={18} />
-                            </button>
-                        </div>
-                    </div>
-                ))}
-                {!currentOrder || currentOrder.items.length === 0 && (
-                    <div className="text-center text-gray-400 pt-16">
-                        <UtensilsCrossed className="w-12 h-12 mx-auto text-gray-300" />
-                        <p className="mt-2">Add items from the menu to start an order.</p>
-                    </div>
-                )}
+            <div class="total-row">
+              <div>Tax (16%):</div>
+              <div>${formatCurrency(tax)}</div>
             </div>
-
-            {/* Order Summary & Actions */}
-            {currentOrder && currentOrder.items.length > 0 && (
-                <div className="p-4 border-t bg-white">
-                    <div className="space-y-2 mb-4">
-                        <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
-                        <div className="flex justify-between"><span>Tax (16%)</span><span>{formatCurrency(tax)}</span></div>
-                        <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{formatCurrency(total)}</span></div>
-                    </div>
-                    <div className="flex gap-2">
-                        <button onClick={clearOrder} className="w-full py-3 bg-red-100 text-red-700 rounded-md font-semibold hover:bg-red-200">
-                            Clear
-                        </button>
-                        <button onClick={handleFinalizeOrder} className="w-full py-3 bg-yellow-400 text-yellow-900 rounded-md font-semibold hover:bg-yellow-500">
-                            Finalize Order
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* PIN Modal */}
-            {showPinModal && (
-                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded-lg shadow-xl w-80">
-                        <h3 className="text-lg font-bold mb-4">Staff Authorization</h3>
-                        
-                        {isQuickAccess && !user && (
-                             <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                                <input
-                                    type="text"
-                                    value={pinUsername}
-                                    onChange={(e) => setPinUsername(e.target.value)}
-                                    className="w-full p-2 border rounded-md"
-                                    placeholder="Enter your username"
-                                />
-                            </div>
-                        )}
-
-                        <div className="mb-4">
-                             <label className="block text-sm font-medium text-gray-700 mb-1">PIN</label>
-                            <input
-                                type="password"
-                                value={pin}
-                                onChange={(e) => setPin(e.target.value)}
-                                maxLength={4}
-                                className="w-full p-2 text-center text-2xl tracking-widest border rounded-md"
-                            />
-                        </div>
-
-                        {pinError && <p className="text-red-500 text-sm text-center mb-2">{pinError}</p>}
-
-                        <div className="flex gap-2">
-                            <button onClick={() => { setShowPinModal(false); setPinError(''); }} className="w-full py-2 bg-gray-200 rounded-md">Cancel</button>
-                            <button onClick={handlePinVerification} disabled={isSubmitting} className="w-full py-2 bg-blue-500 text-white rounded-md flex justify-center items-center">
-                                {isSubmitting ? <Loader2 className="animate-spin" /> : 'Submit'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <div class="total-row" style="font-size: 18px;">
+              <div>TOTAL:</div>
+              <div>${formatCurrency(total)}</div>
+            </div>
+          </div>
+          
+          <div class="divider"></div>
+          
+          <div class="footer">
+            <div>Thank you for your visit!</div>
+            <div>Please come again</div>
+          </div>
         </div>
-    );
-}
+        
+        <script>
+          // Automatically trigger print when the new window loads
+          window.onload = function() {
+            window.print();
+            // Close the window after printing
+            setTimeout(function() {
+              window.close();
+            }, 100);
+          }
+        </script>
+      </body>
+      </html>
+    `;
 
+    // Open print window
+    const printWindow = window.open('', '_blank', 'width=320,height=600');
+    if (printWindow) {
+      printWindow.document.write(receiptContent);
+      printWindow.document.close();
+    }
+  };
+
+  return (
+    <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm flex flex-col max-h-full">
+        {/* Modal Header */}
+        <div className="p-4 border-b flex justify-between items-center">
+          <h3 className="text-xl font-bold text-gray-800">Receipt Preview</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Receipt Content - Scrollable Preview Area */}
+        <div className="flex-1 overflow-y-auto p-4 bg-gray-50 border-b">
+          <div className="bg-white p-3 rounded-md shadow-inner">
+            <div className="text-center font-['Courier_New',_monospace]">
+              <div className="text-xl font-extrabold mb-1">MARIA HAVENS</div>
+              <div className="text-sm">Restaurant & Hotel</div>
+              <div className="border-t border-dashed border-gray-400 my-3"></div>
+              
+              <div className="text-left text-sm space-y-1 mb-3">
+                <div className="flex justify-between"><span>Order:</span> <span>{orderNumber}</span></div>
+                <div className="flex justify-between"><span>Date:</span> <span>{new Date().toLocaleDateString('en-KE')}</span></div>
+                <div className="flex justify-between"><span>Time:</span> <span>{new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                <div className="flex justify-between"><span>Type:</span> <span className="capitalize">{orderType.replace('_', ' ')}</span></div>
+                {locationDetail && <div className="flex justify-between"><span>Location:</span> <span>{locationDetail}</span></div>}
+                <div className="flex justify-between"><span>Waiter:</span> <span>{staff.name}</span></div>
+              </div>
+
+              <div className="border-t border-dashed border-gray-400 my-3"></div>
+              
+              <div className="text-sm text-left space-y-2">
+                {order.items.map((item) => (
+                  <div key={item.id} className="flex justify-between">
+                    <span className="truncate pr-2">{item.quantity}x {item.name}</span>
+                    <span>{formatCurrency(item.price * item.quantity)}</span>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="border-t border-dashed border-gray-400 my-3"></div>
+
+              <div className="text-md font-bold space-y-1">
+                <div className="flex justify-between"><span>Subtotal:</span> <span>{formatCurrency(subtotal)}</span></div>
+                <div className="flex justify-between"><span>Tax (16%):</span> <span>{formatCurrency(tax)}</span></div>
+                <div className="flex justify-between text-lg mt-2 pt-2 border-t border-gray-200"><span>TOTAL:</span> <span>{formatCurrency(total)}</span></div>
+              </div>
+
+              <div className="border-t border-dashed border-gray-400 my-3"></div>
+              
+              <div className="text-xs mt-3">
+                <div>Thank you for your visit!</div>
+                <div>Please come again</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Actions */}
+        <div className="p-4 flex gap-2">
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-gray-200 hover:bg-gray-300 rounded-md font-semibold transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handlePrint}
+            className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-md font-semibold flex justify-center items-center transition-colors"
+          >
+            <Printer className="w-5 h-5 mr-2" />
+            Print Receipt
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- OrderPanel Component ---
+export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
+  const { currentOrder, removeItemFromOrder, clearOrder, updateItemQuantity, setCurrentOrder } = usePOS();
+  const { user, validateStaffPin } = useAuth();
+
+  const [waitersList, setWaitersList] = useState<User[]>([]);
+  const [showPinModal, setShowPinModal] = useState(false);
+  // NEW STATE for receipt preview
+  const [showReceiptModal, setShowReceiptModal] = useState(false); // <-- **NEW STATE**
+  const [receiptDetails, setReceiptDetails] = useState<ReceiptDetails | null>(null); // <-- **NEW STATE**
+
+  const [selectedWaiterId, setSelectedWaiterId] = useState('');
+  const [selectedWaiterUsername, setSelectedWaiterUsername] = useState('');
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentOrderType, setCurrentOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
+
+  // Update order type when it changes in parent component
+  useEffect(() => {
+    if (currentOrder && currentOrder.order_type) {
+      setCurrentOrderType(currentOrder.order_type);
+    }
+  }, [currentOrder?.order_type]);
+
+  // Fetch waiters list for all scenarios
+  useEffect(() => {
+    fetchWaiters();
+  }, []);
+
+  const fetchWaiters = async () => {
+    try {
+      // Temporary: directly use backend URL to bypass proxy issues
+      const url = import.meta.env.DEV ? 'http://localhost:3000/api/waiters' : `${API_URL}/api/waiters`;
+      
+      const response = await fetch(url);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setWaitersList(data);
+      } else {
+        console.error('Failed to fetch waiters. Status:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to fetch waiters:', error);
+    }
+  };
+
+  // Tax calculations
+  const subtotal = currentOrder?.items.reduce((acc, item) => acc + item.price * item.quantity, 0) ?? 0;
+  const tax = subtotal * 0.16;
+  const total = subtotal + tax;
+
+  const handleQuantityChange = (itemId: number, newQuantity: number) => {
+    updateItemQuantity(itemId, newQuantity);
+  };
+
+  const handleFinalizeOrder = async () => {
+    if (!currentOrder || currentOrder.items.length === 0) {
+      alert('Cannot process an empty order.');
+      return;
+    }
+    
+    // Fetch waiters list if not already loaded
+    if (waitersList.length === 0) {
+      await fetchWaiters();
+    }
+    
+    setShowPinModal(true);
+  };
+
+  const handlePinInput = (digit: string) => {
+    if (pin.length < 4) {
+      setPin(prev => prev + digit);
+      setPinError('');
+    }
+  };
+
+  const clearPin = () => {
+    setPin('');
+    setPinError('');
+  };
+
+  const backspacePin = () => {
+    setPin(prev => prev.slice(0, -1));
+    setPinError('');
+  };
+
+  const handlePinVerification = async () => {
+    // Always require waiter selection
+    if (!selectedWaiterUsername) {
+      setPinError('Please select a waiter');
+      return;
+    }
+    
+    if (pin.length !== 4) {
+      setPinError('PIN must be 4 digits.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setPinError('');
+
+    const validatedUser = await validateStaffPin(selectedWaiterUsername, pin);
+
+    if (validatedUser) {
+      await submitOrder(validatedUser);
+    } else {
+      setPinError('Invalid waiter selection or PIN. Please try again.');
+      setIsSubmitting(false);
+    }
+  };
+
+  // NEW: Refactored logic to only prepare and show the modal
+  const prepareAndShowReceiptModal = (staff: User, orderNumber: string) => {
+    if (!currentOrder) return;
+    
+    const details: ReceiptDetails = {
+      order: currentOrder,
+      staff,
+      orderNumber,
+      subtotal,
+      tax,
+      total,
+      orderType: currentOrderType,
+      locationDetail: currentOrder.location_detail, // <-- **NEW: Pass location detail**
+    };
+    
+    setReceiptDetails(details);
+    setShowReceiptModal(true); // Open the preview modal
+  };
+  
+  // NEW: Handler for closing the receipt modal
+  const handleCloseReceiptModal = () => {
+    setShowReceiptModal(false);
+    setReceiptDetails(null);
+    clearOrder(); // Clear the order only after the receipt process is cancelled or printed
+  };
+
+
+  const submitOrder = async (staff: User) => {
+    if (!currentOrder) return;
+
+    // Remove temporary `id` before sending
+    const { id, ...orderData } = currentOrder;
+
+    const orderPayload = {
+      ...orderData,
+      items: currentOrder.items.map((item) => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: item.price,
+        total_price: item.price * item.quantity,
+        notes: item.notes,
+      })),
+      staff_username: staff.username,
+      pin: pin,
+      total_amount: total,
+      subtotal: subtotal,
+      tax_amount: tax,
+    };
+
+    try {
+      // Use direct URL in development, API_URL in production
+      const url = import.meta.env.DEV ? 'http://localhost:3000/api/orders' : `${API_URL}/api/orders`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPayload),
+      });
+
+      if (response.ok) {
+        // Order submitted successfully
+        const result = await response.json();
+        
+        // Generate a unique client-side order number for the receipt
+        const orderNumber = `ORD-${Date.now()}`;
+        
+        // Close PIN modal and clear PIN/Waiter selection
+        setShowPinModal(false);
+        setPin('');
+        setSelectedWaiterId('');
+        setSelectedWaiterUsername('');
+        setIsSubmitting(false);
+        
+        // **CHANGED: Show receipt preview instead of immediate printing**
+        prepareAndShowReceiptModal(staff, orderNumber); 
+        
+        return; // Exit early since we've handled everything
+      } else {
+        const error = await response.json();
+        setPinError(error.message || 'Order submission failed.');
+      }
+    } catch (error) {
+      setPinError('An error occurred while submitting the order.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleWaiterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const waiterId = e.target.value;
+    setSelectedWaiterId(waiterId);
+    
+    const selectedWaiter = waitersList.find(w => w.id.toString() === waiterId);
+    if (selectedWaiter) {
+      setSelectedWaiterUsername(selectedWaiter.username);
+    }
+    setPinError('');
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-gray-50 w-full lg:w-96 relative">
+      {/* Header */}
+      <div className="p-4 border-b bg-white">
+        <h2 className="text-xl font-bold text-gray-800">Current Order</h2>
+        <p className="text-sm text-gray-500">
+          Order Type:{' '}
+          <span className="font-medium capitalize">
+            {currentOrderType.replace('_', ' ')}
+          </span>
+        </p>
+      </div>
+
+      {/* Order Items */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {currentOrder?.items.map((item) => (
+          <div key={item.id} className="flex items-center bg-white p-3 rounded-lg shadow-sm">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold truncate">{item.name}</p>
+              <p className="text-sm text-gray-600">{formatCurrency(item.price)}</p>
+            </div>
+            <div className="flex items-center gap-2 ml-2">
+              <input
+                type="number"
+                value={item.quantity}
+                onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 1)}
+                className="w-16 p-1 text-center border rounded-md"
+                min="1"
+              />
+              <button
+                onClick={() => removeItemFromOrder(item.id)}
+                className="text-red-500 hover:text-red-700 p-1"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
+          </div>
+        ))}
+        {(!currentOrder || currentOrder.items.length === 0) && (
+          <div className="text-center text-gray-400 pt-16">
+            <UtensilsCrossed className="w-12 h-12 mx-auto text-gray-300" />
+            <p className="mt-2">Add items from the menu to start an order.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Summary & Actions */}
+      {currentOrder && currentOrder.items.length > 0 && (
+        <div className="p-4 border-t bg-white">
+          <div className="space-y-2 mb-4">
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span>{formatCurrency(subtotal)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Tax (16%)</span>
+              <span>{formatCurrency(tax)}</span>
+            </div>
+            <div className="flex justify-between font-bold text-lg">
+              <span>Total</span>
+              <span>{formatCurrency(total)}</span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={clearOrder}
+              className="w-full py-3 bg-red-100 text-red-700 rounded-md font-semibold hover:bg-red-200"
+            >
+              Clear
+            </button>
+            <button
+              onClick={handleFinalizeOrder}
+              className="w-full py-3 bg-yellow-400 text-yellow-900 rounded-md font-semibold hover:bg-yellow-500"
+            >
+              Finalize Order
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PIN Modal with Waiter Selection */}
+      {showPinModal && (
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <UserIcon className="w-5 h-5 text-yellow-600" />
+              Waiter Authentication
+            </h3>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Waiter *
+              </label>
+              <select
+                value={selectedWaiterId}
+                onChange={handleWaiterChange}
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                disabled={isSubmitting}
+              >
+                <option value="">-- Choose your name --</option>
+                {waitersList.map((waiter) => (
+                  <option key={waiter.id} value={waiter.id}>
+                    {waiter.name} ({waiter.employee_id})
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Select your name from the list above
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Enter Your PIN *
+              </label>
+              <input
+                type="password"
+                value={pin}
+                readOnly
+                className="w-full p-3 text-center text-2xl tracking-widest border border-gray-300 rounded-md mb-4 bg-gray-50"
+                placeholder="••••"
+                maxLength={4}
+              />
+              
+              {/* PIN Keypad */}
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {[1,2,3,4,5,6,7,8,9].map((digit) => (
+                  <button
+                    key={digit}
+                    type="button"
+                    onClick={() => handlePinInput(digit.toString())}
+                    disabled={pin.length >= 4 || isSubmitting}
+                    className="h-12 bg-gray-100 hover:bg-gray-200 rounded-md font-semibold text-lg transition-colors disabled:opacity-50"
+                  >
+                    {digit}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={clearPin}
+                  disabled={isSubmitting}
+                  className="h-12 bg-red-100 hover:bg-red-200 text-red-600 rounded-md text-sm font-semibold transition-colors"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePinInput('0')}
+                  disabled={pin.length >= 4 || isSubmitting}
+                  className="h-12 bg-gray-100 hover:bg-gray-200 rounded-md font-semibold text-lg transition-colors disabled:opacity-50"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  onClick={backspacePin}
+                  disabled={isSubmitting}
+                  className="h-12 bg-gray-100 hover:bg-gray-200 rounded-md font-semibold text-lg transition-colors"
+                >
+                  ←
+                </button>
+              </div>
+            </div>
+
+            {pinError && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
+                <p className="text-red-600 text-sm text-center">{pinError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowPinModal(false);
+                  setPinError('');
+                  setPin('');
+                  setSelectedWaiterId('');
+                  setSelectedWaiterUsername('');
+                }}
+                disabled={isSubmitting}
+                className="w-full py-3 bg-gray-200 hover:bg-gray-300 rounded-md font-semibold transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePinVerification}
+                disabled={isSubmitting || !selectedWaiterId || pin.length !== 4}
+                className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-md font-semibold flex justify-center items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="animate-spin mr-2" size={18} />
+                    Processing...
+                  </>
+                ) : (
+                  'Submit Order'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* NEW: Receipt Preview Modal */}
+      {showReceiptModal && receiptDetails && (
+        <ReceiptPreviewModal details={receiptDetails} onClose={handleCloseReceiptModal} /> // <-- **NEW COMPONENT RENDER**
+      )}
+    </div>
+  );
+}
