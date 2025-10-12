@@ -1,12 +1,12 @@
 # render.yaml
-# This file configures the deployment of the Maria POS application as a single web service.
+# Updated to connect to an existing database.
 
 services:
   # --- Web Service Configuration ---
   - type: web
-    name: maria-pos # The name of your service on Render
-    env: node # Specifies the runtime environment
-    plan: free # Choose your preferred plan (e.g., free, standard)
+    name: maria-pos
+    env: node
+    plan: free
     
     # --- Build and Start Commands ---
     buildCommand: npm install && npm run build
@@ -21,25 +21,13 @@ services:
         value: production
       
       - key: PORT
-        value: 10000 # Sets the port your application will listen on
+        value: 10000
 
-      - key: DATABASE_URL
-        fromDatabase:
-          name: maria-pos-db # This name must match the name in the 'databases' section below
-          property: connectionString
-          
       - key: JWT_SECRET
         generateValue: true
-        
-      - key: FRONTEND_URL
-        value: https://maria-pos.onrender.com # ❗️ IMPORTANT: Update with your actual frontend URL after deployment
-        
-      - key: ALLOWED_ORIGINS
-        value: https://maria-pos.onrender.com # ❗️ IMPORTANT: Update with your actual frontend URL after deployment
-
-# --- Database Configuration ---
-databases:
-  - name: maria-pos-db # The name for your database service on Render
-    databaseName: maria_pos_production # The actual name of the database
-    user: maria_pos_user # The username for connecting to the database
-    plan: free
+      
+      - key: DATABASE_URL
+        # ❗️ IMPORTANT: You will get this value from your existing database
+        # on the Render dashboard and paste it here or set it directly
+        # in the service's Environment tab after deployment.
+        value: postgresql://mariahavens_user:BvEnYG8hb7baKudACcyxLuGkNgpxqloT@dpg-d3l72s3uibrs73cf7l60-a/mariahavens
