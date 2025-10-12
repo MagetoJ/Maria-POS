@@ -13,31 +13,37 @@ export interface AuthRequest extends Request {
   };
 }
 
-export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticateToken = (req: Request, res: Response, next: NextFunction): void => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ message: 'Access token required' });
+    res.status(401).json({ message: 'Access token required' });
+    return;
   }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: number; username: string; role: string };
-    req.user = decoded;
+    (req as AuthRequest).user = decoded;
     next();
   } catch (err) {
-    return res.status(403).json({ message: 'Invalid or expired token' });
+    res.status(403).json({ message: 'Invalid or expired token' });
+    return;
   }
 };
 
 export const authorizeRoles = (...allowedRoles: string[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'User not authenticated' });
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const authReq = req as AuthRequest;
+    
+    if (!authReq.user) {
+      res.status(401).json({ message: 'User not authenticated' });
+      return;
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'You do not have permission to access this resource' });
+    if (!allowedRoles.includes(authReq.user.role)) {
+      res.status(403).json({ message: 'You do not have permission to access this resource' });
+      return;
     }
 
     next();

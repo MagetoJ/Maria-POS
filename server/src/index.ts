@@ -1,13 +1,11 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import http, { IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { authenticateToken, authorizeRoles } from './middleware/auth';
+import { authenticateToken, authorizeRoles, AuthRequest } from './middleware/auth';
 import path from 'path';
 import dotenv from 'dotenv';
-import { Request, Response } from 'express';
-
 import db from './db'; // <-- your PostgreSQL connection file
 
 // --- Initialization ---
@@ -88,9 +86,9 @@ function broadcastToKitchens(message: object) {
 }
 
 // --- PUBLIC API Endpoints ---
-app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }));
+app.get('/health', (req: Request, res: Response) => res.json({ status: 'OK', timestamp: new Date().toISOString() }));
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ message: 'Username and password are required' });
@@ -107,7 +105,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.post('/api/validate-pin', async (req, res) => {
+app.post('/api/validate-pin', async (req: Request, res: Response) => {
   try {
     const { username, pin } = req.body;
     if (!username || !pin) return res.status(400).json({ message: 'Username and PIN are required' });
@@ -127,7 +125,7 @@ app.post('/api/validate-pin', async (req, res) => {
 // --- PROTECTED API Endpoints ---
 
 // Staff Management
-app.get('/api/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     const staff = await db('staff').select('id', 'employee_id', 'username', 'name', 'role', 'pin', 'is_active', 'created_at');
     res.json(staff);
@@ -137,7 +135,7 @@ app.get('/api/staff', authenticateToken, authorizeRoles('admin', 'manager'), asy
   }
 });
 
-app.post('/api/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.post('/api/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     const [newStaff] = await db('staff').insert(req.body).returning('*');
     res.status(201).json(newStaff);
@@ -147,7 +145,7 @@ app.post('/api/staff', authenticateToken, authorizeRoles('admin', 'manager'), as
   }
 });
 
-app.put('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.put('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const [updatedStaff] = await db('staff').where({ id }).update(req.body).returning('*');
@@ -158,7 +156,7 @@ app.put('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager'),
   }
 });
 
-app.delete('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.delete('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await db('staff').where({ id }).del();
@@ -170,7 +168,7 @@ app.delete('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager
 });
 
 // Dashboard Overview Stats
-app.get('/api/dashboard/overview-stats', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/dashboard/overview-stats', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     const today = new Date().toISOString().split('T')[0];
     const todaysOrders = await db('orders').where('created_at', '>=', today).select('*');
@@ -202,7 +200,7 @@ app.get('/api/dashboard/overview-stats', authenticateToken, authorizeRoles('admi
 
 // Order Management - ENHANCED WITH PIN VALIDATION
 // Get list of waiters for Quick POS (PUBLIC endpoint - no auth required)
-app.get('/api/waiters', async (req, res) => {
+app.get('/api/waiters', async (req: Request, res: Response) => {
   try {
     const waiters = await db('staff')
       .where({ role: 'waiter', is_active: true })
@@ -216,7 +214,7 @@ app.get('/api/waiters', async (req, res) => {
   }
 });
 
-app.post('/api/orders', async (req, res) => {
+app.post('/api/orders', async (req: Request, res: Response) => {
   const { items, staff_username, pin, ...orderData } = req.body;
 
   try {
@@ -286,9 +284,9 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-app.post('/api/attendance/clock-out', authenticateToken, async (req, res) => {
+app.post('/api/attendance/clock-out', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { id: staffId } = (req as any).user;
+    const { id: staffId } = req.user!;
 
     const activeLog = await db('attendance_log')
       .where({ staff_id: staffId })
@@ -331,10 +329,10 @@ app.post('/api/attendance/clock-out', authenticateToken, async (req, res) => {
 });
 
 // Shifts Management Endpoints
-app.get('/api/shifts/my-shifts', authenticateToken, async (req, res) => {
+app.get('/api/shifts/my-shifts', authenticateToken, async (req: AuthRequest, res: Response) => {
     try {
         const { start_date, end_date } = req.query;
-        const userId = (req as any).user?.id;
+        const userId = req.user?.id;
 
         if (!userId) {
             return res.status(401).json({ message: 'User not authenticated' });
@@ -353,7 +351,7 @@ app.get('/api/shifts/my-shifts', authenticateToken, async (req, res) => {
     }
 });
 
-app.get('/api/shifts', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/shifts', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const { start_date, end_date } = req.query;
         
@@ -373,7 +371,7 @@ app.get('/api/shifts', authenticateToken, authorizeRoles('admin', 'manager'), as
     }
 });
 
-app.post('/api/shifts', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.post('/api/shifts', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const [newShift] = await db('shifts').insert(req.body).returning('*');
         res.status(201).json(newShift);
@@ -383,7 +381,7 @@ app.post('/api/shifts', authenticateToken, authorizeRoles('admin', 'manager'), a
     }
 });
 
-app.put('/api/shifts/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.put('/api/shifts/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const [updatedShift] = await db('shifts').where({ id }).update(req.body).returning('*');
@@ -394,7 +392,7 @@ app.put('/api/shifts/:id', authenticateToken, authorizeRoles('admin', 'manager')
     }
 });
 
-app.delete('/api/shifts/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.delete('/api/shifts/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         await db('shifts').where({ id }).del();
@@ -410,11 +408,11 @@ app.delete('/api/shifts/:id', authenticateToken, authorizeRoles('admin', 'manage
 // ========================================
 
 // Get individual staff performance
-app.get('/api/performance/staff/:staffId', authenticateToken, async (req, res) => {
+app.get('/api/performance/staff/:staffId', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { staffId } = req.params;
     const { start_date, end_date } = req.query;
-    const { id: requestingUserId, role: requestingUserRole } = (req as any).user;
+    const { id: requestingUserId, role: requestingUserRole } = req.user!;
 
     // Authorization check
     if (requestingUserRole !== 'admin' && requestingUserRole !== 'manager' && requestingUserId !== parseInt(staffId)) {
@@ -506,7 +504,7 @@ app.get('/api/performance/staff/:staffId', authenticateToken, async (req, res) =
 });
 
 // Get all staff performance (for managers/admins)
-app.get('/api/performance/all', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/performance/all', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     const { start_date, end_date, role } = req.query;
 
@@ -556,7 +554,7 @@ app.get('/api/performance/all', authenticateToken, authorizeRoles('admin', 'mana
 });
 
 // Get waiter performance (for receptionists)
-app.get('/api/performance/waiters', authenticateToken, authorizeRoles('admin', 'manager', 'receptionist'), async (req, res) => {
+app.get('/api/performance/waiters', authenticateToken, authorizeRoles('admin', 'manager', 'receptionist'), async (req: Request, res: Response) => {
   try {
     const { start_date, end_date } = req.query;
 
@@ -598,7 +596,7 @@ app.get('/api/performance/waiters', authenticateToken, authorizeRoles('admin', '
 });
 
 // Add tip to order
-app.post('/api/tips', authenticateToken, async (req, res) => {
+app.post('/api/tips', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { order_id, staff_id, amount, payment_method } = req.body;
 
@@ -627,7 +625,7 @@ app.post('/api/tips', authenticateToken, async (req, res) => {
 });
 
 // Submit customer feedback
-app.post('/api/feedback', async (req, res) => {
+app.post('/api/feedback', async (req: Request, res: Response) => {
   try {
     const { order_id, staff_id, rating, feedback_text, feedback_category } = req.body;
 
@@ -656,7 +654,7 @@ app.post('/api/feedback', async (req, res) => {
   }
 });
 
-app.post('/api/products', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.post('/api/products', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         console.log('=== ADD PRODUCT REQUEST ===');
         console.log('Received product data:', req.body);
@@ -696,7 +694,7 @@ app.post('/api/products', authenticateToken, authorizeRoles('admin', 'manager'),
     }
 });
 
-app.get('/api/products', async (req, res) => {
+app.get('/api/products', async (req: Request, res: Response) => {
     try {
         const products = await db('products')
             .join('categories', 'products.category_id', 'categories.id')
@@ -712,7 +710,7 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
-app.delete('/api/products/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.delete('/api/products/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     const deleted = await db('products').where({ id }).del();
@@ -729,7 +727,7 @@ app.delete('/api/products/:id', authenticateToken, authorizeRoles('admin', 'mana
 });
 
 // Category Management
-app.get('/api/categories', async (req, res) => {
+app.get('/api/categories', async (req: Request, res: Response) => {
     try {
         const categories = await db('categories').orderBy('name', 'asc');
         res.json(categories);
@@ -738,7 +736,7 @@ app.get('/api/categories', async (req, res) => {
     }
 });
 
-app.post('/api/categories', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.post('/api/categories', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const [newCategory] = await db('categories').insert(req.body).returning('*');
         res.status(201).json(newCategory);
@@ -747,7 +745,7 @@ app.post('/api/categories', authenticateToken, authorizeRoles('admin', 'manager'
     }
 });
 
-app.put('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.put('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const [updatedCategory] = await db('categories').where({ id }).update(req.body).returning('*');
@@ -757,7 +755,7 @@ app.put('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'manag
     }
 });
 
-app.delete('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.delete('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         await db('categories').where({ id }).del();
@@ -768,7 +766,7 @@ app.delete('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'ma
 });
 
 // Inventory Management
-app.get('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const inventory = await db('inventory_items').select('*').orderBy('name', 'asc');
         res.json(inventory);
@@ -778,7 +776,7 @@ app.get('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'),
     }
 });
 
-app.post('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.post('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     const inventoryData = {
       ...req.body,
@@ -800,7 +798,7 @@ app.post('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager')
   }
 });
 
-app.put('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.put('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const updateData = {
@@ -825,7 +823,7 @@ app.put('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manage
     }
 });
 
-app.delete('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.delete('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const deleted = await db('inventory_items').where({ id }).del();
@@ -845,7 +843,7 @@ app.delete('/api/inventory/:id', authenticateToken, authorizeRoles('admin', 'man
 });
 
 // Room and Table Management
-app.get('/api/rooms', authenticateToken, async (req, res) => {
+app.get('/api/rooms', authenticateToken, async (req: Request, res: Response) => {
     try {
         const rooms = await db('rooms').select('*').orderBy('room_number', 'asc');
         res.json(rooms);
@@ -854,7 +852,7 @@ app.get('/api/rooms', authenticateToken, async (req, res) => {
     }
 });
 
-app.post('/api/rooms', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.post('/api/rooms', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const [newRoom] = await db('rooms').insert(req.body).returning('*');
         res.status(201).json(newRoom);
@@ -863,7 +861,7 @@ app.post('/api/rooms', authenticateToken, authorizeRoles('admin', 'manager'), as
     }
 });
 
-app.put('/api/rooms/:id', authenticateToken, authorizeRoles('admin', 'manager', 'receptionist', 'housekeeping'), async (req, res) => {
+app.put('/api/rooms/:id', authenticateToken, authorizeRoles('admin', 'manager', 'receptionist', 'housekeeping'), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const [updatedRoom] = await db('rooms').where({ id }).update(req.body).returning('*');
@@ -873,7 +871,7 @@ app.put('/api/rooms/:id', authenticateToken, authorizeRoles('admin', 'manager', 
     }
 });
 
-app.delete('/api/rooms/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.delete('/api/rooms/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         await db('rooms').where({ id }).del();
@@ -883,7 +881,7 @@ app.delete('/api/rooms/:id', authenticateToken, authorizeRoles('admin', 'manager
     }
 });
 
-app.get('/api/tables', authenticateToken, async (req, res) => {
+app.get('/api/tables', authenticateToken, async (req: Request, res: Response) => {
     try {
         const tables = await db('tables').select('*').orderBy('table_number', 'asc');
         res.json(tables);
@@ -892,7 +890,7 @@ app.get('/api/tables', authenticateToken, async (req, res) => {
     }
 });
 
-app.post('/api/tables', authenticateToken, authorizeRoles('admin', 'manager', 'receptionist'), async (req, res) => {
+app.post('/api/tables', authenticateToken, authorizeRoles('admin', 'manager', 'receptionist'), async (req: Request, res: Response) => {
     try {
         const [newTable] = await db('tables').insert(req.body).returning('*');
         res.status(201).json(newTable);
@@ -901,7 +899,7 @@ app.post('/api/tables', authenticateToken, authorizeRoles('admin', 'manager', 'r
     }
 });
 
-app.put('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manager', 'waiter', 'receptionist'), async (req, res) => {
+app.put('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manager', 'waiter', 'receptionist'), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const [updatedTable] = await db('tables').where({ id }).update(req.body).returning('*');
@@ -911,7 +909,7 @@ app.put('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manager',
     }
 });
 
-app.delete('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.delete('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         await db('tables').where({ id }).del();
@@ -922,10 +920,10 @@ app.delete('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manage
 });
 
 // Check-In a Guest
-app.post('/api/rooms/:roomId/check-in', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req, res) => {
+app.post('/api/rooms/:roomId/check-in', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req: AuthRequest, res: Response) => {
   const { roomId } = req.params;
   const { guest_name, guest_contact } = req.body;
-  const { id: staff_id } = (req as any).user;
+  const { id: staff_id } = req.user!;
 
   if (!guest_name) {
     return res.status(400).json({ message: 'Guest name is required.' });
@@ -959,7 +957,7 @@ app.post('/api/rooms/:roomId/check-in', authenticateToken, authorizeRoles('recep
 });
 
 // Check-Out a Guest
-app.post('/api/rooms/:roomId/check-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req, res) => {
+app.post('/api/rooms/:roomId/check-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req: Request, res: Response) => {
   const { roomId } = req.params;
 
   try {
@@ -989,7 +987,7 @@ app.post('/api/rooms/:roomId/check-out', authenticateToken, authorizeRoles('rece
 });
 
 // Maintenance Management
-app.get('/api/maintenance-requests', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping'), async (req, res) => {
+app.get('/api/maintenance-requests', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping'), async (req: Request, res: Response) => {
     try {
         const requests = await db('maintenance_requests').select('*').whereNot('status', 'completed').orderBy('reported_at', 'desc');
         res.json(requests);
@@ -998,7 +996,7 @@ app.get('/api/maintenance-requests', authenticateToken, authorizeRoles('admin', 
     }
 });
 
-app.post('/api/maintenance-requests', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping', 'receptionist'), async (req, res) => {
+app.post('/api/maintenance-requests', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping', 'receptionist'), async (req: Request, res: Response) => {
     try {
         const [newRequest] = await db('maintenance_requests').insert(req.body).returning('*');
         res.status(201).json(newRequest);
@@ -1007,7 +1005,7 @@ app.post('/api/maintenance-requests', authenticateToken, authorizeRoles('admin',
     }
 });
 
-app.put('/api/maintenance-requests/:id', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping'), async (req, res) => {
+app.put('/api/maintenance-requests/:id', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping'), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const [updatedRequest] = await db('maintenance_requests').where({ id }).update(req.body).returning('*');
@@ -1018,7 +1016,7 @@ app.put('/api/maintenance-requests/:id', authenticateToken, authorizeRoles('admi
 });
 
 // Delivery Management
-app.get('/api/deliveries', authenticateToken, authorizeRoles('admin', 'manager', 'delivery'), async (req, res) => {
+app.get('/api/deliveries', authenticateToken, authorizeRoles('admin', 'manager', 'delivery'), async (req: Request, res: Response) => {
     try {
         const activeDeliveries = await db('orders')
             .where({ order_type: 'delivery' })
@@ -1039,7 +1037,7 @@ app.get('/api/deliveries', authenticateToken, authorizeRoles('admin', 'manager',
     }
 });
 
-app.put('/api/deliveries/:orderId/status', authenticateToken, authorizeRoles('admin', 'manager', 'delivery'), async (req, res) => {
+app.put('/api/deliveries/:orderId/status', authenticateToken, authorizeRoles('admin', 'manager', 'delivery'), async (req: Request, res: Response) => {
     try {
         const { orderId } = req.params;
         const { status } = req.body;
@@ -1066,7 +1064,7 @@ app.put('/api/deliveries/:orderId/status', authenticateToken, authorizeRoles('ad
 });
 
 // Settings Management
-app.get('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     try {
         const settingsArray = await db('settings').select('*');
         const settingsObject = settingsArray.reduce((acc, setting) => {
@@ -1080,7 +1078,7 @@ app.get('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), 
     }
 });
 
-app.put('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.put('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
     const settings = req.body;
     try {
         await db.transaction(async trx => {
@@ -1098,13 +1096,13 @@ app.put('/api/settings', authenticateToken, authorizeRoles('admin', 'manager'), 
 });
 
 // --- Reporting Endpoints ---
-function setNoCacheHeaders(res: express.Response) {
+function setNoCacheHeaders(res: Response) {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
 }
 
-app.get('/api/reports/overview', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/reports/overview', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     setNoCacheHeaders(res);
     const { start, end } = req.query;
@@ -1150,7 +1148,7 @@ app.get('/api/reports/overview', authenticateToken, authorizeRoles('admin', 'man
   }
 });
 
-app.get('/api/reports/sales', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/reports/sales', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     setNoCacheHeaders(res);
     const { start, end } = req.query;
@@ -1170,7 +1168,7 @@ app.get('/api/reports/sales', authenticateToken, authorizeRoles('admin', 'manage
   }
 });
 
-app.get('/api/reports/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/reports/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     setNoCacheHeaders(res);
     const lowStockItems = await db('inventory_items').whereRaw('current_stock <= minimum_stock').where('is_active', 1).select('id', 'name', 'current_stock', 'minimum_stock').orderBy('current_stock', 'asc');
@@ -1185,7 +1183,7 @@ app.get('/api/reports/inventory', authenticateToken, authorizeRoles('admin', 'ma
   }
 });
 
-app.get('/api/reports/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/reports/staff', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     setNoCacheHeaders(res);
     const { start, end } = req.query;
@@ -1214,7 +1212,7 @@ app.get('/api/reports/staff', authenticateToken, authorizeRoles('admin', 'manage
   }
 });
 
-app.get('/api/reports/rooms', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.get('/api/reports/rooms', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
   try {
     setNoCacheHeaders(res);
     const { start, end } = req.query;
@@ -1234,7 +1232,7 @@ app.get('/api/reports/rooms', authenticateToken, authorizeRoles('admin', 'manage
 });
 
 // Debug Endpoints
-app.get('/api/debug/reports', async (req, res) => {
+app.get('/api/debug/reports', async (req: Request, res: Response) => {
   try {
     const ordersCount = await db('orders').count('* as count').first();
     const staffCount = await db('staff').count('* as count').first();
@@ -1261,7 +1259,7 @@ app.get('/api/debug/reports', async (req, res) => {
   }
 });
 
-app.get('/api/debug/seed-orders', async (req, res) => {
+app.get('/api/debug/seed-orders', async (req: Request, res: Response) => {
   try {
     const staff = await db('staff').first();
     const products = await db('products').limit(3);
@@ -1321,7 +1319,7 @@ app.get('/api/debug/seed-orders', async (req, res) => {
 
 // --- Catch-all route to serve frontend ---
 // IMPORTANT: This must be AFTER all API routes
-app.get('*', (req, res) => {
+app.get('*', (req: Request, res: Response) => {
   res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
