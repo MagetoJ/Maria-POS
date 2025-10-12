@@ -35,6 +35,12 @@ app.use(cors({
 
 app.use(express.json());
 
+// --- Serve Static Frontend Files ---
+// IMPORTANT: This serves your built frontend files
+const clientBuildPath = path.join(__dirname, '../../client/dist');
+console.log('📁 Serving static files from:', clientBuildPath);
+app.use(express.static(clientBuildPath));
+
 // --- Helper Function for PIN Validation ---
 async function validateStaffPinForOrder(username: string, pin: string): Promise<{ valid: boolean; staffId?: number; staffName?: string }> {
   try {
@@ -163,22 +169,6 @@ app.delete('/api/staff/:id', authenticateToken, authorizeRoles('admin', 'manager
   }
 });
 
-// ⭐ NEW ENDPOINT: Staff Performance Dashboard Data
-// WARNING: TEMPORARY UNPROTECTED ROUTE FOR DEBUGGING 401
-// You MUST replace this with your original protected route later.
-
-// Define a type that includes all possible performance metrics for TypeScript
-interface PerformanceData {
-    totalSales: number;
-    ordersCompleted: number;
-    averageServiceTime: string;
-    totalRoomsCheckedIn?: number;
-    totalCashTransactions?: number;
-    totalCardTransactions?: number;
-}
-
-// ⭐ END OF NEW ENDPOINT
-
 // Dashboard Overview Stats
 app.get('/api/dashboard/overview-stats', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
   try {
@@ -209,6 +199,7 @@ app.get('/api/dashboard/overview-stats', authenticateToken, authorizeRoles('admi
     res.status(500).json({ message: 'Error fetching overview stats' });
   }
 });
+
 // Order Management - ENHANCED WITH PIN VALIDATION
 // Get list of waiters for Quick POS (PUBLIC endpoint - no auth required)
 app.get('/api/waiters', async (req, res) => {
@@ -224,6 +215,7 @@ app.get('/api/waiters', async (req, res) => {
     res.status(500).json({ message: 'Error fetching waiters' });
   }
 });
+
 app.post('/api/orders', async (req, res) => {
   const { items, staff_username, pin, ...orderData } = req.body;
 
@@ -293,7 +285,7 @@ app.post('/api/orders', async (req, res) => {
     res.status(500).json({ message: 'Failed to create order' });
   }
 });
-// New
+
 app.post('/api/attendance/clock-out', authenticateToken, async (req, res) => {
   try {
     const { id: staffId } = (req as any).user;
@@ -337,6 +329,7 @@ app.post('/api/attendance/clock-out', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Error clocking out' });
   }
 });
+
 // Shifts Management Endpoints
 app.get('/api/shifts/my-shifts', authenticateToken, async (req, res) => {
     try {
@@ -411,6 +404,7 @@ app.delete('/api/shifts/:id', authenticateToken, authorizeRoles('admin', 'manage
         res.status(500).json({ message: 'Error deleting shift', error: (err as Error).message });
     }
 });
+
 // ========================================
 // PERFORMANCE ENDPOINTS
 // ========================================
@@ -662,9 +656,6 @@ app.post('/api/feedback', async (req, res) => {
   }
 });
 
-
-// server/src/index.ts
-
 app.post('/api/products', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
     try {
         console.log('=== ADD PRODUCT REQUEST ===');
@@ -686,17 +677,12 @@ app.post('/api/products', authenticateToken, authorizeRoles('admin', 'manager'),
             is_active: req.body.is_active !== undefined ? req.body.is_active : true
         };
 
-        // --- Start of The Final Fix ---
-
-        // This block safely handles the data returned from the database.
         const returnedProducts = await db('products').insert(productData).returning('*');
-        const newProduct = returnedProducts[0]; // Get the first (and only) item from the array.
+        const newProduct = returnedProducts[0];
 
         if (!newProduct) {
             throw new Error("Product creation failed: Did not get the new product back from the database.");
         }
-
-        // --- End of The Final Fix ---
 
         console.log('=== PRODUCT ADDED SUCCESSFULLY ===');
         res.status(201).json(newProduct);
@@ -725,6 +711,7 @@ app.get('/api/products', async (req, res) => {
         });
     }
 });
+
 app.delete('/api/products/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
@@ -740,6 +727,7 @@ app.delete('/api/products/:id', authenticateToken, authorizeRoles('admin', 'mana
     res.status(500).json({ message: 'Error deleting product', error: (err as Error).message });
   }
 });
+
 // Category Management
 app.get('/api/categories', async (req, res) => {
     try {
@@ -798,7 +786,6 @@ app.post('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager')
       is_active: req.body.is_active !== undefined ? req.body.is_active : true
     };
 
-    // Fix: use .returning('*') to get the inserted row
     const [insertedItem] = await db('inventory_items')
       .insert(inventoryData)
       .returning('*');
@@ -933,6 +920,7 @@ app.delete('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manage
         res.status(500).json({ message: 'Error deleting table' });
     }
 });
+
 // Check-In a Guest
 app.post('/api/rooms/:roomId/check-in', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req, res) => {
   const { roomId } = req.params;
@@ -945,7 +933,6 @@ app.post('/api/rooms/:roomId/check-in', authenticateToken, authorizeRoles('recep
 
   try {
     await db.transaction(async (trx) => {
-      // 1. Update the room status to 'occupied'
       const [updatedRoom] = await trx('rooms')
         .where({ id: roomId, status: 'available' })
         .update({ status: 'occupied' })
@@ -955,7 +942,6 @@ app.post('/api/rooms/:roomId/check-in', authenticateToken, authorizeRoles('recep
         throw new Error('Room is not available for check-in.');
       }
 
-      // 2. Create a new room transaction record
       await trx('room_transactions').insert({
         room_id: roomId,
         staff_id,
@@ -978,7 +964,6 @@ app.post('/api/rooms/:roomId/check-out', authenticateToken, authorizeRoles('rece
 
   try {
     await db.transaction(async (trx) => {
-      // 1. Update room status to 'dirty' (for housekeeping)
       const [updatedRoom] = await trx('rooms')
         .where({ id: roomId, status: 'occupied' })
         .update({ status: 'dirty' })
@@ -988,7 +973,6 @@ app.post('/api/rooms/:roomId/check-out', authenticateToken, authorizeRoles('rece
         throw new Error('Room is not occupied or does not exist.');
       }
 
-      // 2. Update the transaction record to completed
       await trx('room_transactions')
         .where({ room_id: roomId, status: 'active' })
         .update({
@@ -1003,6 +987,7 @@ app.post('/api/rooms/:roomId/check-out', authenticateToken, authorizeRoles('rece
     res.status(500).json({ message: (err as Error).message || 'Failed to check-out guest.' });
   }
 });
+
 // Maintenance Management
 app.get('/api/maintenance-requests', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping'), async (req, res) => {
     try {
@@ -1247,6 +1232,7 @@ app.get('/api/reports/rooms', authenticateToken, authorizeRoles('admin', 'manage
     res.status(500).json({ message: 'Error generating room report', error: (err as Error).message });
   }
 });
+
 // Debug Endpoints
 app.get('/api/debug/reports', async (req, res) => {
   try {
@@ -1333,6 +1319,12 @@ app.get('/api/debug/seed-orders', async (req, res) => {
   }
 });
 
+// --- Catch-all route to serve frontend ---
+// IMPORTANT: This must be AFTER all API routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(clientBuildPath, 'index.html'));
+});
+
 // --- Start Server with Database Connection Test ---
 db.raw('SELECT 1')
   .then(() => {
@@ -1340,6 +1332,7 @@ db.raw('SELECT 1')
     server.listen(port, () => {
       console.log(`🚀 Backend server is running at http://localhost:${port}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`📁 Serving frontend from: ${clientBuildPath}`);
     });
   })
   .catch((err) => {
