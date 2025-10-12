@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext'; // <-- ADD THIS LINE
 import { Bed, Wifi, Tv, Wind, Loader2, AlertCircle, LogIn, LogOut, User, Phone } from 'lucide-react';
 import { API_URL } from '../config/api';
 
@@ -11,10 +12,11 @@ interface Room {
 }
 
 export default function RoomView() {
+  const { user } = useAuth(); // <-- ADD THIS LINE
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // State for modals
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isCheckInModalOpen, setCheckInModalOpen] = useState(false);
@@ -52,7 +54,7 @@ export default function RoomView() {
     setGuestContact('');
     setCheckInModalOpen(true);
   };
-  
+
   const handleCheckIn = async () => {
     if (!selectedRoom || !guestName) return;
     setIsProcessing(true);
@@ -140,23 +142,29 @@ export default function RoomView() {
                 <span className="flex items-center gap-1"><Tv size={14} /> TV</span>
                 <span className="flex items-center gap-1"><Wind size={14} /> AC</span>
               </div>
+              {/* v-- UPDATE THIS SECTION --v */}
               <div className="mt-4">
-                {room.status === 'available' && (
-                  <button onClick={() => handleOpenCheckIn(room)} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2">
-                    <LogIn size={16} /> Check-In
-                  </button>
-                )}
-                {room.status === 'occupied' && (
-                  <button onClick={() => handleCheckOut(room)} disabled={isProcessing} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2 disabled:opacity-50">
-                     {isProcessing ? <Loader2 className="w-5 h-5 animate-spin"/> : <><LogOut size={16} /> Check-Out</>}
-                  </button>
+                {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'receptionist') && (
+                  <>
+                    {room.status === 'available' && (
+                      <button onClick={() => handleOpenCheckIn(room)} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2">
+                        <LogIn size={16} /> Check-In
+                      </button>
+                    )}
+                    {room.status === 'occupied' && (
+                      <button onClick={() => handleCheckOut(room)} disabled={isProcessing} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2 disabled:opacity-50">
+                         {isProcessing ? <Loader2 className="w-5 h-5 animate-spin"/> : <><LogOut size={16} /> Check-Out</>}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
+              {/* ^-- UPDATE THIS SECTION --^ */}
             </div>
           ))}
         </div>
       </div>
-      
+
       {/* Check-In Modal */}
       {isCheckInModalOpen && selectedRoom && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

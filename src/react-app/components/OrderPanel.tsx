@@ -2,16 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { usePOS, OrderItem, Order } from '../contexts/POSContext';
 import { useAuth, User } from '../contexts/AuthContext';
 import { API_URL } from '../config/api';
-import { Trash2, UtensilsCrossed, Loader2, User as UserIcon, Printer, X } from 'lucide-react'; // <-- **CHANGED/ADDED IMPORTS**
+import { Trash2, UtensilsCrossed, Loader2, User as UserIcon, Printer, X } from 'lucide-react';
 
 // Centralized currency formatter
 const formatCurrency = (amount: number): string => {
   if (typeof amount !== 'number') return 'KES 0';
-  // <-- **CHANGED: Set minimumFractionDigits to 2 for proper currency format**
-  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; 
+  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-// NEW: Interface for receipt details
+// Interface for receipt details
 interface ReceiptDetails {
   order: Order;
   staff: User;
@@ -20,88 +19,58 @@ interface ReceiptDetails {
   tax: number;
   total: number;
   orderType: 'dine_in' | 'takeaway' | 'delivery' | 'room_service';
-  locationDetail?: string; // <-- **ADDED: Use the new property**
+  locationDetail?: string;
 }
 
-// Props
+// Props for the component
 interface OrderPanelProps {
   isQuickAccess?: boolean;
+  onOrderPlaced?: () => void; // <-- 1. ADD THIS NEW PROP
 }
 
-// --- NEW: Receipt Preview Component (Internal to OrderPanel) ---
+// --- Receipt Preview Component (Internal to OrderPanel) ---
 const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => void }> = ({ details, onClose }) => {
   const { order, staff, orderNumber, subtotal, tax, total, orderType, locationDetail } = details;
 
-  // The actual printing logic
   const handlePrint = () => {
     const locationLine = locationDetail ? `<div>Location: ${locationDetail}</div>` : '';
-    
     const receiptContent = `
       <!DOCTYPE html>
       <html>
       <head>
         <title>Receipt - ${orderNumber}</title>
-        <style>
-          /* Basic styling for thermal printer look */
-          body {
-            font-family: 'Courier New', monospace;
-            width: 300px; /* Standard thermal receipt width (approx 80mm) */
-            margin: 0;
-            padding: 10px;
+       <style>
+          body { font-family: 'Courier New', monospace; width: 300px; margin: 0; padding: 10px; }
+          .receipt { text-align: center; }
+          /* --- Style for the logo --- */
+          .logo {
+            max-width: 150px; 
+            margin: 0 auto 10px;
           }
-          .receipt {
-            text-align: center;
-          }
-          .header {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 10px;
-          }
-          .divider {
-            border-top: 1px dashed #000;
-            margin: 10px 0;
-          }
-          .order-info {
-            text-align: left;
-            margin: 10px 0;
-            font-size: 14px;
-          }
-          .item-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 5px 0;
-          }
-          .totals {
-            margin-top: 10px;
-            font-weight: bold;
-            font-size: 15px;
-          }
-          .total-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 5px 0;
-          }
-          .footer {
-            margin-top: 20px;
-            font-size: 12px;
-          }
+          .header { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+          .divider { border-top: 1px dashed #000; margin: 10px 0; }
+          .order-info { text-align: left; margin: 10px 0; font-size: 14px; }
+          .item-row { display: flex; justify-content: space-between; margin: 5px 0; }
+          .totals { margin-top: 10px; font-weight: bold; font-size: 15px; }
+          .total-row { display: flex; justify-content: space-between; margin: 5px 0; }
+          .footer { margin-top: 20px; font-size: 12px; }
         </style>
       </head>
       <body>
         <div class="receipt">
+          
+          <img src="public/logo.PNG" alt="Restaurant Logo" class="logo" />
+
           <div class="header">MARIA HAVENS</div>
           <div>Restaurant & Hotel</div>
           <div class="divider"></div>
-          
           <div class="order-info">
             <div>Order: ${orderNumber}</div>
             <div>Date: ${new Date().toLocaleString('en-KE')}</div>
             <div>Type: ${orderType.replace('_', ' ').toUpperCase()}</div>
             ${locationLine} <div>Waiter: ${staff.name}</div>
           </div>
-          
           <div class="divider"></div>
-          
           <div class="items">
             ${order.items.map(item => `
               <div class="item-row">
@@ -110,9 +79,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
               </div>
             `).join('')}
           </div>
-          
           <div class="divider"></div>
-          
           <div class="totals">
             <div class="total-row">
               <div>Subtotal:</div>
@@ -127,30 +94,21 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
               <div>${formatCurrency(total)}</div>
             </div>
           </div>
-          
           <div class="divider"></div>
-          
           <div class="footer">
             <div>Thank you for your visit!</div>
             <div>Please come again</div>
           </div>
         </div>
-        
         <script>
-          // Automatically trigger print when the new window loads
           window.onload = function() {
             window.print();
-            // Close the window after printing
-            setTimeout(function() {
-              window.close();
-            }, 100);
+            setTimeout(function() { window.close(); }, 100);
           }
         </script>
       </body>
       </html>
     `;
-
-    // Open print window
     const printWindow = window.open('', '_blank', 'width=320,height=600');
     if (printWindow) {
       printWindow.document.write(receiptContent);
@@ -161,22 +119,18 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
   return (
     <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm flex flex-col max-h-full">
-        {/* Modal Header */}
         <div className="p-4 border-b flex justify-between items-center">
           <h3 className="text-xl font-bold text-gray-800">Receipt Preview</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <X size={24} />
           </button>
         </div>
-
-        {/* Receipt Content - Scrollable Preview Area */}
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50 border-b">
           <div className="bg-white p-3 rounded-md shadow-inner">
             <div className="text-center font-['Courier_New',_monospace]">
               <div className="text-xl font-extrabold mb-1">MARIA HAVENS</div>
               <div className="text-sm">Restaurant & Hotel</div>
               <div className="border-t border-dashed border-gray-400 my-3"></div>
-              
               <div className="text-left text-sm space-y-1 mb-3">
                 <div className="flex justify-between"><span>Order:</span> <span>{orderNumber}</span></div>
                 <div className="flex justify-between"><span>Date:</span> <span>{new Date().toLocaleDateString('en-KE')}</span></div>
@@ -185,9 +139,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
                 {locationDetail && <div className="flex justify-between"><span>Location:</span> <span>{locationDetail}</span></div>}
                 <div className="flex justify-between"><span>Waiter:</span> <span>{staff.name}</span></div>
               </div>
-
               <div className="border-t border-dashed border-gray-400 my-3"></div>
-              
               <div className="text-sm text-left space-y-2">
                 {order.items.map((item) => (
                   <div key={item.id} className="flex justify-between">
@@ -196,17 +148,13 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
                   </div>
                 ))}
               </div>
-              
               <div className="border-t border-dashed border-gray-400 my-3"></div>
-
               <div className="text-md font-bold space-y-1">
                 <div className="flex justify-between"><span>Subtotal:</span> <span>{formatCurrency(subtotal)}</span></div>
                 <div className="flex justify-between"><span>Tax (16%):</span> <span>{formatCurrency(tax)}</span></div>
                 <div className="flex justify-between text-lg mt-2 pt-2 border-t border-gray-200"><span>TOTAL:</span> <span>{formatCurrency(total)}</span></div>
               </div>
-
               <div className="border-t border-dashed border-gray-400 my-3"></div>
-              
               <div className="text-xs mt-3">
                 <div>Thank you for your visit!</div>
                 <div>Please come again</div>
@@ -214,8 +162,6 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
             </div>
           </div>
         </div>
-
-        {/* Modal Actions */}
         <div className="p-4 flex gap-2">
           <button
             onClick={onClose}
@@ -237,15 +183,14 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
 };
 
 // --- OrderPanel Component ---
-export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
+export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: OrderPanelProps) { // <-- 2. USE THE PROP
   const { currentOrder, removeItemFromOrder, clearOrder, updateItemQuantity, setCurrentOrder } = usePOS();
   const { user, validateStaffPin } = useAuth();
 
   const [waitersList, setWaitersList] = useState<User[]>([]);
   const [showPinModal, setShowPinModal] = useState(false);
-  // NEW STATE for receipt preview
-  const [showReceiptModal, setShowReceiptModal] = useState(false); // <-- **NEW STATE**
-  const [receiptDetails, setReceiptDetails] = useState<ReceiptDetails | null>(null); // <-- **NEW STATE**
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptDetails, setReceiptDetails] = useState<ReceiptDetails | null>(null);
 
   const [selectedWaiterId, setSelectedWaiterId] = useState('');
   const [selectedWaiterUsername, setSelectedWaiterUsername] = useState('');
@@ -254,25 +199,20 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentOrderType, setCurrentOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
 
-  // Update order type when it changes in parent component
   useEffect(() => {
     if (currentOrder && currentOrder.order_type) {
       setCurrentOrderType(currentOrder.order_type);
     }
   }, [currentOrder?.order_type]);
 
-  // Fetch waiters list for all scenarios
   useEffect(() => {
     fetchWaiters();
   }, []);
 
   const fetchWaiters = async () => {
     try {
-      // Temporary: directly use backend URL to bypass proxy issues
       const url = import.meta.env.DEV ? 'http://localhost:3000/api/waiters' : `${API_URL}/api/waiters`;
-      
       const response = await fetch(url);
-      
       if (response.ok) {
         const data = await response.json();
         setWaitersList(data);
@@ -284,7 +224,6 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
     }
   };
 
-  // Tax calculations
   const subtotal = currentOrder?.items.reduce((acc, item) => acc + item.price * item.quantity, 0) ?? 0;
   const tax = subtotal * 0.16;
   const total = subtotal + tax;
@@ -298,12 +237,9 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
       alert('Cannot process an empty order.');
       return;
     }
-    
-    // Fetch waiters list if not already loaded
     if (waitersList.length === 0) {
       await fetchWaiters();
     }
-    
     setShowPinModal(true);
   };
 
@@ -325,12 +261,10 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
   };
 
   const handlePinVerification = async () => {
-    // Always require waiter selection
     if (!selectedWaiterUsername) {
       setPinError('Please select a waiter');
       return;
     }
-    
     if (pin.length !== 4) {
       setPinError('PIN must be 4 digits.');
       return;
@@ -349,10 +283,8 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
     }
   };
 
-  // NEW: Refactored logic to only prepare and show the modal
   const prepareAndShowReceiptModal = (staff: User, orderNumber: string) => {
     if (!currentOrder) return;
-    
     const details: ReceiptDetails = {
       order: currentOrder,
       staff,
@@ -361,27 +293,25 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
       tax,
       total,
       orderType: currentOrderType,
-      locationDetail: currentOrder.location_detail, // <-- **NEW: Pass location detail**
+      locationDetail: currentOrder.location_detail,
     };
-    
     setReceiptDetails(details);
-    setShowReceiptModal(true); // Open the preview modal
+    setShowReceiptModal(true);
   };
-  
-  // NEW: Handler for closing the receipt modal
+
   const handleCloseReceiptModal = () => {
     setShowReceiptModal(false);
     setReceiptDetails(null);
-    clearOrder(); // Clear the order only after the receipt process is cancelled or printed
+    clearOrder();
+    // 3. CALL THE PROP FUNCTION ONCE EVERYTHING IS DONE
+    if (onOrderPlaced) {
+      onOrderPlaced();
+    }
   };
-
 
   const submitOrder = async (staff: User) => {
     if (!currentOrder) return;
-
-    // Remove temporary `id` before sending
     const { id, ...orderData } = currentOrder;
-
     const orderPayload = {
       ...orderData,
       items: currentOrder.items.map((item) => ({
@@ -399,9 +329,7 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
     };
 
     try {
-      // Use direct URL in development, API_URL in production
       const url = import.meta.env.DEV ? 'http://localhost:3000/api/orders' : `${API_URL}/api/orders`;
-      
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -409,23 +337,15 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
       });
 
       if (response.ok) {
-        // Order submitted successfully
         const result = await response.json();
-        
-        // Generate a unique client-side order number for the receipt
         const orderNumber = `ORD-${Date.now()}`;
-        
-        // Close PIN modal and clear PIN/Waiter selection
         setShowPinModal(false);
         setPin('');
         setSelectedWaiterId('');
         setSelectedWaiterUsername('');
         setIsSubmitting(false);
-        
-        // **CHANGED: Show receipt preview instead of immediate printing**
-        prepareAndShowReceiptModal(staff, orderNumber); 
-        
-        return; // Exit early since we've handled everything
+        prepareAndShowReceiptModal(staff, orderNumber);
+        return;
       } else {
         const error = await response.json();
         setPinError(error.message || 'Order submission failed.');
@@ -440,7 +360,6 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
   const handleWaiterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const waiterId = e.target.value;
     setSelectedWaiterId(waiterId);
-    
     const selectedWaiter = waitersList.find(w => w.id.toString() === waiterId);
     if (selectedWaiter) {
       setSelectedWaiterUsername(selectedWaiter.username);
@@ -450,7 +369,6 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
 
   return (
     <div className="flex flex-col h-full bg-gray-50 w-full lg:w-96 relative">
-      {/* Header */}
       <div className="p-4 border-b bg-white">
         <h2 className="text-xl font-bold text-gray-800">Current Order</h2>
         <p className="text-sm text-gray-500">
@@ -460,8 +378,6 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
           </span>
         </p>
       </div>
-
-      {/* Order Items */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {currentOrder?.items.map((item) => (
           <div key={item.id} className="flex items-center bg-white p-3 rounded-lg shadow-sm">
@@ -493,8 +409,6 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
           </div>
         )}
       </div>
-
-      {/* Summary & Actions */}
       {currentOrder && currentOrder.items.length > 0 && (
         <div className="p-4 border-t bg-white">
           <div className="space-y-2 mb-4">
@@ -527,8 +441,6 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
           </div>
         </div>
       )}
-
-      {/* PIN Modal with Waiter Selection */}
       {showPinModal && (
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
@@ -536,7 +448,6 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
               <UserIcon className="w-5 h-5 text-yellow-600" />
               Waiter Authentication
             </h3>
-
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Select Waiter *
@@ -558,7 +469,6 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
                 Select your name from the list above
               </p>
             </div>
-
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Enter Your PIN *
@@ -571,10 +481,8 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
                 placeholder="••••"
                 maxLength={4}
               />
-              
-              {/* PIN Keypad */}
               <div className="grid grid-cols-3 gap-2 mb-4">
-                {[1,2,3,4,5,6,7,8,9].map((digit) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
                   <button
                     key={digit}
                     type="button"
@@ -611,13 +519,11 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
                 </button>
               </div>
             </div>
-
             {pinError && (
               <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
                 <p className="text-red-600 text-sm text-center">{pinError}</p>
               </div>
             )}
-
             <div className="flex gap-2">
               <button
                 onClick={() => {
@@ -650,10 +556,8 @@ export default function OrderPanel({ isQuickAccess = false }: OrderPanelProps) {
           </div>
         </div>
       )}
-      
-      {/* NEW: Receipt Preview Modal */}
       {showReceiptModal && receiptDetails && (
-        <ReceiptPreviewModal details={receiptDetails} onClose={handleCloseReceiptModal} /> // <-- **NEW COMPONENT RENDER**
+        <ReceiptPreviewModal details={receiptDetails} onClose={handleCloseReceiptModal} />
       )}
     </div>
   );
