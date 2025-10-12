@@ -117,43 +117,6 @@ app.post('/api/validate-pin', async (req, res) => {
     res.status(500).json({ message: 'Server error during PIN validation' });
   }
 });
-// --- PUBLIC API Endpoints ---
-
-app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }));
-
-app.post('/api/login', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ message: 'Username and password are required' });
-    
-    const user = await db('staff').where({ username, is_active: true }).first();
-    if (user && user.password === password) {
-      const { password: _, pin: __, ...userWithoutSensitiveData } = user;
-      const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
-      res.json({ user: userWithoutSensitiveData, token });
-    } else res.status(401).json({ message: 'Invalid username or password' });
-  } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ message: 'Server error during login' });
-  }
-});
-
-app.post('/api/validate-pin', async (req, res) => {
-  try {
-    const { username, pin } = req.body;
-    if (!username || !pin) return res.status(400).json({ message: 'Username and PIN are required' });
-    
-    const validation = await validateStaffPinForOrder(username, pin);
-    if (!validation.valid) return res.status(401).json({ message: 'Invalid username or PIN' });
-
-    const user = await db('staff').where({ username }).first();
-    const { password: _, pin: __, ...userWithoutSensitiveData } = user;
-    res.json(userWithoutSensitiveData);
-  } catch (err) {
-    console.error('PIN validation error:', err);
-    res.status(500).json({ message: 'Server error during PIN validation' });
-  }
-});
 
 // --- PROTECTED API Endpoints ---
 
@@ -213,91 +176,6 @@ interface PerformanceData {
     totalCashTransactions?: number;
     totalCardTransactions?: number;
 }
-app.get('/api/performance', async (req, res) => {
-    const { role, employeeId } = req.query;
-
-    if (!role || !employeeId) {
-        return res.status(400).json({ message: 'Missing role or employeeId query parameters.' });
-    }
-
-    try {
-        const userResult = await db('staff')
-            .select('id')
-            .where('employee_id', employeeId as string)
-            .first();
-
-        if (!userResult || !userResult.id) {
-            return res.status(404).json({ message: 'Employee not found.' });
-        }
-
-        const staffPkId = userResult.id;
-        const sevenDaysAgo = db.raw("CURRENT_DATE - INTERVAL '7 day'");
-
-        // Dynamically get all statuses from orders table
-        const statuses = await db('orders').distinct('status').pluck('status');
-
-        // Core performance metrics
-        const salesResult = await db('orders')
-            .where('staff_id', staffPkId)
-            .whereIn('status', statuses) // Include all existing statuses
-            .andWhere('created_at', '>=', sevenDaysAgo)
-            .sum('total_amount as totalSales')
-            .count('id as ordersCompleted')
-            .first();
-
-        const totalSales = parseFloat(salesResult?.totalsales as string || '0');
-        const ordersCompleted = parseInt(salesResult?.orderscompleted as string || '0', 10);
-
-        // Average service time (only for completed orders)
-        const timeResult = await db('orders')
-            .where('staff_id', staffPkId)
-            .andWhere('status', 'completed')
-            .andWhere('updated_at', 'is not', null)
-            .andWhere('created_at', '>=', sevenDaysAgo)
-            .select(db.raw("AVG(EXTRACT(EPOCH FROM (updated_at - created_at))) as avg_seconds"))
-            .first();
-
-        const avgSeconds = parseFloat(timeResult?.avg_seconds as string || '0');
-        const avgServiceTime = avgSeconds > 0 ? new Date(avgSeconds * 1000).toISOString().substr(11, 8) : 'N/A';
-
-        const performanceData: PerformanceData = {
-            totalSales,
-            ordersCompleted,
-            averageServiceTime: avgServiceTime,
-        };
-
-        // Role-specific metrics
-        if (role === 'receptionist') {
-            const roomResult = await db('room_transactions')
-                .where('staff_id', staffPkId)
-                .andWhere('transaction_type', 'check_in')
-                .andWhere('created_at', '>=', sevenDaysAgo)
-                .count('id as totalRoomsCheckedIn')
-                .first();
-
-            performanceData.totalRoomsCheckedIn = parseInt(roomResult?.totalroomscheckedin as string || '0', 10);
-        }
-
-        if (role === 'cashier') {
-            const paymentResult = await db('orders')
-                .where('staff_id', staffPkId)
-                .whereIn('status', statuses)
-                .andWhere('created_at', '>=', sevenDaysAgo)
-                .select(db.raw("SUM(CASE WHEN payment_method = 'cash' THEN 1 ELSE 0 END) as totalCashTransactions"))
-                .select(db.raw("SUM(CASE WHEN payment_method != 'cash' THEN 1 ELSE 0 END) as totalCardTransactions"))
-                .first();
-
-            performanceData.totalCashTransactions = parseInt(paymentResult?.totalcashtransactions as string || '0', 10);
-            performanceData.totalCardTransactions = parseInt(paymentResult?.totalcardtransactions as string || '0', 10);
-        }
-
-        return res.json(performanceData);
-
-    } catch (err) {
-        console.error('Error fetching staff performance:', err);
-        res.status(500).json({ message: 'Error fetching staff performance data.' });
-    }
-});
 
 // ⭐ END OF NEW ENDPOINT
 
@@ -459,7 +337,80 @@ app.post('/api/attendance/clock-out', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Error clocking out' });
   }
 });
+// Shifts Management Endpoints
+app.get('/api/shifts/my-shifts', authenticateToken, async (req, res) => {
+    try {
+        const { start_date, end_date } = req.query;
+        const userId = (req as any).user?.id;
 
+        if (!userId) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
+
+        const shifts = await db('shifts')
+            .where({ staff_id: userId })
+            .whereBetween('shift_date', [start_date as string, end_date as string])
+            .orderBy('shift_date', 'asc')
+            .orderBy('start_time', 'asc');
+
+        res.json(shifts);
+    } catch (err) {
+        console.error('Error fetching shifts:', err);
+        res.status(500).json({ message: 'Error fetching shifts', error: (err as Error).message });
+    }
+});
+
+app.get('/api/shifts', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { start_date, end_date } = req.query;
+        
+        let query = db('shifts')
+            .join('staff', 'shifts.staff_id', 'staff.id')
+            .select('shifts.*', 'staff.name as staff_name', 'staff.role as staff_role');
+
+        if (start_date && end_date) {
+            query = query.whereBetween('shift_date', [start_date as string, end_date as string]);
+        }
+
+        const shifts = await query.orderBy('shift_date', 'asc').orderBy('start_time', 'asc');
+        res.json(shifts);
+    } catch (err) {
+        console.error('Error fetching shifts:', err);
+        res.status(500).json({ message: 'Error fetching shifts', error: (err as Error).message });
+    }
+});
+
+app.post('/api/shifts', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const [newShift] = await db('shifts').insert(req.body).returning('*');
+        res.status(201).json(newShift);
+    } catch (err) {
+        console.error('Error creating shift:', err);
+        res.status(500).json({ message: 'Error creating shift', error: (err as Error).message });
+    }
+});
+
+app.put('/api/shifts/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [updatedShift] = await db('shifts').where({ id }).update(req.body).returning('*');
+        res.json(updatedShift);
+    } catch (err) {
+        console.error('Error updating shift:', err);
+        res.status(500).json({ message: 'Error updating shift', error: (err as Error).message });
+    }
+});
+
+app.delete('/api/shifts/:id', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db('shifts').where({ id }).del();
+        res.status(204).send();
+    } catch (err) {
+        console.error('Error deleting shift:', err);
+        res.status(500).json({ message: 'Error deleting shift', error: (err as Error).message });
+    }
+});
 // ========================================
 // PERFORMANCE ENDPOINTS
 // ========================================
@@ -476,8 +427,8 @@ app.get('/api/performance/staff/:staffId', authenticateToken, async (req, res) =
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    const startDate = start_date || new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
-    const endDate = end_date || new Date().toISOString().split('T')[0];
+    const startDate = (start_date as string) || new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
+    const endDate = (end_date as string) || new Date().toISOString().split('T')[0];
 
     // Get orders data
     const ordersData = await db('orders')
@@ -507,44 +458,50 @@ app.get('/api/performance/staff/:staffId', authenticateToken, async (req, res) =
       .first();
 
     // Get attendance punctuality
-    const attendanceData = await db('shifts')
-      .where('staff_id', staffId)
-      .whereBetween('shift_date', [startDate, endDate])
-      .whereNotNull('actual_start_time')
+    const attendanceData = await db('attendance_log')
+      .join('shifts', 'attendance_log.shift_id', 'shifts.id')
+      .where('attendance_log.staff_id', staffId)
+      .whereBetween('shifts.shift_date', [startDate, endDate])
+      .whereNotNull('attendance_log.clock_in')
       .select(
         db.raw('COUNT(*) as total_attended'),
-        db.raw('COUNT(CASE WHEN actual_start_time <= (shift_date || \' \' || start_time)::timestamp THEN 1 END) as on_time_count')
+        db.raw(`
+          COUNT(
+            CASE WHEN attendance_log.clock_in <= (shifts.shift_date::date + shifts.start_time::time)
+            THEN 1 END
+          ) as on_time_count
+        `)
       )
       .first();
 
     const punctualityScore =
-      attendanceData.total_attended > 0
-        ? ((attendanceData.on_time_count / attendanceData.total_attended) * 100).toFixed(0)
+      attendanceData && attendanceData.total_attended > 0
+        ? ((Number(attendanceData.on_time_count) / Number(attendanceData.total_attended)) * 100).toFixed(0)
         : 100;
 
     res.json({
       period: { start: startDate, end: endDate },
       orders: {
-        total: parseInt(String(ordersData.total_orders ?? 0)),
-        completed: parseInt(String(ordersData.completed_orders ?? 0)),
-        cancelled: parseInt(String(ordersData.cancelled_orders ?? 0)),
+        total: parseInt(String(ordersData?.total_orders ?? 0)),
+        completed: parseInt(String(ordersData?.completed_orders ?? 0)),
+        cancelled: parseInt(String(ordersData?.cancelled_orders ?? 0)),
         completionRate:
-          ordersData.total_orders > 0
+          ordersData && ordersData.total_orders > 0
             ? ((Number(ordersData.completed_orders) / Number(ordersData.total_orders)) * 100).toFixed(1)
             : "0",
       },
       financial: {
-        totalSales: parseFloat(String(ordersData.total_sales ?? 0)),
-        avgOrderValue: parseFloat(String(ordersData.avg_order_value ?? 0)),
-        totalTips: parseFloat(String(ordersData.total_tips ?? 0)),
+        totalSales: parseFloat(String(ordersData?.total_sales ?? 0)),
+        avgOrderValue: parseFloat(String(ordersData?.avg_order_value ?? 0)),
+        totalTips: parseFloat(String(ordersData?.total_tips ?? 0)),
       },
       service: {
-        avgRating: parseFloat(String(ordersData.avg_rating ?? 0)).toFixed(2),
-        avgServiceTime: parseFloat(String(ordersData.avg_service_time ?? 0)).toFixed(0),
+        avgRating: parseFloat(String(ordersData?.avg_rating ?? 0)).toFixed(2),
+        avgServiceTime: parseFloat(String(ordersData?.avg_service_time ?? 0)).toFixed(0),
       },
       attendance: {
-        totalShifts: parseInt(String(shiftData.total_shifts ?? 0)),
-        totalHours: parseFloat(String(shiftData.total_hours ?? 0)).toFixed(2),
+        totalShifts: parseInt(String(shiftData?.total_shifts ?? 0)),
+        totalHours: parseFloat(String(shiftData?.total_hours ?? 0)).toFixed(2),
         punctualityScore: parseInt(String(punctualityScore)),
       },
     });
@@ -559,8 +516,8 @@ app.get('/api/performance/all', authenticateToken, authorizeRoles('admin', 'mana
   try {
     const { start_date, end_date, role } = req.query;
 
-    const startDate = start_date || new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
-    const endDate = end_date || new Date().toISOString().split('T')[0];
+    const startDate = (start_date as string) || new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
+    const endDate = (end_date as string) || new Date().toISOString().split('T')[0];
 
     let query = db('staff')
       .leftJoin('orders', function() {
@@ -582,7 +539,7 @@ app.get('/api/performance/all', authenticateToken, authorizeRoles('admin', 'mana
       );
 
     if (role) {
-      query = query.where('staff.role', role);
+      query = query.where('staff.role', role as string);
     }
 
     const performance = await query;
@@ -609,8 +566,8 @@ app.get('/api/performance/waiters', authenticateToken, authorizeRoles('admin', '
   try {
     const { start_date, end_date } = req.query;
 
-    const startDate = start_date || new Date().toISOString().split('T')[0];
-    const endDate = end_date || new Date().toISOString().split('T')[0];
+    const startDate = (start_date as string) || new Date().toISOString().split('T')[0];
+    const endDate = (end_date as string) || new Date().toISOString().split('T')[0];
 
     const waiterPerformance = await db('staff')
       .leftJoin('orders', function() {
@@ -948,7 +905,7 @@ app.get('/api/tables', authenticateToken, async (req, res) => {
     }
 });
 
-app.post('/api/tables', authenticateToken, authorizeRoles('admin', 'manager'), async (req, res) => {
+app.post('/api/tables', authenticateToken, authorizeRoles('admin', 'manager', 'receptionist'), async (req, res) => {
     try {
         const [newTable] = await db('tables').insert(req.body).returning('*');
         res.status(201).json(newTable);
@@ -957,7 +914,7 @@ app.post('/api/tables', authenticateToken, authorizeRoles('admin', 'manager'), a
     }
 });
 
-app.put('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manager', 'waiter'), async (req, res) => {
+app.put('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manager', 'waiter', 'receptionist'), async (req, res) => {
     try {
         const { id } = req.params;
         const [updatedTable] = await db('tables').where({ id }).update(req.body).returning('*');
@@ -976,7 +933,76 @@ app.delete('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manage
         res.status(500).json({ message: 'Error deleting table' });
     }
 });
+// Check-In a Guest
+app.post('/api/rooms/:roomId/check-in', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req, res) => {
+  const { roomId } = req.params;
+  const { guest_name, guest_contact } = req.body;
+  const { id: staff_id } = (req as any).user;
 
+  if (!guest_name) {
+    return res.status(400).json({ message: 'Guest name is required.' });
+  }
+
+  try {
+    await db.transaction(async (trx) => {
+      // 1. Update the room status to 'occupied'
+      const [updatedRoom] = await trx('rooms')
+        .where({ id: roomId, status: 'available' })
+        .update({ status: 'occupied' })
+        .returning('*');
+
+      if (!updatedRoom) {
+        throw new Error('Room is not available for check-in.');
+      }
+
+      // 2. Create a new room transaction record
+      await trx('room_transactions').insert({
+        room_id: roomId,
+        staff_id,
+        guest_name,
+        guest_contact,
+        status: 'active',
+      });
+      
+      res.json(updatedRoom);
+    });
+  } catch (err) {
+    console.error('Check-in error:', err);
+    res.status(500).json({ message: (err as Error).message || 'Failed to check-in guest.' });
+  }
+});
+
+// Check-Out a Guest
+app.post('/api/rooms/:roomId/check-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req, res) => {
+  const { roomId } = req.params;
+
+  try {
+    await db.transaction(async (trx) => {
+      // 1. Update room status to 'dirty' (for housekeeping)
+      const [updatedRoom] = await trx('rooms')
+        .where({ id: roomId, status: 'occupied' })
+        .update({ status: 'dirty' })
+        .returning('*');
+
+      if (!updatedRoom) {
+        throw new Error('Room is not occupied or does not exist.');
+      }
+
+      // 2. Update the transaction record to completed
+      await trx('room_transactions')
+        .where({ room_id: roomId, status: 'active' })
+        .update({
+          status: 'completed',
+          check_out_time: new Date(),
+        });
+        
+      res.json(updatedRoom);
+    });
+  } catch (err) {
+    console.error('Check-out error:', err);
+    res.status(500).json({ message: (err as Error).message || 'Failed to check-out guest.' });
+  }
+});
 // Maintenance Management
 app.get('/api/maintenance-requests', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping'), async (req, res) => {
     try {
@@ -1306,9 +1332,6 @@ app.get('/api/debug/seed-orders', async (req, res) => {
     res.status(500).json({ error: (err as Error).message });
   }
 });
-
-
-
 
 // --- Start Server with Database Connection Test ---
 db.raw('SELECT 1')

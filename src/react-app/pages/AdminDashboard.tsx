@@ -7,6 +7,8 @@ import MenuManagement from '../components/admin/MenuManagement';
 import RoomManagement from '../components/admin/RoomManagement';
 import ReportsManagement from '../components/admin/ReportsManagement';
 import SettingsManagement from '../components/admin/SettingsManagement';
+import ShiftManagement from '../components/admin/ShiftManagement';
+import PerformanceDashboard from '../components/PerfomanceDashboardView';
 import {
   BarChart3,
   Users,
@@ -17,7 +19,9 @@ import {
   Bed,
   AlertTriangle,
   DollarSign,
-  Loader2
+  Loader2,
+  Clock, 
+  TrendingUp,
 } from 'lucide-react';
 
 // --- Helper Functions ---
@@ -109,6 +113,8 @@ export default function AdminDashboard() {
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'staff', label: 'Staff Management', icon: Users },
+    { id: 'shifts', label: 'Shift Management', icon: Clock }, // Add this
+    { id: 'performance', label: 'Performance', icon: TrendingUp }, // And this
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'menu', label: 'Menu Management', icon: UtensilsCrossed },
     { id: 'rooms', label: 'Room Management', icon: Bed },
@@ -241,6 +247,10 @@ export default function AdminDashboard() {
         return renderOverview();
       case 'staff':
         return <StaffManagement />;
+      case 'shifts': // Add this case
+        return <ShiftManagement />;
+      case 'performance': // And this case
+        return <PerformanceDashboard />;
       case 'inventory':
         return <InventoryManagement />;
       case 'menu':

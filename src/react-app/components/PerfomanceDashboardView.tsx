@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config/api';
-import { 
-  TrendingUp, DollarSign, ShoppingBag, Star, Clock, Users, 
-  Award, Target, Loader2, Calendar, Filter 
+import {
+  TrendingUp, DollarSign, ShoppingBag, Star, Clock, Users,
+  Award, Target, Loader2, Calendar, Filter
 } from 'lucide-react';
+import MyShiftsView from './MyShiftsView'; // 1. IMPORT THE NEW COMPONENT
 
 interface PerformanceData {
   period: { start: string; end: string };
@@ -56,17 +57,17 @@ const formatCurrency = (amount: number): string => {
   return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
 
-const MetricCard = ({ 
-  title, 
-  value, 
-  icon: Icon, 
-  color, 
-  subtext 
-}: { 
-  title: string; 
-  value: string | number; 
-  icon: any; 
-  color: string; 
+const MetricCard = ({
+  title,
+  value,
+  icon: Icon,
+  color,
+  subtext
+}: {
+  title: string;
+  value: string | number;
+  icon: any;
+  color: string;
   subtext?: string;
 }) => (
   <div className={`bg-white p-6 rounded-xl shadow-sm border-l-4 ${color}`}>
@@ -164,7 +165,7 @@ export default function PerformanceDashboard() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Performance Dashboard</h2>
           <p className="text-gray-600">
-            {user.role === 'admin' || user.role === 'manager' 
+            {user.role === 'admin' || user.role === 'manager'
               ? 'View and analyze team performance metrics'
               : user.role === 'receptionist'
               ? 'Monitor waiter performance and sales'
@@ -214,6 +215,11 @@ export default function PerformanceDashboard() {
           )}
         </div>
       </div>
+
+      {/* 2. RENDER THE NEW COMPONENT HERE */}
+      {user.role !== 'admin' && user.role !== 'manager' && (
+        <MyShiftsView />
+      )}
 
       {/* My Performance Section */}
       {myPerformance && (
@@ -328,8 +334,8 @@ export default function PerformanceDashboard() {
                             <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
                               <div
                                 className="bg-green-500 h-2 rounded-full"
-                                style={{ 
-                                  width: `${staff.totalOrders > 0 ? (staff.completedOrders / staff.totalOrders) * 100 : 0}%` 
+                                style={{
+                                  width: `${staff.totalOrders > 0 ? (staff.completedOrders / staff.totalOrders) * 100 : 0}%`
                                 }}
                               ></div>
                             </div>
