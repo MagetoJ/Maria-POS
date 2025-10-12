@@ -2,7 +2,6 @@
 # Updated to connect to an existing database.
 
 services:
-  # --- Web Service Configuration ---
   - type: web
     name: maria-pos
     env: node
@@ -10,7 +9,7 @@ services:
     
     # --- Build and Start Commands ---
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    startCommand: node server/dist/index.js
     
     # --- Health Check ---
     healthCheckPath: /health
@@ -19,15 +18,11 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      
       - key: PORT
         value: 10000
-
       - key: JWT_SECRET
         generateValue: true
-      
       - key: DATABASE_URL
-        # ❗️ IMPORTANT: You will get this value from your existing database
-        # on the Render dashboard and paste it here or set it directly
-        # in the service's Environment tab after deployment.
+        fromDatabase:
+     
         value: postgresql://mariahavens_user:BvEnYG8hb7baKudACcyxLuGkNgpxqloT@dpg-d3l72s3uibrs73cf7l60-a/mariahavens
