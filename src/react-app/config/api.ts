@@ -24,7 +24,7 @@ export const API_URL = getApiUrl();
 export const apiClient = {
   get: async (endpoint: string, options?: RequestInit) => {
     // API_URL is now a full URL (http://localhost:3000), so the resulting path is correct:
-    // http://localhost:3000/api/performance
+    // /api/performance
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers: {

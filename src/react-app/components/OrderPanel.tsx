@@ -211,7 +211,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
 
   const fetchWaiters = async () => {
     try {
-      const url = import.meta.env.DEV ? 'http://localhost:3000/api/waiters' : `${API_URL}/api/waiters`;
+      const url = import.meta.env.DEV ? '/api/waiters' : `${API_URL}/api/waiters`;
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
@@ -329,7 +329,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
     };
 
     try {
-      const url = import.meta.env.DEV ? 'http://localhost:3000/api/orders' : `${API_URL}/api/orders`;
+      const url = import.meta.env.DEV ? '/api/orders' : `${API_URL}/api/orders`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

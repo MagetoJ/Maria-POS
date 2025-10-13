@@ -34,6 +34,12 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (error) {
+      console.log('Current error state in render:', error);
+    }
+  }, [error]);
+
   const handleInstallApp = async () => {
     if (!deferredPrompt) return;
     
