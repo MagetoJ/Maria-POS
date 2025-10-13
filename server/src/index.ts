@@ -39,7 +39,33 @@ app.use(express.json());
 // So we need to go up to project root and then to dist/client
 const clientBuildPath = path.resolve(__dirname, '../../dist/client');
 console.log('📁 Serving static files from:', clientBuildPath);
-app.use(express.static(clientBuildPath));
+
+// Serve static files with proper caching headers for mobile
+app.use(express.static(clientBuildPath, {
+  maxAge: '1d', // Cache static files for 1 day
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, path) => {
+    // Set cache headers for different file types
+    if (path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.ico')) {
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 day for images
+    }
+    if (path.endsWith('.js') || path.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1 year for JS/CSS
+    }
+    if (path.endsWith('.webmanifest') || path.endsWith('.json')) {
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour for manifest
+    }
+  }
+}));
+
+// Serve public files (including images) from public directory
+const publicPath = path.resolve(__dirname, '../../public');
+console.log('📁 Serving public files from:', publicPath);
+app.use('/public', express.static(publicPath, {
+  maxAge: '7d', // Cache public files for 7 days
+  etag: true,
+}));
 
 // --- Helper Function for PIN Validation ---
 async function validateStaffPinForOrder(username: string, pin: string): Promise<{ valid: boolean; staffId?: number; staffName?: string }> {

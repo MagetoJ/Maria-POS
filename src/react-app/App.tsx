@@ -6,6 +6,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import KitchenDisplay from './pages/KitchenDisplay';
 import HousekeepingDashboard from './pages/HousekeepingDashboard';
 import Home from './pages/Home';
+import NetworkStatus from './components/NetworkStatus';
 
 // This component remains the same, protecting sensitive routes
 const ProtectedRoute = ({ children, allowedRoles }: { children: JSX.Element, allowedRoles?: string[] }) => {
@@ -30,44 +31,47 @@ function App() {
   };
 
   return (
-    <Routes>
-      <Route path="/login" element={<Login onQuickPOSAccess={handleQuickPOS} />} />
-      
-      {/* The isQuickAccess prop has been removed from the POS component */}
-      <Route path="/pos" element={<POS />} /> 
-      
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute allowedRoles={['admin', 'manager']}>
-            <AdminDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/kitchen"
-        element={
-          <ProtectedRoute>
-            <KitchenDisplay />
-          </ProtectedRoute>
-        }
-      />
-       <Route
-        path="/housekeeping"
-        element={
-          <ProtectedRoute allowedRoles={['housekeeping', 'admin', 'manager']}>
-            <HousekeepingDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/"
-        element={
-            <Home />
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <NetworkStatus />
+      <Routes>
+        <Route path="/login" element={<Login onQuickPOSAccess={handleQuickPOS} />} />
+        
+        {/* The isQuickAccess prop has been removed from the POS component */}
+        <Route path="/pos" element={<POS />} /> 
+        
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/kitchen"
+          element={
+            <ProtectedRoute>
+              <KitchenDisplay />
+            </ProtectedRoute>
+          }
+        />
+         <Route
+          path="/housekeeping"
+          element={
+            <ProtectedRoute allowedRoles={['housekeeping', 'admin', 'manager']}>
+              <HousekeepingDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/"
+          element={
+              <Home />
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
 

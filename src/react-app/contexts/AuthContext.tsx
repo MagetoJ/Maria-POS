@@ -27,7 +27,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,29 +38,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(JSON.parse(storedUser));
       setToken(storedToken);
     }
-    setIsLoading(false);
+    setIsInitialLoading(false);
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
     try {
+      console.log('🔌 Attempting login to:', `${API_URL}/api/login`);
+      
       const response = await fetch(`${API_URL}/api/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({ username, password }),
+        // Add timeout and mobile-specific options
+        signal: AbortSignal.timeout(15000), // 15 second timeout
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ message: 'Server error' }));
+        
+        if (response.status === 401) {
+          return { success: false, message: 'Invalid username or password' };
+        } else if (response.status === 500) {
+          return { success: false, message: 'Server is temporarily unavailable' };
+        } else if (response.status >= 400) {
+          return { success: false, message: errorData.message || 'Login failed' };
+        }
+        
         return { success: false, message: errorData.message || 'Invalid credentials' };
       }
 
       const { user: foundUser, token: newToken } = await response.json();
       
+      if (!foundUser || !newToken) {
+        return { success: false, message: 'Invalid server response' };
+      }
+      
       setUser(foundUser);
       setToken(newToken);
       localStorage.setItem('pos_user', JSON.stringify(foundUser));
       localStorage.setItem('pos_token', newToken);
+
+      console.log('✅ Login successful for user:', foundUser.username, 'Role:', foundUser.role);
 
       switch (foundUser.role) {
         case 'admin':
@@ -76,8 +99,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { success: true };
 
-    } catch (error) {
-      return { success: false, message: 'Could not connect to the server.' };
+    } catch (error: any) {
+      console.error('❌ Login error:', error);
+      
+      if (error.name === 'AbortError') {
+        return { success: false, message: 'Login request timed out. Please try again.' };
+      }
+      
+      if (error.message?.includes('fetch')) {
+        return { success: false, message: 'Cannot connect to server. Please check your internet connection.' };
+      }
+      
+      return { success: false, message: 'Network error. Please try again.' };
     } finally {
       setIsLoading(false);
     }
@@ -123,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={value}>
-      {!isLoading && children}
+      {!isInitialLoading && children}
     </AuthContext.Provider>
   );
 };
