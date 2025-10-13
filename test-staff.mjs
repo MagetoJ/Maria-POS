@@ -2,7 +2,7 @@ async function testStaffEndpoint() {
     try {
         // First login
         console.log('Logging in...');
-        const loginResponse = await fetch('http://localhost:3000/api/login', {
+        const loginResponse = await fetch('/api/login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -19,7 +19,7 @@ async function testStaffEndpoint() {
         
         // Test staff endpoint
         console.log('Testing staff endpoint...');
-        const staffResponse = await fetch('http://localhost:3000/api/staff', {
+        const staffResponse = await fetch('/api/staff', {
             headers: {
                 'Authorization': `Bearer ${token}`
             }

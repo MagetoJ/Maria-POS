@@ -4,7 +4,7 @@ async function testReportsEndpoint() {
     try {
         // First login
         console.log('Logging in...');
-        const loginResponse = await axios.post('http://localhost:3000/api/login', {
+        const loginResponse = await axios.post('/api/login', {
             username: 'admin',
             password: 'admin123'
         });
@@ -14,7 +14,7 @@ async function testReportsEndpoint() {
         
         // Test overview report
         console.log('Testing overview report...');
-        const reportResponse = await axios.get('http://localhost:3000/api/reports/overview?start=2024-12-01&end=2024-12-31', {
+        const reportResponse = await axios.get('/api/reports/overview?start=2024-12-01&end=2024-12-31', {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
