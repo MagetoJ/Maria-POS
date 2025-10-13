@@ -2,23 +2,22 @@
 // This file determines which backend URL to use
 
 const getApiUrl = (): string => {
-  // In production (deployed on Render), use the environment variable
+  // 1. Explicit VITE_API_URL (e.g., in staging or when using a different domain)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
   
-  // ⚡ FIX: In development, explicitly point to the backend port (3000).
-  // This bypasses the potentially misconfigured or failing Vite proxy.
+  // 2. Development mode (using localhost for local server)
   if (import.meta.env.DEV) {
-    // Ensure this port (3000) matches the port your Node.js/Express server is running on.
     return 'http://localhost:3000'; 
   }
   
-  // Fallback (e.g., if neither DEV nor PROD vars are set)
-  return 'http://localhost:3000';
+  // 3. Production Fallback (Use relative path to connect to the same host/origin)
+  // This correctly resolves to https://pos.mariahavens.com
+  return ''; // Empty string means the API calls are relative (e.g., /api/login)
 };
 
-export const API_URL = getApiUrl();
+export const API_URL = getApiUrl(); 
 
 // Helper function for making API calls
 export const apiClient = {
