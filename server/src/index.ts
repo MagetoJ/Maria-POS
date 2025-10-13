@@ -35,7 +35,9 @@ app.use(express.json());
 
 // --- Serve Static Frontend Files ---
 // IMPORTANT: This serves your built frontend files
-const clientBuildPath = path.join(__dirname, '../../../dist/client');
+// In production, __dirname is /opt/render/project/server/dist
+// So we need to go up to project root and then to dist/client
+const clientBuildPath = path.resolve(__dirname, '../../dist/client');
 console.log('📁 Serving static files from:', clientBuildPath);
 app.use(express.static(clientBuildPath));
 
