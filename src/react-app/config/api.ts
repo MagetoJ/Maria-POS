@@ -2,19 +2,43 @@
 // This file determines which backend URL to use
 
 const getApiUrl = (): string => {
-  // 1. Explicit VITE_API_URL (e.g., in staging or when using a different domain)
+  // 1. Explicit VITE_API_URL (preferred method for all deployments)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
   
-  // 2. Development mode (using localhost for local server)
-  if (import.meta.env.DEV) {
-    return 'http://localhost:3000'; 
+  // 2. Production fallback URLs based on hostname
+  if (import.meta.env.PROD) {
+    const hostname = window.location.hostname;
+    
+    console.log('🔍 Production mode detected:', {
+      hostname,
+      VITE_API_URL: import.meta.env.VITE_API_URL,
+      NODE_ENV: import.meta.env.NODE_ENV,
+      MODE: import.meta.env.MODE
+    });
+    
+    // Check for known production domains
+    if (hostname.includes('mariahavens.com')) {
+      return 'https://maria-pos-podv.onrender.com';
+    }
+    
+    // When deployed on the same Render service (fullstack deployment)
+    if (hostname.includes('onrender.com')) {
+      // Check if we're on the backend URL itself
+      if (hostname === 'maria-pos-podv.onrender.com') {
+        return ''; // Use relative paths when frontend is served by backend
+      }
+      // If on a different onrender domain, point to backend
+      return 'https://maria-pos-podv.onrender.com';
+    }
+    
+    // Default production backend - ALWAYS use full URL in production
+    return 'https://maria-pos-podv.onrender.com';
   }
   
-  // 3. Production Fallback (Use relative path to connect to the same host/origin)
-  // This correctly resolves to https://pos.mariahavens.com
-  return ''; // Empty string means the API calls are relative (e.g., /api/login)
+  // 3. Development mode (using localhost for local server)
+  return 'http://localhost:3000'; 
 };
 
 export const API_URL = getApiUrl(); 
@@ -76,6 +100,9 @@ export const apiClient = {
 console.log('🔌 API Configuration:', {
   mode: import.meta.env.MODE,
   apiUrl: API_URL || 'Using Proxy',
+  finalApiUrl: API_URL,
   isDev: import.meta.env.DEV,
   isProd: import.meta.env.PROD,
+  VITE_API_URL: import.meta.env.VITE_API_URL,
+  hostname: typeof window !== 'undefined' ? window.location.hostname : 'server-side',
 });

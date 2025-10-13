@@ -10,6 +10,8 @@
     "build:frontend": "vite build",
     "build:backend": "cd server && npx tsc",
     "build": "npm run build:frontend && npm run build:backend",
+    "build:render": "VITE_API_URL=https://maria-pos-podv.onrender.com npm run build",
+    "render-build": "node build-for-render.js",
     "preview": "vite preview",
     "start": "node server/dist/index.js",
     "postinstall": "cd server && npm install",

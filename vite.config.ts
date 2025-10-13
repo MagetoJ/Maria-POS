@@ -9,7 +9,7 @@ export default defineConfig({
     // Add the VitePWA plugin with its configuration
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.PNG'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.PNG', 'pwa-192x192.png', 'pwa-512x512.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json,txt,woff2}'],
         runtimeCaching: [

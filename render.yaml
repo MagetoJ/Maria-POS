@@ -3,11 +3,13 @@ services:
     name: maria-havens-pos
     env: node
     plan: free
-    buildCommand: npm install && npm run build && cd server && npm run setup-production-db
+    buildCommand: npm install && npm run render-build && cd server && npm run setup-production-db
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
+      - key: VITE_API_URL
+        value: https://maria-pos-podv.onrender.com
       - key: PORT
         value: 10000
       - key: JWT_SECRET
