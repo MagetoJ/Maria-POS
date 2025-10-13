@@ -13,6 +13,19 @@ export interface AuthRequest extends Request {
   };
 }
 
+// Declare module augmentation to extend Express Request
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: number;
+        username: string;
+        role: string;
+      };
+    }
+  }
+}
+
 export const authenticateToken = (req: Request, res: Response, next: NextFunction): void => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -24,7 +37,7 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: number; username: string; role: string };
-    (req as AuthRequest).user = decoded;
+    req.user = decoded;
     next();
   } catch (err) {
     res.status(403).json({ message: 'Invalid or expired token' });
@@ -34,14 +47,12 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
 
 export const authorizeRoles = (...allowedRoles: string[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const authReq = req as AuthRequest;
-    
-    if (!authReq.user) {
+    if (!req.user) {
       res.status(401).json({ message: 'User not authenticated' });
       return;
     }
 
-    if (!allowedRoles.includes(authReq.user.role)) {
+    if (!allowedRoles.includes(req.user.role)) {
       res.status(403).json({ message: 'You do not have permission to access this resource' });
       return;
     }

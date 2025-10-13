@@ -3,7 +3,7 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import http, { IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { authenticateToken, authorizeRoles, AuthRequest } from './middleware/auth';
+import { authenticateToken, authorizeRoles } from './middleware/auth';
 import path from 'path';
 import dotenv from 'dotenv';
 import db from './db'; // <-- your PostgreSQL connection file
@@ -284,7 +284,7 @@ app.post('/api/orders', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/attendance/clock-out', authenticateToken, async (req: AuthRequest, res: Response) => {
+app.post('/api/attendance/clock-out', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { id: staffId } = req.user!;
 
@@ -329,7 +329,7 @@ app.post('/api/attendance/clock-out', authenticateToken, async (req: AuthRequest
 });
 
 // Shifts Management Endpoints
-app.get('/api/shifts/my-shifts', authenticateToken, async (req: AuthRequest, res: Response) => {
+app.get('/api/shifts/my-shifts', authenticateToken, async (req: Request, res: Response) => {
     try {
         const { start_date, end_date } = req.query;
         const userId = req.user?.id;
@@ -408,7 +408,7 @@ app.delete('/api/shifts/:id', authenticateToken, authorizeRoles('admin', 'manage
 // ========================================
 
 // Get individual staff performance
-app.get('/api/performance/staff/:staffId', authenticateToken, async (req: AuthRequest, res: Response) => {
+app.get('/api/performance/staff/:staffId', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { staffId } = req.params;
     const { start_date, end_date } = req.query;
@@ -920,7 +920,7 @@ app.delete('/api/tables/:id', authenticateToken, authorizeRoles('admin', 'manage
 });
 
 // Check-In a Guest
-app.post('/api/rooms/:roomId/check-in', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req: AuthRequest, res: Response) => {
+app.post('/api/rooms/:roomId/check-in', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req: Request, res: Response) => {
   const { roomId } = req.params;
   const { guest_name, guest_contact } = req.body;
   const { id: staff_id } = req.user!;
