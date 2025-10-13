@@ -11,7 +11,7 @@ console.log('🚀 Starting Render build process...');
 
 // Set environment variables for build
 process.env.NODE_ENV = 'production';
-process.env.VITE_API_URL = 'https://maria-pos-podv.onrender.com';
+process.env.VITE_API_URL = 'https://pos.mariahavens.com';
 
 console.log('🔧 Environment variables set:');
 console.log('NODE_ENV:', process.env.NODE_ENV);

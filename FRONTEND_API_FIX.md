@@ -2,7 +2,7 @@
 
 ## Problem Identified
 
-The frontend was making relative API calls (`/api/login`) instead of calling the correct backend server URL (`https://maria-pos-podv.onrender.com/api/login`) in production.
+The frontend was making relative API calls (`/api/login`) instead of calling the correct backend server URL (`https://pos.mariahavens.com/api/login`) in production.
 
 ### Root Cause
 - `VITE_API_URL` environment variable was not being properly set during the build process on Render
@@ -50,7 +50,7 @@ The frontend was making relative API calls (`/api/login`) instead of calling the
 3. Go to Environment settings
 4. Add environment variable:
    - **Key**: `VITE_API_URL`
-   - **Value**: `https://maria-pos-podv.onrender.com`
+   - **Value**: `https://pos.mariahavens.com`
 5. Redeploy the service
 
 ### Option 2: Use Custom Build Command
@@ -66,8 +66,8 @@ After deployment, check the browser console for:
 ```
 🔌 API Configuration: {
   mode: "production",
-  apiUrl: "https://maria-pos-podv.onrender.com",
-  finalApiUrl: "https://maria-pos-podv.onrender.com",
+  apiUrl: "https://pos.mariahavens.com",
+  finalApiUrl: "https://pos.mariahavens.com",
   ...
 }
 ```
@@ -82,7 +82,7 @@ The `finalApiUrl` should show the full backend URL, not be empty or relative.
 - API Configuration shows empty or relative URL
 
 ✅ **After Fix:**
-- Console shows: `🔌 Attempting login to: https://maria-pos-podv.onrender.com/api/login`
+- Console shows: `🔌 Attempting login to: https://pos.mariahavens.com/api/login`
 - Successfully connects to backend server
 - API Configuration shows the full backend URL
 

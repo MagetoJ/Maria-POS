@@ -20,21 +20,21 @@ const getApiUrl = (): string => {
     
     // Check for known production domains
     if (hostname.includes('mariahavens.com')) {
-      return 'https://maria-pos-podv.onrender.com';
+      return 'https://pos.mariahavens.com';
     }
     
     // When deployed on the same Render service (fullstack deployment)
     if (hostname.includes('onrender.com')) {
       // Check if we're on the backend URL itself
-      if (hostname === 'maria-pos-podv.onrender.com') {
+      if (hostname === 'pos.mariahavens.com') {
         return ''; // Use relative paths when frontend is served by backend
       }
       // If on a different onrender domain, point to backend
-      return 'https://maria-pos-podv.onrender.com';
+      return 'https://pos.mariahavens.com';
     }
     
     // Default production backend - ALWAYS use full URL in production
-    return 'https://maria-pos-podv.onrender.com';
+    return 'https://pos.mariahavens.com';
   }
   
   // 3. Development mode (using localhost for local server)
