@@ -1,20 +1,10 @@
-# render.yaml
-# Updated to connect to an existing database.
-
 services:
   - type: web
-    name: maria-pos
+    name: maria-havens-pos
     env: node
     plan: free
-    
-    # --- Build and Start Commands ---
     buildCommand: npm install && npm run build
-    startCommand: node server/dist/index.js
-    
-    # --- Health Check ---
-    healthCheckPath: /health
-
-    # --- Environment Variables ---
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -22,7 +12,10 @@ services:
         value: 10000
       - key: JWT_SECRET
         generateValue: true
-      - key: DATABASE_URL
-        fromDatabase:
-     
-        value: postgresql://mariahavens_user:BvEnYG8hb7baKudACcyxLuGkNgpxqloT@dpg-d3l72s3uibrs73cf7l60-a/mariahavens
+    autoDeploy: false
+
+databases:
+  - name: maria-havens-db
+    databaseName: pos_mocha_prod
+    user: pos_user
+    plan: free

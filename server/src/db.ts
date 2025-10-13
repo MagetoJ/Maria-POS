@@ -1,14 +1,17 @@
 import knex from 'knex';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const db = knex({
   client: 'pg',
-  connection: {
-    host: '127.0.0.1',
-    user: 'postgres',
-    password: 'postgres', // change if you set a different password
-    database: 'pos_mocha_dev',
-    port: 5432,
-    ssl: false, // make sure SSL is false locally
+  connection: process.env.DATABASE_URL || {
+    host: process.env.DB_HOST || '127.0.0.1',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_NAME || 'pos_mocha_dev',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   },
 });
 

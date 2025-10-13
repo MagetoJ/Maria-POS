@@ -1,138 +1,92 @@
-# Deployment Guide for Maria Havens POS
+# Maria Havens POS - Deployment Guide
 
-This guide covers deploying your POS system to Render.com.
+## Single Web Service Deployment
 
-## Prerequisites
+This POS system is configured to run as a single web service that serves both the React frontend and Express.js backend.
 
-1. A Render.com account
-2. GitHub repository with your code
-3. Environment variables configured
+### Architecture
+- **Frontend**: React + Vite (built to `dist/client/`)
+- **Backend**: Express.js + TypeScript (built to `server/dist/`)
+- **Database**: PostgreSQL
+- **Static Files**: Served by Express from the built frontend
 
-## Deployment Steps
+### Local Development
 
-### 1. Prepare Your Repository
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-Ensure all the files are committed to GitHub:
+2. Start development servers:
+   ```bash
+   npm run dev
+   ```
+
+3. Build for production:
+   ```bash
+   npm run build
+   ```
+
+4. Start production server:
+   ```bash
+   npm start
+   ```
+
+### Render Deployment
+
+#### Prerequisites
+1. Create a Render account
+2. Create a PostgreSQL database service on Render
+3. Fork/upload this repository to GitHub
+
+#### Deployment Steps
+
+1. **Create Web Service**:
+   - Connect your GitHub repository
+   - Choose "Web Service"
+   - Set the following build settings:
+     - **Build Command**: `npm install && npm run build`
+     - **Start Command**: `npm start`
+     - **Environment**: Node
+
+2. **Environment Variables**:
+   Set these in Render dashboard:
+   ```
+   NODE_ENV=production
+   PORT=10000
+   DATABASE_URL=[Auto-filled by Render PostgreSQL service]
+   JWT_SECRET=[Generate a secure random string]
+   ```
+
+3. **Database Connection**:
+   - Link your PostgreSQL database service
+   - The `DATABASE_URL` will be automatically provided
+
+#### Configuration Files
+- `render.yaml` - Render service configuration
+- `server/.env.production` - Production environment template
+- `server/src/db.ts` - Database connection with environment variables
+
+### Build Output
+- Frontend assets: `dist/client/`
+- Backend compiled JS: `server/dist/`
+- The Express server serves static files from `dist/client/`
+
+### Database Migration
+Run your database migrations after deployment:
 ```bash
-git add .
-git commit -m "Prepare for Render deployment"
-git push origin main
+# Connect to your Render service shell and run:
+npm run migrate  # (if you have migration scripts)
 ```
 
-### 2. Deploy Backend (API Service)
+### Troubleshooting
 
-1. Go to Render Dashboard → New → Web Service
-2. Connect your GitHub repository
-3. Configure the service:
-   - **Name**: `pos-mocha-api`
-   - **Environment**: `Node`
-   - **Branch**: `main`
-   - **Root Directory**: `server`
-   - **Build Command**: `npm ci && npm run build`
-   - **Start Command**: `npm start`
+1. **Build Failures**: Check that all dependencies are installed
+2. **Database Connection**: Verify `DATABASE_URL` is set correctly
+3. **Static File Issues**: Ensure frontend builds to `dist/client/`
+4. **Port Issues**: Render automatically sets PORT, don't override it locally
 
-4. Set Environment Variables:
-   - `NODE_ENV` = `production`
-   - `JWT_SECRET` = (Generate a secure random string)
-   - `PORT` = `10000`
-
-5. Deploy and wait for completion
-
-### 3. Deploy Frontend (Static Site)
-
-1. Go to Render Dashboard → New → Static Site
-2. Connect your GitHub repository
-3. Configure the service:
-   - **Name**: `pos-mocha-frontend`
-   - **Branch**: `main`
-   - **Root Directory**: `/`
-   - **Build Command**: `npm ci && npm run build`
-   - **Publish Directory**: `./dist`
-
-4. Set Environment Variables:
-   - `VITE_API_URL` = Your backend service URL (e.g., `https://pos-mocha-api.onrender.com`)
-
-5. Deploy and wait for completion
-
-### 4. Update CORS Configuration
-
-After frontend deployment, update your backend CORS settings:
-
-1. Go to your backend service settings
-2. Add the frontend URL to allowed origins:
-   - Add your frontend URL to the CORS configuration
-
-## Environment Variables Reference
-
-### Backend (.env)
-```
-NODE_ENV=production
-JWT_SECRET=your-super-secure-jwt-secret-here
-PORT=10000
-```
-
-### Frontend (.env)
-```
-VITE_API_URL=https://your-backend-service.onrender.com
-```
-
-## Database Setup
-
-The SQLite database will be initialized automatically on first deployment. The setup includes:
-- All required tables
-- Initial categories and products
-- Default admin user
-- Sample data
-
-## Post-Deployment Checklist
-
-1. ✅ Backend health check: `https://your-api-url.onrender.com/health`
-2. ✅ Frontend loads properly
-3. ✅ Login functionality works
-4. ✅ API communication between frontend and backend
-5. ✅ WebSocket connections for kitchen display
-6. ✅ Mobile responsiveness on various devices
-
-## Troubleshooting
-
-### Common Issues
-
-1. **CORS Errors**: Ensure frontend URL is in backend CORS configuration
-2. **Database Issues**: Check server logs for SQLite initialization errors
-3. **Build Failures**: Verify all dependencies are in package.json
-4. **API Connection**: Verify VITE_API_URL is correctly set in frontend
-
-### Useful Commands
-
-```bash
-# Test API health
-curl https://your-api-url.onrender.com/health
-
-# Check build locally
-npm run build
-
-# Preview build locally
-npm run preview
-```
-
-## Performance Optimization
-
-- Static assets are optimized automatically
-- Code splitting is configured for better loading
-- Images should be optimized before upload
-- Consider enabling Render's CDN for faster asset delivery
-
-## Security Considerations
-
-- JWT_SECRET should be a strong, unique value
-- Database is SQLite (suitable for small-medium deployments)
-- HTTPS is enabled by default on Render
-- Regular security updates should be applied
-
-## Scaling
-
-For high traffic, consider:
-- Upgrading to PostgreSQL
-- Using Render's autoscaling features
-- Implementing Redis for session management
-- Adding monitoring and alerting
+### Performance Notes
+- Frontend is optimized with Vite production build
+- PWA support included with service worker
+- Static assets are served with proper caching headers

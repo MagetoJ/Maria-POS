@@ -1,40 +1,31 @@
 {
-  "name": "server",
+  "name": "maria-havens-pos-backend",
   "version": "1.0.0",
-  "description": "Hotel & Restaurant POS Backend",
+  "type": "commonjs",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node src/index.ts",
-    "build": "tsc",
+    "build": "npx tsc",
     "start": "node dist/index.js",
-    "db:migrate": "knex migrate:latest --knexfile src/knexfile.ts",
-    "db:seed": "knex seed:run --knexfile src/knexfile.ts"
+    "dev": "nodemon --watch src --exec ts-node src/index.ts"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "@hono/node-server": "^1.11.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^5.1.0",
-    "hono": "^4.4.6",
+    "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
-    "knex": "^3.1.0",
-    "pg": "^8.16.3",
-    "ws": "^8.18.3",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.3",
-    "@types/jsonwebtoken": "^9.0.6",
-    "@types/node": "^20.19.20",
-    "@types/ws": "^8.18.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
+    "knex": "^3.0.1",
+    "pg": "^8.11.3",
+    "ws": "^8.14.2",
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
-  },
-  "engines": {
-    "node": ">=18.x"
+    "@types/cors": "^2.8.15",
+    "@types/express": "^4.17.20",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.9.0",
+    "@types/pg": "^8.10.7",
+    "@types/ws": "^8.5.8",
+    "typescript": "^5.9.3",
+    "ts-node": "^10.9.1",
+    "nodemon": "^3.0.1"
   }
 }
