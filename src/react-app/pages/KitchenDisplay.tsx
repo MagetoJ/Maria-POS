@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import Header from '../components/Header';
-import { Clock, CheckCircle, ChefHat } from 'lucide-react';
+import { Clock, CheckCircle, ChefHat, Package, X } from 'lucide-react';
 import { API_URL } from '../config/api';
+import KitchenInventoryManagement from './KitchenInventoryManagement';
+
+// --- Interface Definitions ---
 interface KitchenOrderItem {
   id: number;
   product_name: string;
@@ -23,15 +26,19 @@ interface KitchenOrder {
   created_at: string;
 }
 
+// --- Main Component ---
 export default function KitchenDisplay() {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showInventory, setShowInventory] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
 
+  // --- Data Fetching ---
   const fetchKitchenOrders = async () => {
     const token = localStorage.getItem('pos_token');
     try {
-      const response = await fetch(`${API_URL}/api/orders/kitchen?limit=10&offset=0`, {
-
+      const response = await fetch(`${API_URL}/api/orders/kitchen`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -47,21 +54,27 @@ export default function KitchenDisplay() {
       }
     } catch (error) {
       console.error('Error fetching kitchen orders:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  // --- Effects ---
   useEffect(() => {
     fetchKitchenOrders();
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
-    // WebSocket setup
     const wsUrl = window.location.protocol === 'https:' 
       ? `wss://${window.location.host}/ws/kitchen`
       : `ws://${window.location.host}/ws/kitchen`;
 
     const ws = new WebSocket(wsUrl);
 
-    ws.onopen = () => console.log('✅ WebSocket connected for KDS');
+    ws.onopen = () => {
+      console.log('✅ WebSocket connected for KDS');
+      setWsConnected(true);
+    };
+    
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.type === 'new_order') {
@@ -69,7 +82,16 @@ export default function KitchenDisplay() {
         fetchKitchenOrders();
       }
     };
-    ws.onclose = () => console.log('⚠️ WebSocket disconnected for KDS');
+    
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setWsConnected(false);
+    };
+    
+    ws.onclose = () => {
+      console.log('⚠️ WebSocket disconnected for KDS');
+      setWsConnected(false);
+    };
 
     return () => {
       clearInterval(timer);
@@ -77,21 +99,43 @@ export default function KitchenDisplay() {
     };
   }, []);
 
-  const updateItemStatus = (orderId: number, itemId: number, status: 'pending' | 'preparing' | 'ready') => {
-    setOrders((prev) =>
-      prev.map((order) =>
-        order.id === orderId
-          ? { ...order, items: order.items.map((item) => (item.id === itemId ? { ...item, status } : item)) }
-          : order
-      )
-    );
+  // --- Event Handlers ---
+  const updateItemStatus = async (orderId: number, itemId: number, status: 'pending' | 'preparing' | 'ready') => {
+    const token = localStorage.getItem('pos_token');
+    try {
+      await fetch(`${API_URL}/api/orders/${orderId}/items/${itemId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+      fetchKitchenOrders(); // Re-fetch to ensure data consistency
+    } catch (error) {
+      console.error('Error updating item status:', error);
+    }
   };
 
-  const markOrderComplete = (orderId: number) => {
-    setOrders((prev) => prev.filter((order) => order.id !== orderId));
-    alert('Order marked as complete and sent to service staff');
+  const markOrderComplete = async (orderId: number) => {
+    const token = localStorage.getItem('pos_token');
+    try {
+      await fetch(`${API_URL}/api/orders/${orderId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: 'ready_for_pickup' }),
+      });
+      setOrders((prev) => prev.filter((order) => order.id !== orderId));
+      alert('Order marked as complete and sent to service staff');
+    } catch (error) {
+      console.error('Error marking order as complete:', error);
+    }
   };
 
+  // --- Helper Functions ---
   const getElapsedTime = (createdAt: string) => {
     const created = new Date(createdAt);
     return Math.floor((currentTime.getTime() - created.getTime()) / 1000 / 60);
@@ -115,6 +159,7 @@ export default function KitchenDisplay() {
     }
   };
 
+  // --- Render Logic ---
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <Header />
@@ -126,132 +171,98 @@ export default function KitchenDisplay() {
               <ChefHat className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600" />
               <div>
                 <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Kitchen Display System</h1>
-                <p className="text-sm sm:text-base text-gray-600">
+                <p className="text-sm sm:text-base text-gray-600 flex items-center gap-2">
                   Active orders and preparation status
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${wsConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                    {wsConnected ? 'Live' : 'Disconnected'}
+                  </span>
                 </p>
               </div>
             </div>
-            <div className="text-left sm:text-right">
-              <div className="text-lg sm:text-2xl font-bold text-gray-900">
-                {currentTime.toLocaleTimeString('en-KE', { hour12: true })}
-              </div>
-            </div>
+            <button
+              onClick={() => setShowInventory(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition"
+            >
+              Manage Inventory
+            </button>
           </div>
         </div>
 
-        {/* Orders Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
-          {orders.map((order) => {
-            const elapsed = getElapsedTime(order.created_at);
-            const isOverdue = elapsed > order.total_time;
-            const allItemsReady = order.items.every((item) => item.status === 'ready');
-
-            return (
-              <div
-                key={order.id}
-                className={`bg-white rounded-lg border-2 p-3 sm:p-4 shadow-sm transition-all ${
-                  isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'
-                } ${allItemsReady ? 'ring-2 ring-green-500' : ''}`}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">
-                      {order.order_number}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-gray-600">
-                      {order.table_number
-                        ? `Table ${order.table_number}`
-                        : `Room ${order.room_number}`}{' '}
-                      • {order.order_type.replace('_', ' ')}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between sm:flex-col sm:text-right gap-2 sm:gap-1">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(
-                        order.priority
-                      )}`}
-                    >
-                      {order.priority.toUpperCase()}
-                    </span>
-                    <div className="flex items-center gap-1 text-sm">
-                      <Clock className="w-4 h-4" />
-                      <span className={isOverdue ? 'text-red-600 font-bold' : 'text-gray-600'}>
-                        {elapsed}m / {order.total_time}m
-                      </span>
+        {/* --- Main Content --- */}
+        {isLoading ? (
+          <div className="text-center p-10">
+            <p className="text-lg text-gray-500">Loading kitchen orders...</p>
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="text-center p-10">
+            <p className="text-lg text-gray-500">No active orders.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {orders.map((order) => (
+              <div key={order.id} className={`rounded-lg border shadow-sm flex flex-col ${getPriorityColor(order.priority)}`}>
+                <div className="p-4 bg-white rounded-t-lg">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h2 className="font-bold text-lg">{order.order_number}</h2>
+                      <p className="text-sm text-gray-600">{order.order_type === 'dine-in' ? `Table ${order.table_number}` : `Room ${order.room_number}`}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-lg">{getElapsedTime(order.created_at)} min</p>
+                      <p className="text-xs text-gray-500">Est. {order.total_time} min</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-2 sm:space-y-3 mb-4">
+                <div className="flex-1 p-4 border-t border-b">
                   {order.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg gap-2"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900 truncate">
-                            {item.product_name}
-                          </span>
-                          <span className="text-sm text-gray-500 flex-shrink-0">
-                            x{item.quantity}
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          Est. {item.preparation_time} minutes
+                    <div key={item.id} className="mb-3">
+                      <div className="flex justify-between items-center">
+                        <p className="font-semibold">{item.quantity}x {item.product_name}</p>
+                        <div className="flex gap-1">
+                          <button onClick={() => updateItemStatus(order.id, item.id, 'pending')} className={`px-2 py-1 text-xs rounded ${item.status === 'pending' ? 'bg-gray-600 text-white' : 'bg-gray-200'}`}>P</button>
+                          <button onClick={() => updateItemStatus(order.id, item.id, 'preparing')} className={`px-2 py-1 text-xs rounded ${item.status === 'preparing' ? 'bg-yellow-500 text-white' : 'bg-yellow-100'}`}>P</button>
+                          <button onClick={() => updateItemStatus(order.id, item.id, 'ready')} className={`px-2 py-1 text-xs rounded ${item.status === 'ready' ? 'bg-green-500 text-white' : 'bg-green-100'}`}>R</button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {item.status === 'pending' && (
-                          <button
-                            onClick={() => updateItemStatus(order.id, item.id, 'preparing')}
-                            className="px-2 sm:px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-xs sm:text-sm rounded-md"
-                          >
-                            Start
-                          </button>
-                        )}
-                        {item.status === 'preparing' && (
-                          <button
-                            onClick={() => updateItemStatus(order.id, item.id, 'ready')}
-                            className="px-2 sm:px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm rounded-md"
-                          >
-                            Ready
-                          </button>
-                        )}
-                        <span
-                          className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusColor(
-                            item.status
-                          )}`}
-                        >
-                          {item.status}
-                        </span>
-                      </div>
+                      {item.notes && <p className="text-xs text-gray-500 italic"> - {item.notes}</p>}
                     </div>
                   ))}
                 </div>
 
-                {allItemsReady && (
+                <div className="p-2">
                   <button
                     onClick={() => markOrderComplete(order.id)}
-                    className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-medium"
+                    disabled={order.items.some(i => i.status !== 'ready')}
+                    className="w-full bg-green-600 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400 hover:bg-green-700 transition"
                   >
-                    <CheckCircle className="w-5 h-5" />
-                    Mark Order Complete
+                    <CheckCircle className="inline-block mr-2" />
+                    Mark as Ready
                   </button>
-                )}
+                </div>
               </div>
-            );
-          })}
-        </div>
-
-        {orders.length === 0 && (
-          <div className="text-center py-12">
-            <ChefHat className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-gray-900 mb-2">No active orders</h3>
-            <p className="text-gray-600">New orders will appear here automatically</p>
+            ))}
           </div>
         )}
       </div>
+
+      {/* --- Inventory Modal --- */}
+      {showInventory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-full max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h2 className="text-xl font-bold">Kitchen Inventory Management</h2>
+              <button onClick={() => setShowInventory(false)} className="p-2 rounded-full hover:bg-gray-200">
+                <X />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <KitchenInventoryManagement onClose={() => setShowInventory(false)} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

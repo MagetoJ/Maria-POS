@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { usePOS, OrderItem, Order } from '../contexts/POSContext';
+import { usePOS, OrderItem, Order, Table } from '../contexts/POSContext';
 import { useAuth, User } from '../contexts/AuthContext';
 import { API_URL } from '../config/api';
 import { Trash2, UtensilsCrossed, Loader2, User as UserIcon, Printer, X } from 'lucide-react';
@@ -34,6 +34,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
 
   const handlePrint = () => {
     const locationLine = locationDetail ? `<div>Location: ${locationDetail}</div>` : '';
+    const customerLine = order.customer_name ? `<div>Customer: ${order.customer_name}</div>` : '';
     const receiptContent = `
       <!DOCTYPE html>
       <html>
@@ -68,7 +69,9 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
             <div>Order: ${orderNumber}</div>
             <div>Date: ${new Date().toLocaleString('en-KE')}</div>
             <div>Type: ${orderType.replace('_', ' ').toUpperCase()}</div>
-            ${locationLine} <div>Waiter: ${staff.name}</div>
+            ${locationLine}
+            ${customerLine}
+            <div>Waiter: ${staff.name}</div>
           </div>
           <div class="divider"></div>
           <div class="items">
@@ -137,6 +140,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
                 <div className="flex justify-between"><span>Time:</span> <span>{new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}</span></div>
                 <div className="flex justify-between"><span>Type:</span> <span className="capitalize">{orderType.replace('_', ' ')}</span></div>
                 {locationDetail && <div className="flex justify-between"><span>Location:</span> <span>{locationDetail}</span></div>}
+                {order.customer_name && <div className="flex justify-between"><span>Customer:</span> <span>{order.customer_name}</span></div>}
                 <div className="flex justify-between"><span>Waiter:</span> <span>{staff.name}</span></div>
               </div>
               <div className="border-t border-dashed border-gray-400 my-3"></div>
@@ -188,6 +192,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
   const { user, validateStaffPin } = useAuth();
 
   const [waitersList, setWaitersList] = useState<User[]>([]);
+  const [tablesList, setTablesList] = useState<Table[]>([]);
   const [showPinModal, setShowPinModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [receiptDetails, setReceiptDetails] = useState<ReceiptDetails | null>(null);
@@ -198,6 +203,10 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
   const [pinError, setPinError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentOrderType, setCurrentOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
+  
+  // New state for customer name and table selection
+  const [customerName, setCustomerName] = useState('');
+  const [selectedTableId, setSelectedTableId] = useState<number | ''>('');
 
   useEffect(() => {
     if (currentOrder && currentOrder.order_type) {
@@ -207,6 +216,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
 
   useEffect(() => {
     fetchWaiters();
+    fetchTables();
   }, []);
 
   const fetchWaiters = async () => {
@@ -224,12 +234,33 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
     }
   };
 
+  const fetchTables = async () => {
+    try {
+      const url = import.meta.env.DEV ? '/api/tables' : `${API_URL}/api/tables`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        setTablesList(data);
+      } else {
+        console.error('Failed to fetch tables. Status:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to fetch tables:', error);
+    }
+  };
+
   const subtotal = currentOrder?.items.reduce((acc, item) => acc + item.price * item.quantity, 0) ?? 0;
   const tax = subtotal * 0.16;
   const total = subtotal + tax;
 
   const handleQuantityChange = (itemId: number, newQuantity: number) => {
     updateItemQuantity(itemId, newQuantity);
+  };
+
+  const handleClearOrder = () => {
+    clearOrder();
+    setCustomerName('');
+    setSelectedTableId('');
   };
 
   const handleFinalizeOrder = async () => {
@@ -285,15 +316,25 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
 
   const prepareAndShowReceiptModal = (staff: User, orderNumber: string) => {
     if (!currentOrder) return;
+    
+    // Get table details for receipt
+    let locationDetail = currentOrder.location_detail;
+    if (currentOrderType === 'dine_in' && selectedTableId) {
+      const selectedTable = tablesList.find(table => table.id === selectedTableId);
+      if (selectedTable) {
+        locationDetail = `Table ${selectedTable.table_number}`;
+      }
+    }
+    
     const details: ReceiptDetails = {
-      order: currentOrder,
+      order: { ...currentOrder, customer_name: customerName.trim() || undefined },
       staff,
       orderNumber,
       subtotal,
       tax,
       total,
       orderType: currentOrderType,
-      locationDetail: currentOrder.location_detail,
+      locationDetail,
     };
     setReceiptDetails(details);
     setShowReceiptModal(true);
@@ -314,6 +355,8 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
     const { id, ...orderData } = currentOrder;
     const orderPayload = {
       ...orderData,
+      customer_name: customerName.trim() || null,
+      table_id: currentOrderType === 'dine_in' && selectedTableId ? selectedTableId : null,
       items: currentOrder.items.map((item) => ({
         product_id: item.product_id,
         quantity: item.quantity,
@@ -343,6 +386,8 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
         setPin('');
         setSelectedWaiterId('');
         setSelectedWaiterUsername('');
+        setCustomerName('');
+        setSelectedTableId('');
         setIsSubmitting(false);
         prepareAndShowReceiptModal(staff, orderNumber);
         return;
@@ -411,6 +456,67 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       </div>
       {currentOrder && currentOrder.items.length > 0 && (
         <div className="p-4 border-t bg-white">
+          {/* Customer Details Section */}
+          <div className="mb-4 space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Customer Name
+              </label>
+              <input
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Enter customer name"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+              />
+            </div>
+            
+            {/* Show table selection only for dine-in orders */}
+            {currentOrderType === 'dine_in' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Select Table
+                </label>
+                <select
+                  value={selectedTableId}
+                  onChange={(e) => setSelectedTableId(e.target.value === '' ? '' : parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                >
+                  <option value="">-- Select a table --</option>
+                  {tablesList
+                    .filter(table => table.status === 'available')
+                    .map((table) => (
+                      <option key={table.id} value={table.id}>
+                        Table {table.table_number} (Capacity: {table.capacity})
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+            
+            {currentOrderType === 'room_service' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Room Number
+                </label>
+                <input
+                  type="text"
+                  value={currentOrder?.location_detail || ''}
+                  onChange={(e) => {
+                    if (currentOrder) {
+                      setCurrentOrder({
+                        ...currentOrder,
+                        location_detail: e.target.value
+                      });
+                    }
+                  }}
+                  placeholder="Enter room number"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                />
+              </div>
+            )}
+          </div>
+
           <div className="space-y-2 mb-4">
             <div className="flex justify-between">
               <span>Subtotal</span>
@@ -427,7 +533,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
           </div>
           <div className="flex gap-2">
             <button
-              onClick={clearOrder}
+              onClick={handleClearOrder}
               className="w-full py-3 bg-red-100 text-red-700 rounded-md font-semibold hover:bg-red-200"
             >
               Clear

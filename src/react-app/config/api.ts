@@ -1,108 +1,156 @@
-// API Configuration for frontend
-// This file determines which backend URL to use
+// src/config/api.ts
+// Environment-aware API Configuration
+console.log('🔍 RAW ENV VALUES:', {
+  'import.meta.env.VITE_API_URL': import.meta.env.VITE_API_URL,
+  'import.meta.env.MODE': import.meta.env.MODE,
+  'import.meta.env.DEV': import.meta.env.DEV,
+  'import.meta.env.PROD': import.meta.env.PROD,
+  'ALL ENV': import.meta.env
+});
+import { ENV, IS_DEVELOPMENT, IS_PRODUCTION, envLog } from './environment';
+
+// Re-export for backward compatibility
+export { IS_DEVELOPMENT, IS_PRODUCTION, ENV };
 
 const getApiUrl = (): string => {
-  // 1. Explicit VITE_API_URL (preferred method for all deployments)
+  // 1. Explicit VITE_API_URL always takes precedence
   if (import.meta.env.VITE_API_URL) {
+    envLog.dev('🔧 Using explicit VITE_API_URL:', import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
   
-  // 2. Production fallback URLs based on hostname
-  if (import.meta.env.PROD) {
-    const hostname = window.location.hostname;
-    
-    console.log('🔍 Production mode detected:', {
-      hostname,
-      VITE_API_URL: import.meta.env.VITE_API_URL,
-      NODE_ENV: import.meta.env.NODE_ENV,
-      MODE: import.meta.env.MODE
-    });
-    
-    // Check for known production domains
-    if (hostname.includes('mariahavens.com')) {
-      return 'https://pos.mariahavens.com';
+  // 2. Production environment
+  if (ENV.isProduction) {
+    // When frontend is served by backend (same domain)
+    if (ENV.hostname.includes('onrender.com') || ENV.hostname.includes('mariahavens.com')) {
+      envLog.dev('🔧 Using relative paths for same-domain deployment');
+      return ''; // Use relative paths - backend serves frontend
     }
     
-    // When deployed on the same Render service (fullstack deployment)
-    if (hostname.includes('onrender.com')) {
-      // Check if we're on the backend URL itself
-      if (hostname === 'pos.mariahavens.com') {
-        return ''; // Use relative paths when frontend is served by backend
-      }
-      // If on a different onrender domain, point to backend
-      return 'https://pos.mariahavens.com';
-    }
-    
-    // Default production backend - ALWAYS use full URL in production
+    // Default production backend URL
+    envLog.dev('🔧 Using default production URL');
     return 'https://pos.mariahavens.com';
   }
   
-  // 3. Development mode (using localhost for local server)
-  return 'http://localhost:3000'; 
+  // 3. Development environment
+  envLog.dev('🔧 Using localhost for development');
+  return 'http://localhost:3000';
 };
 
-export const API_URL = getApiUrl(); 
+export const API_URL = getApiUrl();
 
-// Helper function for making API calls
+// Helper function to get auth headers
+const getAuthHeaders = (): Record<string, string> => {
+  const token = localStorage.getItem('pos_token');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    envLog.dev('🔑 Auth header added:', headers['Authorization'].substring(0, 30) + '...');
+  } else {
+    envLog.warn('⚠️ No token found in localStorage');
+  }
+  
+  return headers;
+};
+
+// API Client with environment-aware logging
 export const apiClient = {
   get: async (endpoint: string, options?: RequestInit) => {
-    // API_URL is now a full URL (http://localhost:3000), so the resulting path is correct:
-    // /api/performance
+    envLog.dev('📡 GET Request to:', `${API_URL}${endpoint}`);
+    
+    const headers = getAuthHeaders();
+    
     const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'GET',
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...headers,
         ...options?.headers,
       },
+      credentials: 'include',
     });
+    
+    envLog.dev('📥 Response status:', response.status);
+    if (!response.ok && IS_DEVELOPMENT) {
+      const errorText = await response.clone().text();
+      envLog.error('❌ Error response:', errorText);
+    }
+    
     return response;
   },
 
   post: async (endpoint: string, data?: any, options?: RequestInit) => {
+    envLog.dev('📡 POST Request to:', `${API_URL}${endpoint}`);
+    
+    const headers = getAuthHeaders();
+    
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'POST',
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...headers,
         ...options?.headers,
       },
-      body: JSON.stringify(data),
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: 'include',
     });
+    
+    envLog.dev('📥 Response status:', response.status);
+    
     return response;
   },
 
   put: async (endpoint: string, data?: any, options?: RequestInit) => {
+    envLog.dev('📡 PUT Request to:', `${API_URL}${endpoint}`);
+    
+    const headers = getAuthHeaders();
+    
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'PUT',
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...headers,
         ...options?.headers,
       },
-      body: JSON.stringify(data),
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: 'include',
     });
+    
+    envLog.dev('📥 Response status:', response.status);
+    
     return response;
   },
 
   delete: async (endpoint: string, options?: RequestInit) => {
+    envLog.dev('📡 DELETE Request to:', `${API_URL}${endpoint}`);
+    
+    const headers = getAuthHeaders();
+    
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'DELETE',
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...headers,
         ...options?.headers,
       },
+      credentials: 'include',
     });
+    
+    envLog.dev('📥 Response status:', response.status);
+    
     return response;
   },
 };
 
-console.log('🔌 API Configuration:', {
-  mode: import.meta.env.MODE,
-  apiUrl: API_URL || 'Using Proxy',
-  finalApiUrl: API_URL,
-  isDev: import.meta.env.DEV,
-  isProd: import.meta.env.PROD,
-  VITE_API_URL: import.meta.env.VITE_API_URL,
-  hostname: typeof window !== 'undefined' ? window.location.hostname : 'server-side',
-});
+// Enhanced environment logging in development
+if (IS_DEVELOPMENT) {
+  console.group('🔌 API Configuration');
+  console.log('Environment:', ENV);
+  console.log('API URL:', API_URL || 'Using relative paths');
+  console.log('Auth Token Present:', !!localStorage.getItem('pos_token'));
+  console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
+  console.groupEnd();
+}

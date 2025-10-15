@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Lock, AlertCircle, Loader2, UtensilsCrossed, Download, X } from 'lucide-react';
+import { apiClient } from '../config/api';
+import { User, Lock, AlertCircle, Loader2, UtensilsCrossed, Download, X, Eye, EyeOff, RotateCcw } from 'lucide-react';
+import PasswordResetModal from '../components/PasswordResetModal';
 
 
 interface LoginProps {
@@ -13,6 +15,8 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
   const [error, setError] = useState('');
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
   const { login, isLoading } = useAuth();
 
   // PWA Install Handler
@@ -56,6 +60,8 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
       console.error('Install error:', error);
     }
   };
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,15 +178,23 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   id="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all text-base"
+                  className="w-full pl-10 pr-12 py-2.5 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition-all text-base"
                   placeholder="Enter your password"
                   autoComplete="current-password"
                   disabled={isLoading}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  disabled={isLoading}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 
@@ -190,7 +204,6 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
                 <span className="text-sm font-medium">{error}</span>
               </div>
             )}
-            {console.log('Current error state in render:', error)}
 
             <button
               type="submit"
@@ -206,6 +219,18 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
                 'Login'
               )}
             </button>
+            
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setShowPasswordReset(true)}
+                className="text-sm text-yellow-600 hover:text-yellow-700 font-medium focus:outline-none focus:underline transition-colors"
+                disabled={isLoading}
+              >
+                <RotateCcw className="w-4 h-4 inline mr-1" />
+                Forgot Password?
+              </button>
+            </div>
           </form>
 
           {onQuickPOSAccess && (
@@ -235,6 +260,12 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
 
          
         </div>
+        
+        {/* Enhanced Password Reset Modal */}
+        <PasswordResetModal 
+          isOpen={showPasswordReset}
+          onClose={() => setShowPasswordReset(false)}
+        />
       </div>
     </div>
   );

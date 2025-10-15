@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Package, Plus, Edit3, Trash2, AlertTriangle } from 'lucide-react';
-import { API_URL } from '../../config/api'; 
+import { API_URL } from '../../config/api';
+import { useAuth } from '../../contexts/AuthContext'; 
 
 interface InventoryItem {
   id: number;
@@ -16,6 +17,7 @@ interface InventoryItem {
 }
 
 export default function InventoryManagement() {
+  const { user } = useAuth();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -31,6 +33,26 @@ export default function InventoryManagement() {
     supplier: '',
     inventory_type: 'kitchen' as 'kitchen' | 'bar' | 'housekeeping' | 'minibar'
   });
+
+  // Role-based inventory access
+  const getAllowedInventoryTypes = () => {
+    switch (user?.role) {
+      case 'kitchen':
+      case 'kitchen_staff':
+        return ['kitchen'];
+      case 'receptionist':
+        return ['bar', 'housekeeping', 'minibar'];
+      case 'admin':
+      case 'manager':
+        return ['kitchen', 'bar', 'housekeeping', 'minibar'];
+      default:
+        return [];
+    }
+  };
+
+  const allowedTypes = getAllowedInventoryTypes();
+  const canManageType = (type: string) => allowedTypes.includes(type);
+  const canAddItems = allowedTypes.length > 0;
 
   useEffect(() => {
     fetchInventory();
@@ -71,8 +93,8 @@ export default function InventoryManagement() {
   ];
 
   const filteredInventory = selectedType === 'all'
-    ? inventory
-    : inventory.filter(item => item.inventory_type === selectedType);
+    ? inventory.filter(item => canManageType(item.inventory_type))
+    : inventory.filter(item => item.inventory_type === selectedType && canManageType(item.inventory_type));
 
   const lowStockItems = inventory.filter(item => item.current_stock <= item.minimum_stock);
   const totalValue = inventory.reduce((sum, item) => sum + (item.current_stock * item.cost_per_unit), 0);
@@ -254,14 +276,16 @@ export default function InventoryManagement() {
           <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
           <p className="text-gray-600">Track stock levels and manage suppliers</p>
         </div>
-        <button
-          onClick={() => { setEditingItem(null); resetForm(); setShowAddModal(true); }}
-          className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"
-          disabled={loading}
-        >
-          <Plus className="w-5 h-5" />
-          Add Item
-        </button>
+        {canAddItems && (
+          <button
+            onClick={() => { setEditingItem(null); resetForm(); setShowAddModal(true); }}
+            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"
+            disabled={loading}
+          >
+            <Plus className="w-5 h-5" />
+            Add Item
+          </button>
+        )}
       </div>
 
       {/* Error Message */}
@@ -307,19 +331,21 @@ export default function InventoryManagement() {
           >
             All Items ({inventory.length})
           </button>
-          {inventoryTypes.map(type => (
-            <button
-              key={type.value}
-              onClick={() => setSelectedType(type.value)}
-              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                selectedType === type.value
-                  ? 'bg-yellow-400 text-yellow-900'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {type.label} ({inventory.filter(i => i.inventory_type === type.value).length})
-            </button>
-          ))}
+          {inventoryTypes
+            .filter(type => canManageType(type.value))
+            .map(type => (
+              <button
+                key={type.value}
+                onClick={() => setSelectedType(type.value)}
+                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                  selectedType === type.value
+                    ? 'bg-yellow-400 text-yellow-900'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {type.label} ({inventory.filter(i => i.inventory_type === type.value).length})
+              </button>
+            ))}
         </div>
       </div>
 
@@ -431,20 +457,28 @@ export default function InventoryManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="text-blue-600 hover:text-blue-900"
-                          disabled={loading}
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="text-red-600 hover:text-red-900"
-                          disabled={loading}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {canManageType(item.inventory_type) ? (
+                          <>
+                            <button
+                              onClick={() => handleEdit(item)}
+                              className="text-blue-600 hover:text-blue-900"
+                              disabled={loading}
+                              title="Edit item"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              className="text-red-600 hover:text-red-900"
+                              disabled={loading}
+                              title="Delete item"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-gray-400 text-xs">No access</span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -504,9 +538,11 @@ export default function InventoryManagement() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                     disabled={loading}
                   >
-                    {inventoryTypes.map(type => (
-                      <option key={type.value} value={type.value}>{type.label}</option>
-                    ))}
+                    {inventoryTypes
+                      .filter(type => canManageType(type.value))
+                      .map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
                   </select>
                 </div>
               </div>

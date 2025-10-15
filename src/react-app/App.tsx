@@ -7,6 +7,8 @@ import KitchenDisplay from './pages/KitchenDisplay';
 import HousekeepingDashboard from './pages/HousekeepingDashboard';
 import Home from './pages/Home';
 import NetworkStatus from './components/NetworkStatus';
+import KitchenDashboard from './pages/KitchenDashboard';
+
 
 // This component remains the same, protecting sensitive routes
 const ProtectedRoute = ({ children, allowedRoles }: { children: JSX.Element, allowedRoles?: string[] }) => {

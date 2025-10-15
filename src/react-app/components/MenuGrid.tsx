@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePOS, Product, Category } from '../contexts/POSContext';
-import { API_URL } from '../config/api';
+import { apiClient, IS_DEVELOPMENT } from '../config/api';
 import { Plus, Clock, Loader2 } from 'lucide-react';
 
 // --- Helper Function ---
@@ -26,9 +26,13 @@ export default function MenuGrid() {
       setIsLoading(true);
       setError(null);
       try {
+        if (IS_DEVELOPMENT) {
+          console.log('📱 Fetching menu data (products & categories)...');
+        }
+
         const [productsRes, categoriesRes] = await Promise.all([
-          fetch(`${API_URL}/api/products`),
-          fetch(`${API_URL}/api/categories`)
+          apiClient.get('/api/products'),
+          apiClient.get('/api/categories')
         ]);
 
         if (!productsRes.ok || !categoriesRes.ok) {
@@ -38,10 +42,19 @@ export default function MenuGrid() {
         const productsData = await productsRes.json();
         const categoriesData = await categoriesRes.json();
 
+        if (IS_DEVELOPMENT) {
+          console.log('✅ Menu data loaded:', { 
+            products: productsData.length, 
+            categories: categoriesData.length 
+          });
+        }
+
         setProducts(productsData);
         setCategories(categoriesData);
       } catch (err) {
-        console.error('Failed to fetch data:', err);
+        if (IS_DEVELOPMENT) {
+          console.error('❌ Failed to fetch menu data:', err);
+        }
         setError((err as Error).message);
       } finally {
         setIsLoading(false);

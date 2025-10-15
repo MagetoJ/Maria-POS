@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { apiClient } from '../config/api';
+import { envLog, IS_DEVELOPMENT } from '../config/environment';
 import Header from '../components/Header';
 import StaffManagement from '../components/admin/StaffManagement';
 import InventoryManagement from '../components/admin/InventoryManagement';
@@ -9,6 +11,7 @@ import ReportsManagement from '../components/admin/ReportsManagement';
 import SettingsManagement from '../components/admin/SettingsManagement';
 import ShiftManagement from '../components/admin/ShiftManagement';
 import PerformanceDashboard from '../components/PerfomanceDashboardView';
+import PersonalSalesReport from '../components/PersonalSalesReport';
 import {
   BarChart3,
   Users,
@@ -57,7 +60,6 @@ export const timeAgo = (dateString: string) => {
   return Math.floor(seconds) + " seconds ago";
 };
 
-
 // Interface for the fetched overview data
 interface OverviewStats {
     todaysRevenue: number;
@@ -73,6 +75,21 @@ interface OverviewStats {
     }[];
 }
 
+interface ActiveUser {
+  id: number;
+  name: string;
+  role: string;
+  login_time: string;
+}
+
+interface LowStockItem {
+  id: number;
+  name: string;
+  current_stock: number;
+  minimum_stock: number;
+  inventory_type: string;
+  unit: string;
+}
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -80,26 +97,81 @@ export default function AdminDashboard() {
   const [overviewData, setOverviewData] = useState<OverviewStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
 
-  const getToken = () => localStorage.getItem('pos_token');
+  const fetchActiveUsers = async () => {
+    try {
+      envLog.dev('👥 Fetching active users...');
+      const response = await apiClient.get('/api/admin/active-users');
+      if (response.ok) {
+        const data = await response.json();
+        setActiveUsers(data);
+        envLog.dev('✅ Active users loaded:', data);
+      }
+    } catch (error) {
+      envLog.error('❌ Error fetching active users:', error);
+    }
+  };
+
+  const fetchLowStockItems = async () => {
+    try {
+      envLog.dev('📦 Fetching low stock items...');
+      const response = await apiClient.get('/api/admin/low-stock-alerts');
+      if (response.ok) {
+        const data = await response.json();
+        setLowStockItems(data);
+        envLog.dev('✅ Low stock items loaded:', data);
+      }
+    } catch (error) {
+      envLog.error('❌ Error fetching low stock items:', error);
+    }
+  };
 
   useEffect(() => {
       const fetchOverviewData = async () => {
           if (activeTab === 'overview') {
               setIsLoading(true);
               setError(null);
+              
               try {
-                  const response = await fetch('/api/dashboard/overview-stats', {
-                      headers: { 'Authorization': `Bearer ${getToken()}` }
-                  });
+                  envLog.dev('📊 Fetching overview stats...');
+                  
+                  // Use apiClient which automatically adds auth headers
+                  const response = await apiClient.get('/api/dashboard/overview-stats');
+                  
                   if (!response.ok) {
+                      const errorText = await response.text();
+                      envLog.error('❌ API Error:', response.status, errorText);
+                      
                       throw new Error(`Failed to fetch overview stats. Status: ${response.status}`);
                   }
+                  
                   const data = await response.json();
+                  envLog.dev('✅ Overview stats loaded:', data);
+                  
                   setOverviewData(data);
-              } catch (error) {
-                  console.error("Error fetching overview stats:", error);
-                  setError("Could not load dashboard data. Please try again later.");
+
+                  // Also fetch active users and low stock items for the overview
+                  await Promise.all([
+                    fetchActiveUsers(),
+                    fetchLowStockItems()
+                  ]);
+              } catch (error: any) {
+                  if (IS_DEVELOPMENT) {
+                      console.error("❌ Error fetching overview stats:", error);
+                  }
+                  
+                  // Provide more specific error messages
+                  if (error.message?.includes('403')) {
+                      setError("Access denied. Please log in again.");
+                  } else if (error.message?.includes('401')) {
+                      setError("Authentication required. Please log in.");
+                  } else if (error.message?.includes('fetch')) {
+                      setError("Cannot connect to server. Please check your connection.");
+                  } else {
+                      setError("Could not load dashboard data. Please try again later.");
+                  }
               } finally {
                   setIsLoading(false);
               }
@@ -109,16 +181,16 @@ export default function AdminDashboard() {
       fetchOverviewData();
   }, [activeTab]);
 
-
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'staff', label: 'Staff Management', icon: Users },
-    { id: 'shifts', label: 'Shift Management', icon: Clock }, // Add this
-    { id: 'performance', label: 'Performance', icon: TrendingUp }, // And this
+    { id: 'shifts', label: 'Shift Management', icon: Clock },
+    { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'menu', label: 'Menu Management', icon: UtensilsCrossed },
     { id: 'rooms', label: 'Room Management', icon: Bed },
     { id: 'reports', label: 'Reports', icon: FileText },
+    { id: 'sales-reports', label: 'Sales Reports', icon: DollarSign },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -131,7 +203,20 @@ export default function AdminDashboard() {
           );
       }
       if (error) {
-          return <div className="text-center text-red-500 p-4">{error}</div>;
+          return (
+              <div className="text-center p-6">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-md mx-auto">
+                      <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                      <p className="text-red-700 font-medium">{error}</p>
+                      <button 
+                          onClick={() => window.location.reload()}
+                          className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                      >
+                          Retry
+                      </button>
+                  </div>
+              </div>
+          );
       }
       if (!overviewData) {
           return <div className="text-center">Could not load dashboard data.</div>;
@@ -236,10 +321,73 @@ export default function AdminDashboard() {
             </div>
             </div>
         </div>
+
+        {/* Active Users & Low Stock Alerts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Active Users */}
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-green-600" />
+                    Active Users ({activeUsers.length})
+                </h3>
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {activeUsers && activeUsers.length > 0 ? (
+                        activeUsers.map((activeUser) => (
+                            <div key={activeUser.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                                <div>
+                                    <p className="font-medium text-gray-900">{activeUser.name}</p>
+                                    <p className="text-sm text-gray-600 capitalize">{activeUser.role}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm text-green-600 font-medium">Online</p>
+                                    <p className="text-xs text-gray-500">
+                                        {timeAgo(activeUser.login_time)}
+                                    </p>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-sm text-gray-500 text-center py-4">No active users</p>
+                    )}
+                </div>
+            </div>
+
+            {/* Low Stock Alerts */}
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                    Low Stock Alerts ({lowStockItems.length})
+                </h3>
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {lowStockItems && lowStockItems.length > 0 ? (
+                        lowStockItems.map((item) => (
+                            <div key={item.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
+                                <div>
+                                    <p className="font-medium text-gray-900">{item.name}</p>
+                                    <p className="text-sm text-gray-600 capitalize">
+                                        {item.inventory_type} • {item.unit}
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm text-red-600 font-medium">
+                                        {item.current_stock} / {item.minimum_stock}
+                                    </p>
+                                    <p className="text-xs text-gray-500">Current / Min</p>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="text-center py-4">
+                            <Package className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                            <p className="text-sm text-green-600 font-medium">All items well stocked!</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
         </div>
       );
   };
-
 
   const renderContent = () => {
     switch (activeTab) {
@@ -247,9 +395,9 @@ export default function AdminDashboard() {
         return renderOverview();
       case 'staff':
         return <StaffManagement />;
-      case 'shifts': // Add this case
+      case 'shifts':
         return <ShiftManagement />;
-      case 'performance': // And this case
+      case 'performance':
         return <PerformanceDashboard />;
       case 'inventory':
         return <InventoryManagement />;
@@ -259,6 +407,8 @@ export default function AdminDashboard() {
         return <RoomManagement />;
       case 'reports':
         return <ReportsManagement />;
+      case 'sales-reports':
+        return <PersonalSalesReport />;
       case 'settings':
         return <SettingsManagement />;
       default:
