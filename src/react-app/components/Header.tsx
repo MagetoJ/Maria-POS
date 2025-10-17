@@ -1,10 +1,15 @@
 import { useAuth } from '../contexts/AuthContext'; // <-- This line is corrected
-import { LogOut, User, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { LogOut, User, Clock, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import SearchComponent from './SearchComponent';
+import { navigateToSearchResult } from '../utils/searchNavigation';
 
 export default function Header() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -27,6 +32,29 @@ export default function Header() {
     return roleMap[role] || role;
   };
 
+  const handleSearchSelect = (result: any, type: string) => {
+    console.log('Selected search result:', result, 'Type:', type);
+    setShowSearch(false);
+    
+    // Check if we're on POS page and emit a custom event for better integration
+    const currentPath = window.location.pathname;
+    if (currentPath === '/pos') {
+      // Emit a custom event that the POS component can listen to
+      const event = new CustomEvent('posSearchSelect', {
+        detail: { result, type, userRole: user?.role }
+      });
+      window.dispatchEvent(event);
+      return;
+    }
+    
+    // Use the navigation utility to handle the result for non-POS pages
+    navigateToSearchResult(result, navigate, user?.role);
+  };
+
+  const handleSearchClose = () => {
+    setShowSearch(false);
+  };
+
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
       <div className="flex items-center justify-between">
@@ -45,7 +73,36 @@ export default function Header() {
           </div>
         </div>
 
+        {/* Search Section */}
+        <div className="flex-1 max-w-md mx-4 hidden lg:block">
+          {showSearch ? (
+            <SearchComponent
+              onSelectResult={handleSearchSelect}
+              onClose={handleSearchClose}
+              placeholder="Search staff, inventory, orders..."
+              autoFocus={true}
+            />
+          ) : (
+            <button
+              onClick={() => setShowSearch(true)}
+              className="w-full flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <Search className="w-4 h-4" />
+              <span className="text-sm">Search anything...</span>
+            </button>
+          )}
+        </div>
+
         <div className="flex items-center gap-2 sm:gap-4">
+          {/* Mobile Search Button */}
+          <button
+            onClick={() => setShowSearch(true)}
+            className="lg:hidden p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Search"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+
           <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
             <Clock className="w-4 h-4" />
             {currentTime.toLocaleTimeString('en-KE', {
@@ -73,6 +130,22 @@ export default function Header() {
           </button>
         </div>
       </div>
+
+      {/* Mobile Search Modal */}
+      {showSearch && (
+        <div className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-50 p-4">
+          <div className="bg-white rounded-lg mt-16">
+            <div className="p-4">
+              <SearchComponent
+                onSelectResult={handleSearchSelect}
+                onClose={handleSearchClose}
+                placeholder="Search staff, inventory, orders..."
+                autoFocus={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

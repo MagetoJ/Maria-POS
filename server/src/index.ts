@@ -7,6 +7,7 @@ import { authenticateToken, authorizeRoles } from './middleware/auth';
 import path from 'path';
 import dotenv from 'dotenv';
 import db from './db'; // <-- your PostgreSQL connection file
+import nodemailer from 'nodemailer';
 
 // --- Initialization ---
 dotenv.config();
@@ -15,6 +16,69 @@ const server = http.createServer(app);
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'a-very-secret-and-secure-key-that-you-should-change';
+
+// --- Email Configuration ---
+const emailTransporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.EMAIL_PORT || '587'),
+  secure: process.env.EMAIL_SECURE === 'true',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD
+  },
+  tls: {
+    rejectUnauthorized: false // For development only
+  }
+});
+
+// Generate 6-digit numeric code
+const generateResetCode = (): string => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Send password reset email
+const sendResetEmail = async (email: string, code: string, name: string): Promise<boolean> => {
+  try {
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || 'Maria Havens POS <noreply@mariahavens.com>',
+      to: email,
+      subject: 'Password Reset Code - Maria Havens POS',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #f59e0b; margin: 0;">Maria Havens POS</h1>
+            <p style="color: #666; margin: 5px 0;">Point of Sale System</p>
+          </div>
+          
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h2 style="color: #333; margin-top: 0;">Password Reset Request</h2>
+            <p style="color: #555;">Hello ${name},</p>
+            <p style="color: #555;">You requested a password reset for your Maria Havens POS account.</p>
+            <p style="color: #555;">Your password reset code is:</p>
+            
+            <div style="text-align: center; margin: 20px 0;">
+              <span style="font-size: 32px; font-weight: bold; color: #f59e0b; background-color: #fff; padding: 15px 20px; border-radius: 8px; border: 2px solid #f59e0b; letter-spacing: 3px;">${code}</span>
+            </div>
+            
+            <p style="color: #555;">This code will expire in <strong>10 minutes</strong>.</p>
+            <p style="color: #555;">If you didn't request this reset, please ignore this email.</p>
+          </div>
+          
+          <div style="text-align: center; color: #999; font-size: 14px;">
+            <p>© 2024 Maria Havens POS System</p>
+            <p>This is an automated message, please do not reply.</p>
+          </div>
+        </div>
+      `
+    };
+
+    await emailTransporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Email sending error:', error);
+    return false;
+  }
+};
 
 // --- CORS Configuration ---
 app.use(cors({
@@ -59,13 +123,26 @@ app.use(express.static(clientBuildPath, {
   }
 }));
 
-// Serve public files (including images) from public directory
+// Serve public files (including images) from public directory for development
 const publicPath = path.resolve(__dirname, '../../public');
 console.log('📁 Serving public files from:', publicPath);
-app.use('/public', express.static(publicPath, {
-  maxAge: '7d', // Cache public files for 7 days
-  etag: true,
-}));
+
+// In development, serve public assets directly
+if (process.env.NODE_ENV !== 'production') {
+  app.use(express.static(publicPath, {
+    maxAge: '1d',
+    etag: true,
+    setHeaders: (res, path) => {
+      // Set proper CORS headers for PWA assets
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      if (path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.ico')) {
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Content-Type', path.endsWith('.ico') ? 'image/x-icon' : 'image/png');
+      }
+    }
+  }));
+}
 
 // --- Helper Function for PIN Validation ---
 async function validateStaffPinForOrder(username: string, pin: string): Promise<{ valid: boolean; staffId?: number; staffName?: string }> {
@@ -112,7 +189,227 @@ function broadcastToKitchens(message: object) {
         if (client.readyState === WebSocket.OPEN) client.send(data);
     });
 }
+app.get('/api/inventory', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        const userRole = req.user?.role;
+        let query = db('inventory_items').select('*').orderBy('name', 'asc');
 
+        if (!userRole) {
+            return res.status(403).json({ message: 'User role not found' });
+        }
+
+        if (userRole === 'kitchen_staff') {
+            query.where('inventory_type', 'kitchen');
+        } else if (userRole === 'receptionist') {
+            query.whereIn('inventory_type', ['bar', 'housekeeping', 'minibar']);
+        } else if (userRole !== 'admin' && userRole !== 'manager') {
+            return res.json([]); // Return empty for other non-privileged roles
+        }
+        
+        const inventory = await query;
+        res.json(inventory);
+
+    } catch (err) {
+        console.error('Error fetching inventory:', err);
+        res.status(500).json({ message: 'Error fetching inventory', error: (err as Error).message });
+    }
+});
+
+// MODIFIED FOR ROLE-BASED STOCK UPDATES
+app.put('/api/inventory/:id/stock', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { current_stock } = req.body;
+    const userRole = req.user?.role;
+
+    if (current_stock === undefined) {
+      return res.status(400).json({ message: 'Current stock value is required' });
+    }
+
+    const inventoryItem = await db('inventory_items').where({ id }).first();
+    
+    if (!inventoryItem) {
+      return res.status(404).json({ message: 'Inventory item not found' });
+    }
+
+    const isAdminOrManager = ['admin', 'manager'].includes(userRole!);
+    const isKitchenStaff = userRole === 'kitchen_staff' && inventoryItem.inventory_type === 'kitchen';
+    const isReceptionist = userRole === 'receptionist' && ['bar', 'housekeeping', 'minibar'].includes(inventoryItem.inventory_type);
+
+    if (!isAdminOrManager && !isKitchenStaff && !isReceptionist) {
+      return res.status(403).json({ 
+        message: `You do not have permission to update ${inventoryItem.inventory_type} items.` 
+      });
+    }
+
+    const [updatedItem] = await db('inventory_items')
+      .where({ id })
+      .update({ current_stock, updated_at: new Date() })
+      .returning('*');
+
+    res.json(updatedItem);
+  } catch (err) {
+    console.error('Inventory stock update error:', err);
+    res.status(500).json({ message: 'Error updating inventory stock' });
+  }
+});
+
+
+// --- KITCHEN-SPECIFIC ENDPOINTS ---
+app.get('/api/kitchen/orders', authenticateToken, authorizeRoles('kitchen_staff', 'admin', 'manager'), async (req: Request, res: Response) => {
+    try {
+        const activeOrders = await db('orders')
+            .whereIn('status', ['pending', 'preparing'])
+            .orderBy('created_at', 'asc');
+
+        for (const order of activeOrders) {
+            (order as any).items = await db('order_items')
+                .join('products', 'order_items.product_id', 'products.id')
+                .where('order_id', order.id)
+                .select('order_items.quantity', 'products.name as product_name', 'order_items.notes');
+        }
+        res.json(activeOrders);
+    } catch (err) {
+        console.error('Error fetching kitchen orders:', err);
+        res.status(500).json({ message: 'Error fetching kitchen orders' });
+    }
+});
+
+app.put('/api/kitchen/orders/:id/status', authenticateToken, authorizeRoles('kitchen_staff', 'admin', 'manager'), async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        const [updatedOrder] = await db('orders').where({ id }).update({ status }).returning('*');
+        res.json(updatedOrder);
+    } catch (err) {
+        console.error('Error updating order status:', err);
+        res.status(500).json({ message: 'Error updating order status' });
+    }
+});
+
+
+// --- RECEPTIONIST-SPECIFIC ENDPOINTS ---
+app.post('/api/receptionist/sell-item', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req: Request, res: Response) => {
+  const { inventory_item_id, quantity, unit_price, payment_method } = req.body;
+  const staff_id = req.user?.id;
+
+  if (!inventory_item_id || !quantity || !unit_price || !payment_method) {
+    return res.status(400).json({ message: 'Item ID, quantity, price, and payment method are required.' });
+  }
+
+  try {
+    const item = await db('inventory_items').where({ id: inventory_item_id, inventory_type: 'bar' }).first();
+    if (!item) return res.status(404).json({ message: 'Bar inventory item not found.' });
+    if (item.current_stock < quantity) return res.status(400).json({ message: 'Not enough stock.' });
+
+    const newStock = item.current_stock - quantity;
+    const total_amount = quantity * unit_price;
+
+    await db.transaction(async (trx) => {
+      await trx('inventory_items').where({ id: inventory_item_id }).update({ current_stock: newStock });
+      const [order] = await trx('orders').insert({
+        order_number: `BAR-${Date.now()}`,
+        order_type: 'bar_sale',
+        status: 'completed',
+        staff_id,
+        total_amount,
+        payment_status: 'paid',
+        payment_method,
+      }).returning('id');
+      await trx('order_items').insert({
+        order_id: order.id,
+        product_name_manual: item.name, 
+        quantity,
+        unit_price,
+        total_price: total_amount,
+      });
+    });
+    res.status(200).json({ message: 'Sale completed successfully.', new_stock: newStock });
+  } catch (err) {
+    console.error('Bar sale error:', err);
+    res.status(500).json({ message: 'Failed to process bar sale.' });
+  }
+});
+
+
+// --- ROOM AND TABLE MANAGEMENT ---
+app.get('/api/rooms', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        const rooms = await db('rooms').select('*').orderBy('room_number', 'asc');
+        res.json(rooms);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching rooms' });
+    }
+});
+
+app.put('/api/rooms/:id', authenticateToken, authorizeRoles('admin', 'manager', 'receptionist', 'housekeeping'), async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const [updatedRoom] = await db('rooms').where({ id }).update(req.body).returning('*');
+        res.json(updatedRoom);
+    } catch (err) {
+        res.status(500).json({ message: 'Error updating room' });
+    }
+});
+
+app.post('/api/rooms/:roomId/check-in', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req: Request, res: Response) => {
+  const { roomId } = req.params;
+  const { guest_name, guest_contact } = req.body;
+  const staff_id = req.user!.id;
+  if (!guest_name) return res.status(400).json({ message: 'Guest name is required.' });
+  try {
+    await db.transaction(async (trx) => {
+      const [room] = await trx('rooms').where({ id: roomId, status: 'vacant' }).update({ status: 'occupied' }).returning('*');
+      if (!room) throw new Error('Room is not vacant or available for check-in.');
+      await trx('room_transactions').insert({ room_id: roomId, staff_id, guest_name, guest_contact, status: 'active' });
+      res.json(room);
+    });
+  } catch (err) {
+    res.status(500).json({ message: (err as Error).message || 'Failed to check-in guest.' });
+  }
+});
+
+app.post('/api/rooms/:roomId/check-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req: Request, res: Response) => {
+  const { roomId } = req.params;
+  try {
+    await db.transaction(async (trx) => {
+      const [room] = await trx('rooms').where({ id: roomId, status: 'occupied' }).update({ status: 'cleaning' }).returning('*');
+      if (!room) throw new Error('Room is not occupied or does not exist.');
+      await trx('room_transactions').where({ room_id: roomId, status: 'active' }).update({ status: 'completed', check_out_time: new Date() });
+      res.json(room);
+    });
+  } catch (err) {
+    res.status(500).json({ message: (err as Error).message || 'Failed to check-out guest.' });
+  }
+});
+
+app.get('/api/tables', authenticateToken, async (req: Request, res: Response) => {
+    try {
+        const tables = await db('tables').select('*').orderBy('table_number', 'asc');
+        res.json(tables);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching tables' });
+    }
+});
+
+app.post('/api/tables', authenticateToken, authorizeRoles('receptionist', 'admin', 'manager'), async (req: Request, res: Response) => {
+    try {
+        const [newTable] = await db('tables').insert(req.body).returning('*');
+        res.status(201).json(newTable);
+    } catch (err) {
+        res.status(500).json({ message: 'Error adding table' });
+    }
+});
+
+app.put('/api/tables/:id', authenticateToken, authorizeRoles('waiter', 'receptionist', 'admin', 'manager'), async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const [updatedTable] = await db('tables').where({ id }).update(req.body).returning('*');
+        res.json(updatedTable);
+    } catch (err) {
+        res.status(500).json({ message: 'Error updating table' });
+    }
+});
 // --- PUBLIC API Endpoints ---
 app.get('/health', (req: Request, res: Response) => res.json({ status: 'OK', timestamp: new Date().toISOString() }));
 
@@ -794,9 +1091,36 @@ app.delete('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'ma
 });
 
 // Inventory Management
-app.get('/api/inventory', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
+
+app.get('/api/inventory', authenticateToken, async (req: Request, res: Response) => {
     try {
-        const inventory = await db('inventory_items').select('*').orderBy('name', 'asc');
+        const userRole = req.user?.role;
+        let inventory;
+
+        if (!userRole) {
+            return res.status(403).json({ message: 'User role not found' });
+        }
+
+        if (['admin', 'manager'].includes(userRole)) {
+            // Admin and manager can see all inventory
+            inventory = await db('inventory_items').select('*').orderBy('name', 'asc');
+        } else if (userRole === 'kitchen' || userRole === 'kitchen_staff') {
+            // Kitchen staff can only see kitchen items
+            inventory = await db('inventory_items')
+                .where('inventory_type', 'kitchen')
+                .select('*')
+                .orderBy('name', 'asc');
+        } else if (userRole === 'receptionist') {
+            // Receptionists can see bar, housekeeping, and minibar items
+            inventory = await db('inventory_items')
+                .whereIn('inventory_type', ['bar', 'housekeeping', 'minibar'])
+                .select('*')
+                .orderBy('name', 'asc');
+        } else {
+            // No access for other roles
+            return res.status(403).json({ message: 'You do not have permission to view inventory' });
+        }
+
         res.json(inventory);
     } catch (err) {
         console.error('Error fetching inventory:', err);
@@ -960,12 +1284,12 @@ app.post('/api/rooms/:roomId/check-in', authenticateToken, authorizeRoles('recep
   try {
     await db.transaction(async (trx) => {
       const [updatedRoom] = await trx('rooms')
-        .where({ id: roomId, status: 'available' })
+        .where({ id: roomId, status: 'vacant' })
         .update({ status: 'occupied' })
         .returning('*');
 
       if (!updatedRoom) {
-        throw new Error('Room is not available for check-in.');
+        throw new Error('Room is not vacant or available for check-in.');
       }
 
       await trx('room_transactions').insert({
@@ -992,7 +1316,7 @@ app.post('/api/rooms/:roomId/check-out', authenticateToken, authorizeRoles('rece
     await db.transaction(async (trx) => {
       const [updatedRoom] = await trx('rooms')
         .where({ id: roomId, status: 'occupied' })
-        .update({ status: 'dirty' })
+        .update({ status: 'cleaning' })
         .returning('*');
 
       if (!updatedRoom) {
@@ -1017,10 +1341,11 @@ app.post('/api/rooms/:roomId/check-out', authenticateToken, authorizeRoles('rece
 // Maintenance Management
 app.get('/api/maintenance-requests', authenticateToken, authorizeRoles('admin', 'manager', 'housekeeping'), async (req: Request, res: Response) => {
     try {
-        const requests = await db('maintenance_requests').select('*').whereNot('status', 'completed').orderBy('reported_at', 'desc');
+        const requests = await db('maintenance_requests').select('*').whereNot('status', 'completed').orderBy('created_at', 'desc');
         res.json(requests);
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching maintenance requests' });
+        console.error('Error fetching maintenance requests:', err);
+        res.status(500).json({ message: 'Error fetching maintenance requests', error: process.env.NODE_ENV === 'development' ? (err as Error).message : undefined });
     }
 });
 
@@ -1342,6 +1667,509 @@ app.get('/api/debug/seed-orders', async (req: Request, res: Response) => {
     });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// --- NEW FEATURES ENDPOINTS ---
+
+// Password Reset Functionality - Enhanced with Email
+app.post('/api/auth/request-password-reset', async (req: Request, res: Response) => {
+  try {
+    const { username } = req.body;
+    if (!username) {
+      return res.status(400).json({ message: 'Username is required' });
+    }
+
+    const user = await db('staff').where({ username, is_active: true }).first();
+    if (!user) {
+      // Don't reveal if user exists or not for security
+      return res.json({ message: 'If the username exists, a reset code has been sent to your email' });
+    }
+
+    if (!user.email) {
+      return res.status(400).json({ message: 'No email address found for this user. Contact administrator.' });
+    }
+
+    // Generate 6-digit numeric reset code
+    const resetCode = generateResetCode();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Store reset code in database
+    await db('password_reset_tokens').insert({
+      user_id: user.id,
+      token: resetCode,
+      expires_at: expiresAt
+    });
+
+    // Send email with reset code
+    const emailSent = await sendResetEmail(user.email, resetCode, user.name);
+    
+    if (!emailSent) {
+      // Clean up the token if email failed
+      await db('password_reset_tokens').where({ user_id: user.id, token: resetCode }).del();
+      return res.status(500).json({ message: 'Failed to send reset email. Please try again later.' });
+    }
+
+    res.json({ 
+      message: 'A 6-digit reset code has been sent to your email address',
+      expires_in_minutes: 10,
+      email_sent: true
+    });
+  } catch (err) {
+    console.error('Password reset request error:', err);
+    res.status(500).json({ message: 'Error processing password reset request' });
+  }
+});
+
+app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: 'Reset code and new password are required' });
+    }
+
+    // Validate 6-digit code format
+    if (!/^\d{6}$/.test(token)) {
+      return res.status(400).json({ message: 'Reset code must be a 6-digit number' });
+    }
+
+    const resetToken = await db('password_reset_tokens')
+      .where({ token, used: false })
+      .where('expires_at', '>', new Date())
+      .first();
+
+    if (!resetToken) {
+      return res.status(400).json({ message: 'Invalid or expired reset code' });
+    }
+
+    // Update password and mark token as used
+    await db.transaction(async trx => {
+      await trx('staff').where({ id: resetToken.user_id }).update({ password: newPassword });
+      await trx('password_reset_tokens').where({ id: resetToken.id }).update({ used: true });
+    });
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (err) {
+    console.error('Password reset error:', err);
+    res.status(500).json({ message: 'Error resetting password' });
+  }
+});
+
+// Enhanced Login with Session Tracking
+app.post('/api/auth/login-with-tracking', async (req: Request, res: Response) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required' });
+    }
+    
+    const user = await db('staff').where({ username, is_active: true }).first();
+    if (user && user.password === password) {
+      const { password: _, pin: __, ...userWithoutSensitiveData } = user;
+      const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
+      
+      // Track login session
+      await db('user_sessions').insert({
+        user_id: user.id,
+        session_token: token,
+        is_active: true
+      });
+
+      res.json({ user: userWithoutSensitiveData, token });
+    } else {
+      res.status(401).json({ message: 'Invalid username or password' });
+    }
+  } catch (err) {
+    console.error('Login with tracking error:', err);
+    res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+// Logout with Session Tracking
+app.post('/api/auth/logout', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    // Mark session as inactive
+    await db('user_sessions')
+      .where({ session_token: token, is_active: true })
+      .update({ logout_time: new Date(), is_active: false });
+
+    res.json({ message: 'Logged out successfully' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    res.status(500).json({ message: 'Error during logout' });
+  }
+});
+
+// Get Active Users (Admin Dashboard)
+app.get('/api/admin/active-users', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
+  try {
+    const activeUsers = await db('user_sessions as us')
+      .join('staff as s', 'us.user_id', 's.id')
+      .where('us.is_active', true)
+      .select(
+        's.id',
+        's.name',
+        's.role',
+        'us.login_time'
+      )
+      .orderBy('us.login_time', 'desc');
+
+    res.json(activeUsers);
+  } catch (err) {
+    console.error('Active users fetch error:', err);
+    res.status(500).json({ message: 'Error fetching active users' });
+  }
+});
+
+// Role-based Inventory Updates
+app.put('/api/inventory/:id/stock', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { current_stock } = req.body;
+    const userRole = req.user?.role;
+
+    if (!current_stock) {
+      return res.status(400).json({ message: 'Current stock is required' });
+    }
+
+    // Get inventory item with role permissions
+    const inventoryItem = await db('inventory_items').where({ id }).first();
+    
+    if (!inventoryItem) {
+      return res.status(404).json({ message: 'Inventory item not found' });
+    }
+
+    // Check if user has permission to update this inventory item
+    const allowedRoles = inventoryItem.allowed_roles || [];
+    if (!userRole || (!allowedRoles.includes(userRole) && !['admin', 'manager'].includes(userRole))) {
+      return res.status(403).json({ 
+        message: `You don't have permission to update ${inventoryItem.inventory_type} items` 
+      });
+    }
+
+    const [updatedItem] = await db('inventory_items')
+      .where({ id })
+      .update({ current_stock, updated_at: new Date() })
+      .returning('*');
+
+    res.json(updatedItem);
+  } catch (err) {
+    console.error('Inventory update error:', err);
+    res.status(500).json({ message: 'Error updating inventory' });
+  }
+});
+
+// Low Stock Alerts
+app.get('/api/admin/low-stock-alerts', authenticateToken, authorizeRoles('admin', 'manager'), async (req: Request, res: Response) => {
+  try {
+    const lowStockItems = await db('inventory_items')
+      .whereRaw('current_stock <= minimum_stock')
+      .andWhere('is_active', true)
+      .select('*')
+      .orderBy('inventory_type');
+
+    res.json(lowStockItems);
+  } catch (err) {
+    console.error('Low stock alerts error:', err);
+    res.status(500).json({ message: 'Error fetching low stock alerts' });
+  }
+});
+
+// Personal Sales Reports
+app.get('/api/reports/personal-sales', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { date } = req.query;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    const salesReport = await db('daily_sales_by_staff')
+      .where({ staff_id: userId, sales_date: targetDate })
+      .first();
+
+    if (!salesReport) {
+      return res.json({
+        staff_id: userId,
+        sales_date: targetDate,
+        total_orders: 0,
+        total_sales: 0,
+        total_service_charge: 0
+      });
+    }
+
+    res.json(salesReport);
+  } catch (err) {
+    console.error('Personal sales report error:', err);
+    res.status(500).json({ message: 'Error fetching personal sales report' });
+  }
+});
+
+// Waiter Sales Monitoring (for Receptionists)
+app.get('/api/reports/waiter-sales', authenticateToken, authorizeRoles('admin', 'manager', 'receptionist'), async (req: Request, res: Response) => {
+  try {
+    const { date, waiter_id } = req.query;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    let query = db('daily_sales_by_staff')
+      .where({ sales_date: targetDate });
+
+    if (waiter_id) {
+      query = query.andWhere({ staff_id: waiter_id });
+    } else {
+      query = query.whereIn('staff_role', ['waiter']);
+    }
+
+    const waiterSales = await query.orderBy('total_sales', 'desc');
+
+    res.json(waiterSales);
+  } catch (err) {
+    console.error('Waiter sales report error:', err);
+    res.status(500).json({ message: 'Error fetching waiter sales report' });
+  }
+});
+
+// Enhanced Order Creation with Table Assignment and Customer Name
+app.post('/api/orders/create-with-details', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { 
+      order_type, 
+      table_id, 
+      room_id, 
+      customer_name, 
+      customer_phone, 
+      items, 
+      notes 
+    } = req.body;
+
+    const waiterId = req.user?.id;
+
+    if (!items || items.length === 0) {
+      return res.status(400).json({ message: 'Order must have at least one item' });
+    }
+
+    if (order_type === 'dine_in' && !table_id) {
+      return res.status(400).json({ message: 'Table ID is required for dine-in orders' });
+    }
+
+    if (order_type === 'room_service' && !room_id) {
+      return res.status(400).json({ message: 'Room ID is required for room service orders' });
+    }
+
+    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    
+    let subtotal = 0;
+    items.forEach((item: any) => {
+      subtotal += item.unit_price * item.quantity;
+    });
+
+    const serviceCharge = subtotal * 0.1; // 10% service charge
+    const totalAmount = subtotal + serviceCharge;
+
+    const result = await db.transaction(async trx => {
+      const [order] = await trx('orders').insert({
+        order_number: orderNumber,
+        order_type,
+        table_id: table_id || null,
+        room_id: room_id || null,
+        customer_name: customer_name || null,
+        customer_phone: customer_phone || null,
+        staff_id: waiterId,
+        subtotal,
+        service_charge: serviceCharge,
+        total_amount: totalAmount,
+        notes,
+        status: 'pending'
+      }).returning('*');
+
+      for (const item of items) {
+        await trx('order_items').insert({
+          order_id: order.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.unit_price * item.quantity,
+          notes: item.notes
+        });
+      }
+
+      return order;
+    });
+
+    res.status(201).json(result);
+  } catch (err) {
+    console.error('Enhanced order creation error:', err);
+    res.status(500).json({ message: 'Error creating order' });
+  }
+});
+
+// --- GLOBAL SEARCH API ---
+app.get('/api/search', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { q, limit = 10, offset = 0 } = req.query;
+    
+    if (!q || typeof q !== 'string' || q.length < 2) {
+      return res.status(400).json({ message: 'Search query must be at least 2 characters long' });
+    }
+
+    const searchTerm = `%${q.toLowerCase()}%`;
+    const limitNum = parseInt(limit as string, 10);
+    const offsetNum = parseInt(offset as string, 10);
+    const userRole = req.user?.role;
+
+    interface SearchResult {
+      id: number;
+      type: 'staff' | 'inventory' | 'menu' | 'order' | 'room';
+      title: string;
+      subtitle: string;
+      description?: string;
+      metadata?: any;
+    }
+
+    const searchResults: SearchResult[] = [];
+
+    // Search Staff (admin/manager only)
+    if (['admin', 'manager'].includes(userRole || '')) {
+      const staffResults = await db('staff')
+        .whereRaw('LOWER(name) LIKE ?', [searchTerm])
+        .orWhereRaw('LOWER(username) LIKE ?', [searchTerm])
+        .orWhereRaw('LOWER(employee_id) LIKE ?', [searchTerm])
+        .limit(limitNum)
+        .select('id', 'name', 'username', 'employee_id', 'role', 'is_active', 'created_at');
+
+      for (const staff of staffResults) {
+        searchResults.push({
+          id: staff.id,
+          type: 'staff',
+          title: staff.name,
+          subtitle: `${staff.username} (${staff.employee_id})`,
+          description: `${staff.role} - ${staff.is_active ? 'Active' : 'Inactive'}`,
+          metadata: {
+            role: staff.role,
+            is_active: staff.is_active,
+            created_at: staff.created_at
+          }
+        });
+      }
+    }
+
+    // Search Inventory
+    const inventoryResults = await db('inventory_items')
+      .whereRaw('LOWER(name) LIKE ?', [searchTerm])
+      .orWhereRaw('LOWER(inventory_type) LIKE ?', [searchTerm])
+      .andWhere('is_active', true)
+      .limit(limitNum)
+      .select('id', 'name', 'inventory_type', 'current_stock', 'minimum_stock', 'unit', 'created_at');
+
+    for (const item of inventoryResults) {
+      searchResults.push({
+        id: item.id,
+        type: 'inventory',
+        title: item.name,
+        subtitle: `${item.inventory_type} - ${item.current_stock} ${item.unit}`,
+        description: `Stock Level: ${item.current_stock}/${item.minimum_stock} ${item.unit}`,
+        metadata: {
+          current_stock: item.current_stock,
+          minimum_stock: item.minimum_stock,
+          unit: item.unit,
+          inventory_type: item.inventory_type,
+          created_at: item.created_at
+        }
+      });
+    }
+
+    // Search Menu Items/Products
+    const menuResults = await db('products')
+      .whereRaw('LOWER(name) LIKE ?', [searchTerm])
+      .orWhereRaw('LOWER(description) LIKE ?', [searchTerm])
+      .limit(limitNum)
+      .select('id', 'name', 'description', 'price', 'is_available', 'created_at');
+
+    for (const product of menuResults) {
+      searchResults.push({
+        id: product.id,
+        type: 'menu',
+        title: product.name,
+        subtitle: `KES ${product.price} - ${product.is_available ? 'Available' : 'Unavailable'}`,
+        description: product.description,
+        metadata: {
+          price: product.price,
+          is_available: product.is_available,
+          created_at: product.created_at
+        }
+      });
+    }
+
+    // Search Orders
+    const orderResults = await db('orders')
+      .whereRaw('LOWER(order_number) LIKE ?', [searchTerm])
+      .orWhereRaw('LOWER(customer_name) LIKE ?', [searchTerm])
+      .orWhereRaw('LOWER(order_type) LIKE ?', [searchTerm])
+      .limit(limitNum)
+      .select('id', 'order_number', 'customer_name', 'order_type', 'total_amount', 'status', 'created_at');
+
+    for (const order of orderResults) {
+      searchResults.push({
+        id: order.id,
+        type: 'order',
+        title: order.order_number,
+        subtitle: `${order.customer_name || 'Guest'} - ${order.order_type || 'N/A'}`,
+        description: `${order.status} - KES ${order.total_amount}`,
+        metadata: {
+          customer_name: order.customer_name,
+          order_type: order.order_type,
+          total_amount: order.total_amount,
+          status: order.status,
+          created_at: order.created_at
+        }
+      });
+    }
+
+    // Search Rooms
+    const roomResults = await db('rooms')
+      .whereRaw('LOWER(room_number) LIKE ?', [searchTerm])
+      .orWhereRaw('LOWER(room_type) LIKE ?', [searchTerm])
+      .limit(limitNum)
+      .select('id', 'room_number', 'room_type', 'status', 'rate', 'created_at');
+
+    for (const room of roomResults) {
+      searchResults.push({
+        id: room.id,
+        type: 'room',
+        title: `Room ${room.room_number}`,
+        subtitle: `${room.room_type} - ${room.status}`,
+        description: `KES ${room.rate}/night`,
+        metadata: {
+          room_number: room.room_number,
+          room_type: room.room_type,
+          status: room.status,
+          rate: room.rate,
+          created_at: room.created_at
+        }
+      });
+    }
+
+    // Sort results by relevance (exact matches first, then partial matches)
+    searchResults.sort((a, b) => {
+      const aExact = a.title.toLowerCase().includes(q.toLowerCase()) ? 0 : 1;
+      const bExact = b.title.toLowerCase().includes(q.toLowerCase()) ? 0 : 1;
+      return aExact - bExact;
+    });
+
+    // Apply pagination
+    const paginatedResults = searchResults.slice(offsetNum, offsetNum + limitNum);
+
+    res.json({
+      results: paginatedResults,
+      totalCount: searchResults.length,
+      query: q,
+      limit: limitNum,
+      offset: offsetNum
+    });
+
+  } catch (err) {
+    console.error('Search error:', err);
+    res.status(500).json({ message: 'Error performing search' });
   }
 });
 

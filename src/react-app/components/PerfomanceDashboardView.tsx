@@ -6,6 +6,8 @@ import {
   Award, Target, Loader2, Calendar, Filter
 } from 'lucide-react';
 import MyShiftsView from './MyShiftsView'; // 1. IMPORT THE NEW COMPONENT
+import KitchenDisplay from '../pages/KitchenDisplay';
+
 
 interface PerformanceData {
   period: { start: string; end: string };

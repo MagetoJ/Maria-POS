@@ -3,10 +3,11 @@ import { useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import POS from './pages/POS';
 import AdminDashboard from './pages/AdminDashboard';
-import KitchenDisplay from './pages/KitchenDisplay';
 import HousekeepingDashboard from './pages/HousekeepingDashboard';
 import Home from './pages/Home';
 import NetworkStatus from './components/NetworkStatus';
+import KitchenDashboard from './pages/KitchenDashboard';
+import ReceptionistDashboard from './pages/ReceptionistDashboard'; // <-- Import the new dashboard
 
 // This component remains the same, protecting sensitive routes
 const ProtectedRoute = ({ children, allowedRoles }: { children: JSX.Element, allowedRoles?: string[] }) => {
@@ -16,7 +17,13 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: JSX.Element, all
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+  // If no specific roles are required, just being authenticated is enough
+  if (!allowedRoles) {
+    return children;
+  }
+
+  if (user && !allowedRoles.includes(user.role)) {
+    // Redirect unauthorized users to a default page, e.g., /pos
     return <Navigate to="/pos" replace />;
   }
 
@@ -36,7 +43,6 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login onQuickPOSAccess={handleQuickPOS} />} />
         
-        {/* The isQuickAccess prop has been removed from the POS component */}
         <Route path="/pos" element={<POS />} /> 
         
         <Route
@@ -47,15 +53,18 @@ function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/kitchen"
           element={
-            <ProtectedRoute>
-              <KitchenDisplay />
+            <ProtectedRoute allowedRoles={['kitchen_staff', 'admin', 'manager']}>
+              {/* Using KitchenDashboard for consistency */}
+              <KitchenDashboard />
             </ProtectedRoute>
           }
         />
-         <Route
+
+        <Route
           path="/housekeeping"
           element={
             <ProtectedRoute allowedRoles={['housekeeping', 'admin', 'manager']}>
@@ -63,6 +72,17 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* --- ADDED RECEPTIONIST ROUTE --- */}
+        <Route
+          path="/reception"
+          element={
+            <ProtectedRoute allowedRoles={['receptionist', 'admin', 'manager']}>
+              <ReceptionistDashboard />
+            </ProtectedRoute>
+          }
+        />
+        
         <Route
           path="/"
           element={

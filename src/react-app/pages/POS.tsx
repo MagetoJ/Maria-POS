@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import { navigateToSearchResult } from '../utils/searchNavigation';
 import QuickPOSHeader from '../components/QuickPOSHeader';
 import OrderPanel from '../components/OrderPanel';
 import MenuGrid from '../components/MenuGrid';
@@ -25,6 +27,7 @@ interface POSProps {
 
 export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables'>('menu');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   // State to manage order panel visibility on mobile
@@ -34,6 +37,25 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
   const canAccessDelivery = user?.role === 'delivery' || user?.role === 'manager' || user?.role === 'admin' || isQuickAccess;
   const canAccessDashboard = ['waiter', 'cashier', 'delivery', 'receptionist', 'manager', 'admin'].includes(user?.role ?? '');
   const canManageTables = user?.role === 'receptionist';
+
+  // Handle search results from header search
+  useEffect(() => {
+    const handlePOSSearchSelect = (event: CustomEvent) => {
+      const { result, type, userRole } = event.detail;
+      console.log('POS handling search result:', result, 'Type:', type);
+      
+      // Use the navigation utility with POS-specific context
+      navigateToSearchResult(result, navigate, userRole, undefined, setActiveView);
+    };
+
+    // Listen for search events
+    window.addEventListener('posSearchSelect', handlePOSSearchSelect as EventListener);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('posSearchSelect', handlePOSSearchSelect as EventListener);
+    };
+  }, [navigate]);
 
   const renderMainContent = () => {
     switch (activeView) {

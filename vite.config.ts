@@ -10,6 +10,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.PNG', 'pwa-192x192.png', 'pwa-512x512.png'],
+      devOptions: {
+        enabled: true
+      },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json,txt,woff2}'],
         runtimeCaching: [
@@ -50,20 +53,30 @@ export default defineConfig({
         categories: ['business', 'productivity', 'finance'],
         icons: [
           {
-            src: 'pwa-192x192.png',
+            src: '/pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: 'pwa-512x512.png',
+            src: '/pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
           },
           {
-            src: 'pwa-512x512.png',
+            src: '/pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable',
+          },
+          {
+            src: '/apple-touch-icon.png',
+            sizes: '180x180',
+            type: 'image/png',
+          },
+          {
+            src: '/favicon.ico',
+            sizes: '32x32',
+            type: 'image/x-icon',
           },
         ],
       },
@@ -75,6 +88,12 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    hmr: {
+      overlay: true
+    },
+    watch: {
+      usePolling: true,
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3000',

@@ -17,6 +17,10 @@ export default function RoomView() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Debug logging
+  console.log('RoomView - Current user:', user);
+  console.log('RoomView - User role:', user?.role);
+
   // State for modals
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [isCheckInModalOpen, setCheckInModalOpen] = useState(false);
@@ -142,24 +146,53 @@ export default function RoomView() {
                 <span className="flex items-center gap-1"><Tv size={14} /> TV</span>
                 <span className="flex items-center gap-1"><Wind size={14} /> AC</span>
               </div>
-              {/* v-- UPDATE THIS SECTION --v */}
+              {/* Room Action Buttons */}
               <div className="mt-4">
-                {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'receptionist') && (
+                {/* Debug info for development */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="mb-2 text-xs text-gray-500">
+                    User: {user?.name || 'No user'} | Role: {user?.role || 'No role'}
+                  </div>
+                )}
+                
+                {/* Show buttons for authorized roles */}
+                {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'receptionist') ? (
                   <>
                     {room.status === 'available' && (
-                      <button onClick={() => handleOpenCheckIn(room)} className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2">
-                        <LogIn size={16} /> Check-In
+                      <button 
+                        onClick={() => handleOpenCheckIn(room)} 
+                        className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <LogIn size={16} /> Check-In Guest
                       </button>
                     )}
                     {room.status === 'occupied' && (
-                      <button onClick={() => handleCheckOut(room)} disabled={isProcessing} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2 disabled:opacity-50">
-                         {isProcessing ? <Loader2 className="w-5 h-5 animate-spin"/> : <><LogOut size={16} /> Check-Out</>}
+                      <button 
+                        onClick={() => handleCheckOut(room)} 
+                        disabled={isProcessing} 
+                        className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                      >
+                         {isProcessing ? (
+                           <Loader2 className="w-5 h-5 animate-spin"/>
+                         ) : (
+                           <>
+                             <LogOut size={16} /> Check-Out Guest
+                           </>
+                         )}
                       </button>
                     )}
+                    {(room.status === 'dirty' || room.status === 'maintenance') && (
+                      <div className="w-full text-center py-2 px-4 rounded bg-gray-200 text-gray-600 text-sm">
+                        {room.status === 'dirty' ? 'Needs Cleaning' : 'Under Maintenance'}
+                      </div>
+                    )}
                   </>
+                ) : (
+                  <div className="w-full text-center py-2 px-4 rounded bg-gray-100 text-gray-500 text-sm">
+                    {user ? `Access Denied (${user.role})` : 'Login Required'}
+                  </div>
                 )}
               </div>
-              {/* ^-- UPDATE THIS SECTION --^ */}
             </div>
           ))}
         </div>

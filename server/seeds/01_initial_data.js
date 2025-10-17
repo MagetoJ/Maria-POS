@@ -159,8 +159,7 @@ exports.seed = async function(knex) {
     { 
       room_number: '101', 
       room_type: 'Standard', 
-      status: 'occupied', 
-      guest_name: 'John Doe', 
+      status: 'vacant', 
       rate: 5000 
     },
     { 
@@ -172,13 +171,19 @@ exports.seed = async function(knex) {
     { 
       room_number: '103', 
       room_type: 'Deluxe', 
-      status: 'cleaning', 
+      status: 'vacant', 
       rate: 7500 
     },
     { 
+      room_number: '189', 
+      room_type: 'Standard', 
+      status: 'vacant', 
+      rate: 5500 
+    },
+    { 
       room_number: '201', 
-      room_type: 'Suite', 
-      status: 'maintenance', 
+      room_type: 'Standard', 
+      status: 'vacant', 
       rate: 12000 
     }
   ]);
