@@ -37,6 +37,7 @@ export default function InventoryManagement() {
   // Role-based inventory access
   const getAllowedInventoryTypes = () => {
     switch (user?.role) {
+      case 'kitchen':
       case 'kitchen_staff':
         return ['kitchen'];
       case 'receptionist':

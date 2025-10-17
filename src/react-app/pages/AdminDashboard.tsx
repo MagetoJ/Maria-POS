@@ -15,6 +15,7 @@ import PerformanceDashboard from '../components/PerfomanceDashboardView';
 import PersonalSalesReport from '../components/PersonalSalesReport';
 import SearchComponent from '../components/SearchComponent';
 import { navigateToSearchResult } from '../utils/searchNavigation';
+
 import {
   BarChart3,
   Users,

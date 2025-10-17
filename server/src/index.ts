@@ -1091,7 +1091,6 @@ app.delete('/api/categories/:id', authenticateToken, authorizeRoles('admin', 'ma
 });
 
 // Inventory Management
-
 app.get('/api/inventory', authenticateToken, async (req: Request, res: Response) => {
     try {
         const userRole = req.user?.role;
