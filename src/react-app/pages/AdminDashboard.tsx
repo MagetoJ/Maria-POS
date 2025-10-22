@@ -128,15 +128,15 @@ export default function AdminDashboard() {
 
   const fetchActiveUsers = async () => {
     try {
-      envLog.dev('👥 Fetching active users...');
-      const response = await apiClient.get('/api/admin/active-users');
+      envLog.dev('👥 Fetching user sessions...');
+      const response = await apiClient.get('/api/admin/user-sessions');
       if (response.ok) {
         const data = await response.json();
         setActiveUsers(data);
-        envLog.dev('✅ Active users loaded:', data);
+        envLog.dev('✅ User sessions loaded:', data);
       }
     } catch (error) {
-      envLog.error('❌ Error fetching active users:', error);
+      envLog.error('❌ Error fetching user sessions:', error);
     }
   };
 
@@ -351,30 +351,60 @@ export default function AdminDashboard() {
 
         {/* Active Users & Low Stock Alerts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Active Users */}
+            {/* Active Users & Sessions */}
             <div className="bg-white rounded-lg p-6 border border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-green-600" />
-                    Active Users ({activeUsers.length})
+                    <Users className="w-5 h-5 text-blue-600" />
+                    User Sessions ({activeUsers.length})
                 </h3>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
                     {activeUsers && activeUsers.length > 0 ? (
-                        activeUsers.map((activeUser) => (
-                            <div key={activeUser.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                                <div>
-                                    <p className="font-medium text-gray-900">{activeUser.name}</p>
-                                    <p className="text-sm text-gray-600 capitalize">{activeUser.role}</p>
+                        activeUsers.map((session) => (
+                            <div key={`${session.staff_id}-${session.login_time}`} className={`flex items-center justify-between p-3 rounded-lg border ${
+                                session.is_active 
+                                    ? 'bg-green-50 border-green-200' 
+                                    : 'bg-gray-50 border-gray-200'
+                            }`}>
+                                <div className="flex-1">
+                                    <p className="font-medium text-gray-900">{session.name}</p>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-600 capitalize bg-gray-100 px-2 py-1 rounded-full text-xs">
+                                            {session.role}
+                                        </span>
+                                        <span className={`text-xs ${session.is_active ? 'text-green-600' : 'text-gray-500'}`}>
+                                            • {session.is_active 
+                                                ? `Logged in ${timeAgo(session.login_time)}` 
+                                                : `Last logged in ${timeAgo(session.logout_time || session.login_time)}`}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-sm text-green-600 font-medium">Online</p>
+                                <div className="text-right flex flex-col items-end">
+                                    <div className="flex items-center gap-1">
+                                        <div className={`w-2 h-2 rounded-full ${
+                                            session.is_active 
+                                                ? 'bg-green-500 animate-pulse' 
+                                                : 'bg-gray-400'
+                                        }`}></div>
+                                        <p className={`text-sm font-medium ${
+                                            session.is_active 
+                                                ? 'text-green-600' 
+                                                : 'text-gray-500'
+                                        }`}>
+                                            {session.is_active ? 'Active' : 'Offline'}
+                                        </p>
+                                    </div>
                                     <p className="text-xs text-gray-500">
-                                        {timeAgo(activeUser.login_time)}
+                                        {new Date(session.login_time).toLocaleTimeString()}
                                     </p>
                                 </div>
                             </div>
                         ))
                     ) : (
-                        <p className="text-sm text-gray-500 text-center py-4">No active users</p>
+                        <div className="text-center py-6">
+                            <Users className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                            <p className="text-sm text-gray-500">No user sessions found</p>
+                            <p className="text-xs text-gray-400">Users will appear here when they log in</p>
+                        </div>
                     )}
                 </div>
             </div>

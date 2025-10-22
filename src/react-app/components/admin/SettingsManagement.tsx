@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Save, Loader2, AlertTriangle, Building, Percent, FileText } from 'lucide-react';
-import { API_URL } from '@/config/api';  // ← ADD THIS
+import { API_URL } from '../../config/api';
 
 interface AppSettings {
     [key: string]: string;
@@ -22,7 +22,7 @@ export default function SettingsManagement() {
         setIsLoading(true);
         setError('');
         try {
-            const response = await fetch('/api/settings', {
+            const response = await fetch(`${API_URL}/api/settings`, {
                 headers: { 'Authorization': `Bearer ${getToken()}` }
             });
             if (!response.ok) throw new Error('Failed to load settings.');
@@ -43,7 +43,7 @@ export default function SettingsManagement() {
         setIsSaving(true);
         setError('');
         try {
-            const response = await fetch('/api/settings', {
+            const response = await fetch(`${API_URL}/api/settings`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

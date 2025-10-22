@@ -10,20 +10,14 @@
     "build:frontend": "vite build",
     "build:backend": "cd server && npx tsc",
     "build": "npm run build:frontend && npm run build:backend",
-    "build:render": "VITE_API_URL=https://pos.mariahavens.com npm run build",
-    "render-build": "node build-for-render.js",
     "preview": "vite preview",
     "start": "node server/dist/index.js",
-    "postinstall": "cd server && npm install",
-    "deploy": "npm run build && npm run start",
-    "test": "playwright test",
-    "test:ui": "playwright test --ui",
-    "test:headed": "playwright test --headed"
+    "postinstall": "cd server && npm install"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.21",
-    "concurrently": "^8.2.2",
+    "concurrently": "^9.0.1",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "html2canvas": "^1.4.1",

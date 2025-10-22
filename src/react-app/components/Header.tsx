@@ -121,7 +121,7 @@ export default function Header() {
           </div>
 
           <button
-            onClick={logout}
+            onClick={() => logout()}
             className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-red-600 transition-colors p-1 sm:p-2 rounded-lg hover:bg-red-50"
             title="Logout"
           >

@@ -55,7 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('🔐 Attempting login for:', username);
       }
       
-      const response = await apiClient.post('/api/login', { username, password }, {
+      const response = await apiClient.post('/api/auth/login', { username, password }, {
         signal: AbortSignal.timeout(15000)
       });
 
@@ -97,14 +97,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         case 'housekeeping':
           navigate('/housekeeping');
           break;
-        default:
-          navigate('/pos');
-          break;
-          case 'receptionist': // <-- ADD THIS CASE
+        case 'receptionist':
           navigate('/reception');
           break;
-          case 'kitchen_staff': // <-- ADD THIS CASE
+        case 'kitchen_staff':
           navigate('/kitchen');
+          break;
+        default:
+          navigate('/pos');
           break;
       }
 
@@ -131,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const validateStaffPin = async (username: string, pin: string): Promise<User | null> => {
     try {
-      const response = await apiClient.post('/api/validate-pin', { username, pin });
+      const response = await apiClient.post('/api/auth/validate-pin', { username, pin });
 
       if (response.ok) {
         const userData: User = await response.json();
@@ -147,9 +147,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     if (IS_DEVELOPMENT) {
       console.log('👋 Logging out user:', user?.username);
+    }
+    
+    // Call server logout endpoint to mark session as inactive
+    try {
+      await apiClient.post('/api/auth/logout');
+    } catch (error) {
+      if (IS_DEVELOPMENT) {
+        console.error('Server logout error:', error);
+      }
+      // Continue with local logout even if server call fails
     }
     
     setUser(null);

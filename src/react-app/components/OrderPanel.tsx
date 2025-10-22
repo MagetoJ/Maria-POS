@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePOS, OrderItem, Order, Table } from '../contexts/POSContext';
 import { useAuth, User } from '../contexts/AuthContext';
-import { API_URL } from '../config/api';
+import { API_URL, apiClient } from '../config/api';
 import { Trash2, UtensilsCrossed, Loader2, User as UserIcon, Printer, X } from 'lucide-react';
 
 // Centralized currency formatter
@@ -221,8 +221,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
 
   const fetchWaiters = async () => {
     try {
-      const url = import.meta.env.DEV ? '/api/waiters' : `${API_URL}/api/waiters`;
-      const response = await fetch(url);
+      const response = await apiClient.get('/api/staff/waiters');
       if (response.ok) {
         const data = await response.json();
         setWaitersList(data);
@@ -236,8 +235,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
 
   const fetchTables = async () => {
     try {
-      const url = import.meta.env.DEV ? '/api/tables' : `${API_URL}/api/tables`;
-      const response = await fetch(url);
+      const response = await apiClient.get('/api/tables');
       if (response.ok) {
         const data = await response.json();
         setTablesList(data);

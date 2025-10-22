@@ -97,8 +97,8 @@ export const envLog = {
   }
 };
 
-// Log environment info in development
-if (ENV.isDevelopment) {
+// Log environment info in development (only when debugging is enabled)
+if (ENV.isDevelopment && import.meta.env.VITE_DEBUG_ENV === 'true') {
   console.group('🌍 Environment Configuration');
   console.log('Environment Info:', ENV);
   console.log('Vite Environment Variables:', {

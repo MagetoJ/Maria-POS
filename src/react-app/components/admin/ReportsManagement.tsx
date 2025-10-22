@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle } from 'lucide-react';
-import { API_URL } from '@/config/api';  // ← ADD THIS
+import { apiClient } from '../../config/api';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -57,7 +57,6 @@ export default function ReportsManagement() {
   const fetchReportData = async () => {
     setIsLoading(true);
     setError(null);
-    const token = localStorage.getItem('pos_token');
 
     const query = new URLSearchParams({
         start: dateRange.start,
@@ -68,16 +67,13 @@ export default function ReportsManagement() {
       const endpoint = `/api/reports/${selectedReport}?${query}`;
       console.log('Fetching report from:', endpoint);
       
-      const response = await fetch(endpoint, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
+      const response = await apiClient.get(endpoint);
+      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Report fetch failed:', response.status, errorText);
-        throw new Error(`Failed to fetch report data: ${response.status}`);
+        throw new Error(`Failed to fetch report data: ${response.status} - ${errorText}`);
       }
-
+      
       const data = await response.json();
       console.log('Report data received:', selectedReport, data);
       setReportData(data);

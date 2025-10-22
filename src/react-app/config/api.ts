@@ -1,12 +1,5 @@
 // src/config/api.ts
 // Environment-aware API Configuration
-console.log('🔍 RAW ENV VALUES:', {
-  'import.meta.env.VITE_API_URL': import.meta.env.VITE_API_URL,
-  'import.meta.env.MODE': import.meta.env.MODE,
-  'import.meta.env.DEV': import.meta.env.DEV,
-  'import.meta.env.PROD': import.meta.env.PROD,
-  'ALL ENV': import.meta.env
-});
 import { ENV, IS_DEVELOPMENT, IS_PRODUCTION, envLog } from './environment';
 
 // Re-export for backward compatibility
@@ -145,8 +138,8 @@ export const apiClient = {
   },
 };
 
-// Enhanced environment logging in development
-if (IS_DEVELOPMENT) {
+// Enhanced environment logging in development (only for debugging)
+if (IS_DEVELOPMENT && import.meta.env.VITE_DEBUG_API === 'true') {
   console.group('🔌 API Configuration');
   console.log('Environment:', ENV);
   console.log('API URL:', API_URL || 'Using relative paths');

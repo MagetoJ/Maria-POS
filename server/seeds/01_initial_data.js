@@ -1,3 +1,5 @@
+const bcrypt = require('bcryptjs');
+
 /**
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> } 
@@ -28,6 +30,11 @@ exports.seed = async function(knex) {
     ALTER SEQUENCE orders_id_seq RESTART WITH 1;
   `);
 
+  // Hash passwords before inserting staff
+  const saltRounds = 10;
+  const hashedPassword123 = await bcrypt.hash('password123', saltRounds);
+  const hashedAdminPassword = await bcrypt.hash('admin123', saltRounds);
+
   // Insert staff first
   await knex('staff').insert([
     { 
@@ -36,7 +43,7 @@ exports.seed = async function(knex) {
       role: 'manager', 
       pin: '1234', 
       username: 'manager',
-      password: 'password123',
+      password: hashedPassword123,
       is_active: true 
     },
     { 
@@ -45,7 +52,7 @@ exports.seed = async function(knex) {
       role: 'waiter', 
       pin: '5678', 
       username: 'waiter',
-      password: 'password123',
+      password: hashedPassword123,
       is_active: true 
     },
     { 
@@ -54,7 +61,7 @@ exports.seed = async function(knex) {
       role: 'admin', 
       pin: '0000', 
       username: 'admin',
-      password: 'admin123',
+      password: hashedAdminPassword,
       is_active: true 
     },
     { 
@@ -63,7 +70,7 @@ exports.seed = async function(knex) {
       role: 'kitchen_staff', 
       pin: '9999', 
       username: 'kitchen',
-      password: 'password123',
+      password: hashedPassword123,
       is_active: true 
     },
     { 
@@ -72,7 +79,7 @@ exports.seed = async function(knex) {
       role: 'receptionist', 
       pin: '7777', 
       username: 'receptionist',
-      password: 'password123',
+      password: hashedPassword123,
       is_active: true 
     }
   ]);

@@ -15,42 +15,34 @@ console.log(`🔗 Database URL configured: ${process.env.DATABASE_URL ? 'Yes' : 
 // Enhanced database configuration with better environment detection
 const getDatabaseConfig = () => {
   if (process.env.DATABASE_URL) {
-    // Use DATABASE_URL (for both development and production)
     console.log('🗄️ Using DATABASE_URL connection');
     return {
       client: 'pg',
       connection: {
         connectionString: process.env.DATABASE_URL,
-        ssl: isProduction ? { rejectUnauthorized: false } : false
+        ssl: { rejectUnauthorized: false },
       },
       pool: {
-        min: isProduction ? 2 : 1,
-        max: isProduction ? 10 : 5,
-        createTimeoutMillis: 30000,
-        acquireTimeoutMillis: 60000,
-        idleTimeoutMillis: 600000,
-        reapIntervalMillis: 1000,
-        createRetryIntervalMillis: 100,
-        propagateCreateError: false
+        min: 0,
+        max: 5,
+        acquireTimeoutMillis: 30000,
+        idleTimeoutMillis: 10000,
+        reapIntervalMillis: 2000,
       },
-      debug: isDevelopment
-    };
-  } else {
-    // Fallback to individual connection parameters (legacy support)
-    console.log('🗄️ Using individual connection parameters');
-    return {
-      client: 'pg',
-      connection: {
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'postgres',
-        password: process.env.DB_PASSWORD || 'postgres',
-        database: process.env.DB_NAME || 'pos_mocha_dev',
-        port: parseInt(process.env.DB_PORT || '5432'),
-        ssl: false
-      },
-      debug: isDevelopment
+      debug: isDevelopment,
     };
   }
+  return {
+    client: 'pg',
+    connection: {
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || 'postgres',
+      database: process.env.DB_NAME || 'pos_mocha_dev',
+      port: parseInt(process.env.DB_PORT || '5432'),
+    },
+    debug: isDevelopment,
+    };
 };
 
 const db = knex(getDatabaseConfig());

@@ -9,6 +9,8 @@ import NetworkStatus from './components/NetworkStatus';
 import KitchenDashboard from './pages/KitchenDashboard';
 import ReceptionistDashboard from './pages/ReceptionistDashboard'; // <-- Import the new dashboard
 
+import PWAUpdateNotification from './components/PWAUpdateNotification';
+
 // This component remains the same, protecting sensitive routes
 const ProtectedRoute = ({ children, allowedRoles }: { children: JSX.Element, allowedRoles?: string[] }) => {
   const { user, isAuthenticated } = useAuth();
@@ -40,6 +42,8 @@ function App() {
   return (
     <>
       <NetworkStatus />
+
+      <PWAUpdateNotification />
       <Routes>
         <Route path="/login" element={<Login onQuickPOSAccess={handleQuickPOS} />} />
         

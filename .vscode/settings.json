@@ -1,30 +1,17 @@
-// Create or update .vscode/settings.json in your project root
-
 {
-  "css.validate": false,
-  "less.validate": false,
-  "scss.validate": false,
-  "tailwindCSS.experimental.classRegex": [
-    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
-    ["cx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
-  ],
-  "editor.quickSuggestions": {
-    "strings": true
-  },
-"css.lint.unknownAtRules": "ignore",
-"zencoder.mcpServers": {
-    "playwright": {
-        "command": "npx",
-        "args": [
-            "-y",
-            "@playwright/mcp@latest",
-            "--isolated",
-            "--headless",
-            "--browser",
-            "firefox",
-            "--user-agent",
-            "\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.112 Safari/537.36\""
-        ]
+    "zencoder.mcpServers": {
+        "playwright": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@playwright/mcp@latest",
+                "--isolated",
+                "--headless",
+                "--browser",
+                "firefox",
+                "--user-agent",
+                "\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.112 Safari/537.36\""
+            ]
+        }
     }
-}
 }

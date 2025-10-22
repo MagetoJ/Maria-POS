@@ -48,25 +48,31 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
+        id: '/',
         scope: '/',
-        orientation: 'any',
+        orientation: 'portrait-primary',
         categories: ['business', 'productivity', 'finance'],
+        shortcuts: [
+          {
+            name: 'POS System',
+            short_name: 'POS',
+            description: 'Quick access to POS terminal',
+            url: '/pos',
+            icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }]
+          },
+          {
+            name: 'Admin Panel',
+            short_name: 'Admin',
+            description: 'Administrative dashboard',
+            url: '/admin',
+            icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }]
+          }
+        ],
         icons: [
           {
-            src: '/pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: '/pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
-          {
-            src: '/pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
+            src: '/favicon.ico',
+            sizes: '16x16 32x32',
+            type: 'image/x-icon',
           },
           {
             src: '/apple-touch-icon.png',
@@ -74,9 +80,28 @@ export default defineConfig({
             type: 'image/png',
           },
           {
-            src: '/favicon.ico',
-            sizes: '32x32',
-            type: 'image/x-icon',
+            src: '/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
         ],
       },

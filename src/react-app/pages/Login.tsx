@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiClient } from '../config/api';
-import { User, Lock, AlertCircle, Loader2, UtensilsCrossed, Download, X, Eye, EyeOff, RotateCcw } from 'lucide-react';
+import { User, Lock, AlertCircle, Loader2, UtensilsCrossed, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import PasswordResetModal from '../components/PasswordResetModal';
+import PWAInstallBanner from '../components/PWAInstallBanner';
+import { pwaService } from '../utils/pwaService';
 
 
 interface LoginProps {
@@ -13,29 +15,15 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [isOnline, setIsOnline] = useState(pwaService.isOnline());
   const { login, isLoading } = useAuth();
 
-  // PWA Install Handler
+  // Online/Offline status
   useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      
-      // Check if app is already installed
-      if (!window.matchMedia('(display-mode: standalone)').matches) {
-        setShowInstallPrompt(true);
-      }
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
+    const unsubscribe = pwaService.onConnectivityChange(setIsOnline);
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -44,22 +32,7 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
     }
   }, [error]);
 
-  const handleInstallApp = async () => {
-    if (!deferredPrompt) return;
-    
-    try {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      
-      if (outcome === 'accepted') {
-        setShowInstallPrompt(false);
-      }
-      
-      setDeferredPrompt(null);
-    } catch (error) {
-      console.error('Install error:', error);
-    }
-  };
+
 
 
 
@@ -69,6 +42,12 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
     
     if (!username || !password) {
       setError('Please enter both username and password');
+      return;
+    }
+
+    // Check connectivity
+    if (!isOnline) {
+      setError('❌ No internet connection. Please check your connection and try again.');
       return;
     }
 
@@ -111,28 +90,12 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-100 flex items-center justify-center p-4">
       {/* PWA Install Banner */}
-      {showInstallPrompt && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-blue-500 to-blue-600 text-white p-3 shadow-lg">
-          <div className="flex items-center justify-between max-w-md mx-auto">
-            <div className="flex items-center gap-2">
-              <Download className="w-5 h-5" />
-              <span className="text-sm font-medium">Install Maria Havens POS app?</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleInstallApp}
-                className="bg-white text-blue-600 px-3 py-1 rounded text-sm font-semibold hover:bg-gray-100 transition-colors"
-              >
-                Install
-              </button>
-              <button
-                onClick={() => setShowInstallPrompt(false)}
-                className="text-white hover:text-gray-200 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+      <PWAInstallBanner showOnLogin={true} />
+      
+      {/* Offline indicator */}
+      {!isOnline && (
+        <div className="fixed top-0 left-0 right-0 z-40 bg-red-500 text-white p-2 text-center text-sm">
+          ⚠️ You're offline. Some features may not work properly.
         </div>
       )}
       

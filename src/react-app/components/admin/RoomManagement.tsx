@@ -54,10 +54,10 @@ export default function RoomManagement() {
       });
       if (response.ok) {
         const data = await response.json();
-        // Map backend price_per_night to frontend rate, and add floor
+        // Map backend rate_per_night to frontend rate, and add floor
         const roomsWithFloor = data.map((r: any) => ({
           ...r, 
-          rate: Number(r.price_per_night) || 0,
+          rate: Number(r.rate_per_night) || 0,
           floor: r.floor || parseInt(r.room_number?.toString()?.charAt(0) || '1') || 1
         }));
         setRooms(roomsWithFloor);
@@ -95,12 +95,12 @@ export default function RoomManagement() {
   });
 
   const handleAddRoom = async () => {
-    // Map frontend 'rate' to backend 'price_per_night'
+    // Map frontend 'rate' to backend 'rate_per_night'
     const { max_occupancy, amenities, rate, ...rest } = roomForm;
     
     const roomDataForApi = {
       ...rest,
-      price_per_night: rate,
+      rate_per_night: rate,
       status: 'vacant'
     };
 
@@ -143,12 +143,12 @@ export default function RoomManagement() {
   const handleUpdateRoom = async () => {
     if (!editingRoom) return;
 
-    // Map frontend 'rate' to backend 'price_per_night'
+    // Map frontend 'rate' to backend 'rate_per_night'
     const { max_occupancy, amenities, rate, ...rest } = roomForm;
     
     const roomDataForApi = {
       ...rest,
-      price_per_night: rate
+      rate_per_night: rate
     };
 
     try {
@@ -193,63 +193,63 @@ export default function RoomManagement() {
     }
   };
 
-  const handleCheckIn = async () => {
+ const handleCheckIn = async () => {
     if (!selectedRoom) return;
 
-    const updatedRoomData = {
-        status: 'occupied' as const,
-        guest_name: guestForm.guest_name,
-        check_in_date: guestForm.check_in_date,
-        check_out_date: guestForm.check_out_date
+    // This is the data your 'checkInRoom' controller expects
+    const checkInData = {
+      guest_name: guestForm.guest_name,
+      guest_contact: '' // Add guest_contact if your form collects it
     };
 
     try {
-        const response = await fetch(`/api/rooms/${selectedRoom.id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getToken()}`
-            },
-            body: JSON.stringify(updatedRoomData)
-        });
-        if (response.ok) {
-            fetchRooms();
-            setShowGuestModal(false);
-            setSelectedRoom(null);
-            resetGuestForm();
-        } else {
-            alert("Failed to check in guest");
-        }
+      // Call the correct check-in endpoint
+      const response = await fetch(`/api/rooms/${selectedRoom.id}/check-in`, { // <-- FIXED endpoint
+        method: 'POST', // <-- FIXED method
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
+        },
+        body: JSON.stringify(checkInData) // <-- FIXED data
+      });
+
+      if (response.ok) {
+        fetchRooms();
+        setShowGuestModal(false);
+        setSelectedRoom(null);
+        resetGuestForm();
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to check in guest: ${errorData.message || 'Unknown error'}`);
+      }
     } catch (error) {
-        console.error("Error checking in guest:", error);
+      console.error("Error checking in guest:", error);
+      alert("Error checking in guest");
     }
   };
 
-  const handleCheckOut = async (roomId: number) => {
+ const handleCheckOut = async (roomId: number) => {
     if (confirm('Confirm check out for this room?')) {
-        const updatedRoomData = {
-            status: 'cleaning' as const,
-            guest_name: null,
-            check_in_date: null,
-            check_out_date: null
-        };
-        try {
-            const response = await fetch(`/api/rooms/${roomId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${getToken()}`
-                },
-                body: JSON.stringify(updatedRoomData)
-            });
-            if (response.ok) {
-                fetchRooms();
-            } else {
-                alert("Failed to check out guest");
-            }
-        } catch (error) {
-            console.error("Error checking out guest:", error);
+      try {
+        // Call the correct check-out endpoint
+        const response = await fetch(`/api/rooms/${roomId}/check-out`, { // <-- FIXED endpoint
+          method: 'POST', // <-- FIXED method
+          headers: {
+            'Authorization': `Bearer ${getToken()}`
+          }
+          // No body is needed, the backend controller handles the logic
+        });
+
+        if (response.ok) {
+          fetchRooms();
+        } else {
+          const errorData = await response.json();
+          alert(`Failed to check out guest: ${errorData.message || 'Unknown error'}`);
         }
+      } catch (error) {
+        console.error("Error checking out guest:", error);
+        alert("Error checking out guest");
+      }
     }
   };
 

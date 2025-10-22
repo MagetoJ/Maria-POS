@@ -23,10 +23,10 @@ export default function ReceptionistBarSales() {
 
   const fetchBarItems = async () => {
     try {
-      const response = await apiClient.get('/api/inventory');
+      const response = await apiClient.get('/api/receptionist/bar-inventory');
       if (response.ok) {
-        const allItems = await response.json();
-        setBarItems(allItems.filter((item: any) => item.inventory_type === 'bar'));
+        const barItems = await response.json();
+        setBarItems(barItems);
       }
     } catch (error) {
       console.error("Failed to fetch bar items", error);

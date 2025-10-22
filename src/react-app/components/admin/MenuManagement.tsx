@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UtensilsCrossed, Plus, Edit3, Trash2 } from 'lucide-react';
-import { API_URL } from '../../config/api';
+import { apiClient } from '../../config/api';
 
 // Define interfaces to match backend schema
 interface Product {
@@ -62,7 +62,7 @@ export default function MenuManagement() {
   // --- Data Fetching ---
   const fetchProducts = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/products`);
+      const response = await apiClient.get('/api/products');
       if (response.ok) {
         const data = await response.json();
         setProducts(data);
@@ -74,7 +74,7 @@ export default function MenuManagement() {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/categories`);
+      const response = await apiClient.get('/api/categories');
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -125,14 +125,7 @@ export default function MenuManagement() {
         is_active: true,
       };
 
-      const response = await fetch(`${API_URL}/api/products`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const response = await apiClient.post('/api/products', payload);
 
       if (response.ok) {
         await fetchProducts();
@@ -168,15 +161,8 @@ export default function MenuManagement() {
 
       console.log('Sending category payload:', payload);
 
-      const response = await fetch(`${API_URL}/api/categories`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
+      const response = await apiClient.post('/api/categories', payload);
+      
       const responseText = await response.text();
       console.log('Response status:', response.status);
       console.log('Response text:', responseText);
@@ -250,14 +236,7 @@ export default function MenuManagement() {
         image_url: imageUrl || '',
       };
 
-      const response = await fetch(`${API_URL}/api/products/${editingItem.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`
-        },
-        body: JSON.stringify(finalProductData)
-      });
+      const response = await apiClient.put(`/api/products/${editingItem.id}`, finalProductData);
 
       if (response.ok) {
         fetchProducts();
@@ -285,14 +264,7 @@ export default function MenuManagement() {
       display_order: parseInt(String(categoryForm.display_order)) || 0,
     };
 
-    const response = await fetch(`${API_URL}/api/categories/${editingItem.id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getToken()}`
-      },
-      body: JSON.stringify(payload)
-    });
+    const response = await apiClient.put(`/api/categories/${editingItem.id}`, payload);
 
     if (response.ok) {
       fetchCategories();
@@ -308,10 +280,7 @@ export default function MenuManagement() {
 
   const handleDeleteProduct = async (id: number) => {
     if (confirm('Are you sure you want to delete this product?')) {
-      const response = await fetch(`${API_URL}/api/products/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${getToken()}` }
-      });
+      const response = await apiClient.delete(`/api/products/${id}`);
       if (response.ok) {
         fetchProducts();
         alert('✅ Product deleted successfully!');
@@ -324,10 +293,7 @@ export default function MenuManagement() {
 
   const handleDeleteCategory = async (id: number) => {
     if (confirm('Are you sure you want to delete this category? All products in this category will need to be reassigned.')) {
-      const response = await fetch(`${API_URL}/api/categories/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${getToken()}` }
-      });
+      const response = await apiClient.delete(`/api/categories/${id}`);
 
       if (response.ok) {
         fetchCategories();
@@ -346,14 +312,7 @@ export default function MenuManagement() {
       is_available: !product.is_available 
     };
     
-    const response = await fetch(`${API_URL}/api/products/${product.id}`, {
-      method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json', 
-        'Authorization': `Bearer ${getToken()}` 
-      },
-      body: JSON.stringify(updatedProduct)
-    });
+    const response = await apiClient.put(`/api/products/${product.id}`, updatedProduct);
     
     if (response.ok) {
       fetchProducts();
@@ -368,14 +327,7 @@ export default function MenuManagement() {
       is_active: !category.is_active 
     };
     
-    const response = await fetch(`${API_URL}/api/categories/${category.id}`, {
-      method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json', 
-        'Authorization': `Bearer ${getToken()}` 
-      },
-      body: JSON.stringify(updatedCategory)
-    });
+    const response = await apiClient.put(`/api/categories/${category.id}`, updatedCategory);
     
     if (response.ok) {
       fetchCategories();
@@ -419,17 +371,7 @@ export default function MenuManagement() {
     const formData = new FormData();
     formData.append('image', file);
 
-    const response = await fetch(`${API_URL}/api/products/${productId}/image`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Upload failed');
-    }
-
-    const result = await response.json();
+    const result = await apiClient.post(`/api/products/${productId}/image`, formData);
     return result.url;
   };
 
