@@ -38,7 +38,10 @@ export default function KitchenOrderView() {
     fetchOrders();
 
     // Setup WebSocket connection
-    const ws = new WebSocket(`ws://${window.location.host}/ws/kitchen`);
+    const wsUrl = window.location.protocol === 'https:' 
+      ? `wss://${window.location.host}/ws/kitchen`
+      : `ws://${window.location.host}/ws/kitchen`;
+    const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       console.log('Kitchen WebSocket connected');
