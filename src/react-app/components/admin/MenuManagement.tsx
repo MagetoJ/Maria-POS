@@ -25,8 +25,14 @@ interface Category {
 }
 
 // Currency formatter function
-const formatCurrency = (amount: number): string => {
-  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+const formatCurrency = (amount: number | string): string => {
+  // Parse amount to number if it's a string
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  
+  if (typeof numAmount !== 'number' || isNaN(numAmount)) {
+    return 'KES 0';
+  }
+  return `KES ${numAmount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
 
 export default function MenuManagement() {

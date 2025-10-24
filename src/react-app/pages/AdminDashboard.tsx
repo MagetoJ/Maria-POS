@@ -35,14 +35,17 @@ import {
 // --- Helper Functions ---
 
 // This function formats numbers as currency.
-export const formatCurrency = (amount: number) => {
-  if (typeof amount !== 'number') {
+export const formatCurrency = (amount: number | string) => {
+  // Parse amount to number if it's a string
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  
+  if (typeof numAmount !== 'number' || isNaN(numAmount)) {
     return 'KES 0';
   }
   return new Intl.NumberFormat('en-KE', {
     style: 'currency',
     currency: 'KES',
-  }).format(amount);
+  }).format(numAmount);
 };
 
 // This function calculates how long ago a date was.
@@ -81,6 +84,11 @@ interface OverviewStats {
 }
 
 interface ActiveUser {
+  is_active: any;
+  [x: string]: any;
+  staff_id: any;
+  is_active: any;
+  logout_time: string;
   id: number;
   name: string;
   role: string;

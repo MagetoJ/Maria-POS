@@ -27,27 +27,33 @@ export const sellBarItem = async (req: Request, res: Response) => {
 
     const newStock = item.current_stock - quantity;
     const total_amount = quantity * unit_price;
+    const order_number = `BAR-${Date.now()}`;
 
     await db.transaction(async (trx) => {
       // Update inventory stock
       await trx('inventory_items')
         .where({ id: inventory_item_id })
         .update({ 
-          current_stock: newStock,
-          updated_at: new Date() 
+          current_stock: newStock
         });
 
       // Create order record
       const [order] = await trx('orders').insert({
-        order_number: `BAR-${Date.now()}`,
+        order_number,
         order_type: 'bar_sale',
         status: 'completed',
         staff_id,
         total_amount,
-        payment_status: 'paid',
-        created_at: new Date(),
-        updated_at: new Date()
+        payment_status: 'paid'
       }).returning('id');
+
+      // Create payment record
+      await trx('payments').insert({
+        order_id: order.id || order,
+        payment_method,
+        amount: total_amount,
+        status: 'completed'
+      });
 
       // Create order item record
       await trx('order_items').insert({
@@ -59,14 +65,13 @@ export const sellBarItem = async (req: Request, res: Response) => {
         notes: item.name // Store item name in notes field
       });
     });
-
-    const order_number = `BAR-${Date.now()}`;
     
     res.status(200).json({ 
       message: 'Bar item sold successfully.', 
       order_number,
       new_stock: newStock,
-      total_amount
+      total_amount,
+      payment_method
     });
 
   } catch (err) {

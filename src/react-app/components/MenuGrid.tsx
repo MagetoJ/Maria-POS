@@ -4,11 +4,14 @@ import { apiClient, IS_DEVELOPMENT } from '../config/api';
 import { Plus, Clock, Loader2 } from 'lucide-react';
 
 // --- Helper Function ---
-const formatCurrency = (amount: number): string => {
-  if (typeof amount !== 'number') {
+const formatCurrency = (amount: number | string): string => {
+  // Parse amount to number if it's a string
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  
+  if (typeof numAmount !== 'number' || isNaN(numAmount)) {
     return 'KES 0';
   }
-  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  return `KES ${numAmount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
 
 export default function MenuGrid() {
@@ -130,7 +133,7 @@ export default function MenuGrid() {
               <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 h-12">{product.name}</h3>
               <div className="flex items-center justify-between mt-2">
                 <span className="text-lg font-bold text-gray-900">
-                  {formatCurrency(product.price ?? 0)}
+                  {formatCurrency(product.price)}
                 </span>
                 <button className="w-8 h-8 bg-green-100 group-hover:bg-green-500 rounded-full flex items-center justify-center text-green-700 group-hover:text-white transition-colors">
                   <Plus className="w-4 h-4" />

@@ -17,7 +17,7 @@ import { formatCurrency, timeAgo } from '../pages/AdminDashboard';
 
 interface SearchResult {
   id: number;
-  type: 'staff' | 'inventory' | 'menu' | 'order' | 'room';
+  type: 'staff' | 'inventory' | 'menu' | 'order' | 'room' | 'category';
   title: string;
   subtitle: string;
   description?: string;
@@ -161,6 +161,8 @@ export default function SearchComponent({
         return <Package className={iconClass} />;
       case 'menu':
         return <UtensilsCrossed className={iconClass} />;
+      case 'category':
+        return <UtensilsCrossed className={iconClass} />;
       case 'order':
         return <FileText className={iconClass} />;
       case 'room':
@@ -175,6 +177,7 @@ export default function SearchComponent({
       staff: 'Staff',
       inventory: 'Inventory',
       menu: 'Menu Item',
+      category: 'Category',
       order: 'Order',
       room: 'Room'
     };
@@ -186,6 +189,7 @@ export default function SearchComponent({
       staff: 'text-blue-600 bg-blue-50',
       inventory: 'text-green-600 bg-green-50',
       menu: 'text-yellow-600 bg-yellow-50',
+      category: 'text-orange-600 bg-orange-50',
       order: 'text-purple-600 bg-purple-50',
       room: 'text-gray-600 bg-gray-50'
     };

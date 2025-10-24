@@ -6,10 +6,15 @@ const router = Router();
 
 // All receptionist routes require authentication and specific roles
 router.use(authenticateToken);
-router.use(authorizeRoles('receptionist', 'admin', 'manager'));
 
-// Sell bar inventory item
-router.post('/sell-item', receptionistController.sellBarItem);
+// Sell bar inventory item - allow receptionist, waiter, quick_pos (per requirements)
+router.post('/sell-item', 
+  authorizeRoles('receptionist', 'waiter', 'quick_pos', 'admin', 'manager'),
+  receptionistController.sellBarItem
+);
+
+// Other routes still require receptionist+ roles
+router.use(authorizeRoles('receptionist', 'admin', 'manager'));
 
 // Get bar inventory items
 router.get('/bar-inventory', receptionistController.getBarInventory);

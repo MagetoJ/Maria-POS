@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../config/api';
+import { useAuth } from '../../contexts/AuthContext';
+import ReceiptModal from './ReceiptModal';
 
 // Define types for clarity
 interface BarItem {
@@ -16,10 +18,29 @@ interface SaleModalData {
   paymentMethod: 'cash' | 'card' | 'mpesa';
 }
 
+interface ReceiptData {
+  orderNumber: string;
+  customerName?: string;
+  items: Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+  }>;
+  subtotal: number;
+  tax: number;
+  total: number;
+  paymentMethod: string;
+  staffName: string;
+  createdAt: string;
+}
+
 export default function ReceptionistBarSales() {
   const [barItems, setBarItems] = useState<BarItem[]>([]);
   const [saleModal, setSaleModal] = useState<SaleModalData | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+  const { user } = useAuth();
 
   const fetchBarItems = async () => {
     try {
@@ -38,7 +59,7 @@ export default function ReceptionistBarSales() {
   }, []);
 
   const handleSellItem = async () => {
-    if (!saleModal) return;
+    if (!saleModal || !user) return;
 
     try {
       const response = await apiClient.post('/api/receptionist/sell-item', {
@@ -49,7 +70,30 @@ export default function ReceptionistBarSales() {
       });
 
       if (response.ok) {
-        alert('Sale successful!');
+        const result = await response.json();
+        
+        // Generate receipt data
+        const subtotal = saleModal.quantity * saleModal.item.cost_per_unit;
+        const tax = subtotal * 0.16; // 16% tax
+        const total = subtotal + tax;
+        
+        const receipt: ReceiptData = {
+          orderNumber: result.order_number,
+          items: [{
+            name: saleModal.item.name,
+            quantity: saleModal.quantity,
+            unitPrice: saleModal.item.cost_per_unit,
+            totalPrice: subtotal
+          }],
+          subtotal,
+          tax,
+          total,
+          paymentMethod: saleModal.paymentMethod,
+          staffName: user.name || user.username,
+          createdAt: new Date().toISOString()
+        };
+        
+        setReceiptData(receipt);
         setSaleModal(null);
         fetchBarItems(); // Refresh list
       } else {
@@ -121,10 +165,18 @@ export default function ReceptionistBarSales() {
 
             <div className="flex justify-end gap-3">
               <button onClick={() => setSaleModal(null)} className="px-4 py-2 bg-gray-200 rounded-md">Cancel</button>
-              <button onClick={handleSellItem} className="px-4 py-2 bg-green-600 text-white rounded-md">Confirm Sale</button>
+              <button onClick={handleSellItem} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">Confirm Sale & Print Receipt</button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Receipt Modal */}
+      {receiptData && (
+        <ReceiptModal
+          receiptData={receiptData}
+          onClose={() => setReceiptData(null)}
+        />
       )}
     </div>
   );

@@ -207,7 +207,12 @@ function getAllowedInventoryTypes(role?: string): string[] {
     case 'kitchen_staff':
       return ['kitchen'];
     case 'receptionist':
-      return ['bar', 'housekeeping', 'minibar'];
+      return ['housekeeping', 'minibar']; // Removed 'bar' - receptionist can't update bar items
+    case 'housekeeping':
+      return ['housekeeping', 'minibar']; // Like receptionist but for household items
+    case 'quick_pos':
+    case 'waiter':
+      return ['bar']; // Can sell bar items
     case 'admin':
     case 'manager':
       return ['kitchen', 'bar', 'housekeeping', 'minibar'];

@@ -139,7 +139,7 @@ app.use('/api/performance', performanceRoutes);
 app.use('/api/maintenance-requests', maintenanceRoutes);
 
 // --- Search Endpoint ---
-app.get('/api/search', authenticateToken, async (req, res) => {
+app.get('/api/search', async (req, res) => {
   try {
     const { q, type, limit = 20, offset = 0 } = req.query;
 
@@ -179,104 +179,145 @@ app.get('/api/search', authenticateToken, async (req, res) => {
       }
     }
 
-    // Search Products
-    const productResults = await db('products')
-      .whereRaw('LOWER(name) LIKE ?', [searchTerm])
-      .orWhereRaw('LOWER(description) LIKE ?', [searchTerm])
-      .orWhereRaw('LOWER(category) LIKE ?', [searchTerm])
-      .limit(limitNum)
-      .select('id', 'name', 'description', 'price', 'category', 'is_active', 'created_at');
+    // Search Categories
+    if (!type || type === 'category') {
+      const categoryResults = await db('categories')
+        .whereRaw('LOWER(name) LIKE ?', [searchTerm])
+        .orWhereRaw('LOWER(description) LIKE ?', [searchTerm])
+        .limit(limitNum)
+        .select('id', 'name', 'description', 'is_active', 'display_order', 'created_at');
 
-    for (const product of productResults) {
-      searchResults.push({
-        id: product.id,
-        type: 'product',
-        title: product.name,
-        subtitle: product.category,
-        description: `KES ${product.price} - ${product.description}`,
-        metadata: {
-          description: product.description,
-          price: product.price,
-          category: product.category,
-          is_active: product.is_active,
-          created_at: product.created_at
-        }
-      });
+      for (const category of categoryResults) {
+        searchResults.push({
+          id: category.id,
+          type: 'category',
+          title: category.name,
+          subtitle: `Category - Order: ${category.display_order}`,
+          description: category.description || 'No description',
+          metadata: {
+            description: category.description,
+            display_order: category.display_order,
+            is_active: category.is_active,
+            created_at: category.created_at
+          }
+        });
+      }
+    }
+
+    // Search Products (Menu Items)
+    if (!type || type === 'menu' || type === 'product') {
+      const productResults = await db('products')
+        .leftJoin('categories', 'products.category_id', 'categories.id')
+        .whereRaw('LOWER(products.name) LIKE ?', [searchTerm])
+        .orWhereRaw('LOWER(products.description) LIKE ?', [searchTerm])
+        .orWhereRaw('LOWER(categories.name) LIKE ?', [searchTerm])
+        .limit(limitNum)
+        .select(
+          'products.id', 
+          'products.name', 
+          'products.description', 
+          'products.price', 
+          'products.is_active', 
+          'products.created_at',
+          'categories.name as category_name'
+        );
+
+      for (const product of productResults) {
+        searchResults.push({
+          id: product.id,
+          type: 'menu',
+          title: product.name,
+          subtitle: product.category_name || 'No Category',
+          description: `KES ${product.price} - ${product.description}`,
+          metadata: {
+            description: product.description,
+            price: product.price,
+            category: product.category_name,
+            is_active: product.is_active,
+            created_at: product.created_at
+          }
+        });
+      }
     }
 
     // Search Inventory
-    const inventoryResults = await db('inventory_items')
-      .whereRaw('LOWER(name) LIKE ?', [searchTerm])
-      .orWhereRaw('LOWER(supplier) LIKE ?', [searchTerm])
-      .limit(limitNum)
-      .select('id', 'name', 'unit', 'current_stock', 'minimum_stock', 'supplier', 'inventory_type', 'created_at');
+    if (!type || type === 'inventory') {
+      const inventoryResults = await db('inventory_items')
+        .whereRaw('LOWER(name) LIKE ?', [searchTerm])
+        .orWhereRaw('LOWER(supplier) LIKE ?', [searchTerm])
+        .limit(limitNum)
+        .select('id', 'name', 'unit', 'current_stock', 'minimum_stock', 'supplier', 'inventory_type', 'created_at');
 
-    for (const item of inventoryResults) {
-      searchResults.push({
-        id: item.id,
-        type: 'inventory',
-        title: item.name,
-        subtitle: `${item.inventory_type} - ${item.supplier}`,
-        description: `${item.current_stock} ${item.unit} (Min: ${item.minimum_stock})`,
-        metadata: {
-          unit: item.unit,
-          current_stock: item.current_stock,
-          minimum_stock: item.minimum_stock,
-          supplier: item.supplier,
-          inventory_type: item.inventory_type,
-          created_at: item.created_at
-        }
-      });
+      for (const item of inventoryResults) {
+        searchResults.push({
+          id: item.id,
+          type: 'inventory',
+          title: item.name,
+          subtitle: `${item.inventory_type} - ${item.supplier}`,
+          description: `${item.current_stock} ${item.unit} (Min: ${item.minimum_stock})`,
+          metadata: {
+            unit: item.unit,
+            current_stock: item.current_stock,
+            minimum_stock: item.minimum_stock,
+            supplier: item.supplier,
+            inventory_type: item.inventory_type,
+            created_at: item.created_at
+          }
+        });
+      }
     }
 
     // Search Orders
-    const orderResults = await db('orders')
-      .whereRaw('LOWER(order_number) LIKE ?', [searchTerm])
-      .orWhereRaw('LOWER(customer_name) LIKE ?', [searchTerm])
-      .orWhereRaw('LOWER(order_type) LIKE ?', [searchTerm])
-      .limit(limitNum)
-      .select('id', 'order_number', 'customer_name', 'order_type', 'total_amount', 'status', 'created_at');
+    if (!type || type === 'order') {
+      const orderResults = await db('orders')
+        .whereRaw('LOWER(order_number) LIKE ?', [searchTerm])
+        .orWhereRaw('LOWER(customer_name) LIKE ?', [searchTerm])
+        .orWhereRaw('LOWER(order_type) LIKE ?', [searchTerm])
+        .limit(limitNum)
+        .select('id', 'order_number', 'customer_name', 'order_type', 'total_amount', 'status', 'created_at');
 
-    for (const order of orderResults) {
-      searchResults.push({
-        id: order.id,
-        type: 'order',
-        title: order.order_number,
-        subtitle: `${order.customer_name || 'Guest'} - ${order.order_type || 'N/A'}`,
-        description: `${order.status} - KES ${order.total_amount}`,
-        metadata: {
-          customer_name: order.customer_name,
-          order_type: order.order_type,
-          total_amount: order.total_amount,
-          status: order.status,
-          created_at: order.created_at
-        }
-      });
+      for (const order of orderResults) {
+        searchResults.push({
+          id: order.id,
+          type: 'order',
+          title: order.order_number,
+          subtitle: `${order.customer_name || 'Guest'} - ${order.order_type || 'N/A'}`,
+          description: `${order.status} - KES ${order.total_amount}`,
+          metadata: {
+            customer_name: order.customer_name,
+            order_type: order.order_type,
+            total_amount: order.total_amount,
+            status: order.status,
+            created_at: order.created_at
+          }
+        });
+      }
     }
 
     // Search Rooms
-    const roomResults = await db('rooms')
-      .whereRaw('LOWER(room_number) LIKE ?', [searchTerm])
-      .orWhereRaw('LOWER(room_type) LIKE ?', [searchTerm])
-      .limit(limitNum)
-      .select('id', 'room_number', 'room_type', 'status', 'rate_per_night', 'created_at');
+    if (!type || type === 'room') {
+      const roomResults = await db('rooms')
+        .whereRaw('LOWER(room_number) LIKE ?', [searchTerm])
+        .orWhereRaw('LOWER(room_type) LIKE ?', [searchTerm])
+        .limit(limitNum)
+        .select('id', 'room_number', 'room_type', 'status', 'rate_per_night', 'created_at');
 
-
-    for (const room of roomResults) {
-      searchResults.push({
-        id: room.id,
-        type: 'room',
-        title: `Room ${room.room_number}`,
-        subtitle: `${room.room_type} - ${room.status}`,
-        description: `KES ${room.rate}/night`,
-        metadata: {
-          room_number: room.room_number,
-          room_type: room.room_type,
-          status: room.status,
-          rate_per_night: room.rate_per_night,
-          created_at: room.created_at
-        }
-      });
+      for (const room of roomResults) {
+        searchResults.push({
+          id: room.id,
+          type: 'room',
+          title: `Room ${room.room_number}`,
+          subtitle: `${room.room_type} - ${room.status}`,
+          description: `KES ${room.rate_per_night}/night`,
+          metadata: {
+            room_number: room.room_number,
+            room_type: room.room_type,
+            status: room.status,
+            rate_per_night: room.rate_per_night,
+            created_at: room.created_at
+          }
+        });
+      }
     }
 
     // Sort results by relevance (exact matches first, then partial matches)

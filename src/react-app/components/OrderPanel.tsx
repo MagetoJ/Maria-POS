@@ -60,7 +60,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
       <body>
         <div class="receipt">
           
-          <img src="public/logo.PNG" alt="Restaurant Logo" class="logo" />
+          <img src="/logo.PNG" alt="Restaurant Logo" class="logo" />
 
           <div class="header">MARIA HAVENS</div>
           <div>Restaurant & Hotel</div>

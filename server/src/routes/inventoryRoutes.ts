@@ -12,13 +12,13 @@ router.get('/', inventoryController.getInventory);
 
 // Create inventory item (admin, manager, or specific role-based permissions)
 router.post('/', 
-  authorizeRoles('admin', 'manager', 'kitchen_staff', 'receptionist'), 
+  authorizeRoles('admin', 'manager', 'kitchen_staff', 'receptionist', 'housekeeping', 'quick_pos', 'waiter'), 
   inventoryController.createInventoryItem
 );
 
 // Update inventory item
 router.put('/:id', 
-  authorizeRoles('admin', 'manager', 'kitchen_staff', 'receptionist'), 
+  authorizeRoles('admin', 'manager', 'kitchen_staff', 'receptionist', 'housekeeping', 'quick_pos', 'waiter'), 
   inventoryController.updateInventoryItem
 );
 

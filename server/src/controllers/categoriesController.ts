@@ -40,15 +40,15 @@ export const getAllCategories = async (req: Request, res: Response) => {
 // Create a new category
 export const createCategory = async (req: Request, res: Response) => {
   try {
-    const { name, description, is_active = true } = req.body;
+    const { name, description, is_active = true, display_order } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: 'Category name is required' });
     }
 
-    // Check if category already exists
+    // Check if category already exists (case-insensitive)
     const existingCategory = await db('categories')
-      .where({ name })
+      .whereRaw('LOWER(name) = LOWER(?)', [name])
       .first();
 
     if (existingCategory) {
@@ -63,9 +63,19 @@ export const createCategory = async (req: Request, res: Response) => {
         table.string('name').notNullable();
         table.text('description');
         table.boolean('is_active').defaultTo(true);
+        table.integer('display_order').defaultTo(0);
         table.timestamps(true, true);
         table.unique('name');
       });
+    }
+
+    // Get next display order if not provided
+    let finalDisplayOrder = display_order;
+    if (finalDisplayOrder === undefined || finalDisplayOrder === null) {
+      const maxOrder = await db('categories')
+        .max('display_order as max_order')
+        .first();
+      finalDisplayOrder = (maxOrder?.max_order || 0) + 1;
     }
 
     const [insertedCategory] = await db('categories')
@@ -73,17 +83,18 @@ export const createCategory = async (req: Request, res: Response) => {
         name,
         description,
         is_active,
-        created_at: new Date(),
-        updated_at: new Date()
+        display_order: finalDisplayOrder
       })
       .returning('*');
 
-    const newCategory = insertedCategory;
-
-    res.status(201).json(newCategory);
+    console.log('Category created successfully:', insertedCategory);
+    res.status(201).json(insertedCategory);
   } catch (error) {
     console.error('Create category error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ 
+      message: 'Internal server error',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 
@@ -121,8 +132,7 @@ export const updateCategory = async (req: Request, res: Response) => {
       .update({
         name,
         description,
-        is_active,
-        updated_at: new Date()
+        is_active
       });
 
     const updatedCategory = await db('categories')
@@ -195,8 +205,7 @@ export const updateCategoryStatus = async (req: Request, res: Response) => {
     await db('categories')
       .where('id', id)
       .update({
-        is_active,
-        updated_at: new Date()
+        is_active
       });
 
     const updatedCategory = await db('categories')
