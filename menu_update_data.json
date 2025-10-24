@@ -1,0 +1,806 @@
+{
+  "categories": [
+    {
+      "name": "Beer",
+      "description": "Premium beers and lagers",
+      "display_order": 1
+    },
+    {
+      "name": "Ciders",
+      "description": "Refreshing apple ciders",
+      "display_order": 2
+    },
+    {
+      "name": "Whiskey",
+      "description": "Fine whiskeys and scotch",
+      "display_order": 3
+    },
+    {
+      "name": "Gin",
+      "description": "Premium gins",
+      "display_order": 4
+    },
+    {
+      "name": "Vodka",
+      "description": "Premium vodkas",
+      "display_order": 5
+    },
+    {
+      "name": "Rum",
+      "description": "Premium rums",
+      "display_order": 6
+    },
+    {
+      "name": "Brandy",
+      "description": "Fine brandies",
+      "display_order": 7
+    },
+    {
+      "name": "Tequila",
+      "description": "Premium tequilas",
+      "display_order": 8
+    },
+    {
+      "name": "Wines",
+      "description": "Fine wines",
+      "display_order": 9
+    },
+    {
+      "name": "Liqueurs",
+      "description": "Specialty liqueurs",
+      "display_order": 10
+    },
+    {
+      "name": "Soft Drinks",
+      "description": "Non-alcoholic beverages",
+      "display_order": 11
+    },
+    {
+      "name": "Juices",
+      "description": "Fresh fruit juices",
+      "display_order": 12
+    },
+    {
+      "name": "Energy Drinks",
+      "description": "Energy and sports drinks",
+      "display_order": 13
+    },
+    {
+      "name": "Main Dishes",
+      "description": "Hearty meals",
+      "display_order": 14
+    },
+    {
+      "name": "Grilled Meats",
+      "description": "Choma specialties",
+      "display_order": 15
+    },
+    {
+      "name": "Fish",
+      "description": "Fresh fish preparations",
+      "display_order": 16
+    },
+    {
+      "name": "Chicken",
+      "description": "Chicken specialties",
+      "display_order": 17
+    },
+    {
+      "name": "Pork",
+      "description": "Pork dishes",
+      "display_order": 18
+    },
+    {
+      "name": "Vegetarian",
+      "description": "Vegetable dishes",
+      "display_order": 19
+    },
+    {
+      "name": "Snacks",
+      "description": "Light bites and appetizers",
+      "display_order": 20
+    },
+    {
+      "name": "Breakfast",
+      "description": "Morning specialties",
+      "display_order": 21
+    },
+    {
+      "name": "Soups",
+      "description": "Hot soups",
+      "display_order": 22
+    },
+    {
+      "name": "Burgers",
+      "description": "Gourmet burgers",
+      "display_order": 23
+    },
+    {
+      "name": "Services",
+      "description": "Additional services",
+      "display_order": 24
+    }
+  ],
+  "products": [
+    {
+      "name": "Tusker Lager",
+      "category": "Beer",
+      "price": 250,
+      "cost": 200,
+      "preparation_time": 2,
+      "description": "Kenya's premium lager beer"
+    },
+    {
+      "name": "Tusker Malt",
+      "category": "Beer",
+      "price": 280,
+      "cost": 220,
+      "preparation_time": 2,
+      "description": "Rich malty beer with full body"
+    },
+    {
+      "name": "Tusker Lite",
+      "category": "Beer",
+      "price": 250,
+      "cost": 200,
+      "preparation_time": 2,
+      "description": "Light refreshing beer"
+    },
+    {
+      "name": "KB Lager",
+      "category": "Beer",
+      "price": 230,
+      "cost": 180,
+      "preparation_time": 2,
+      "description": "Classic Kenyan lager"
+    },
+    {
+      "name": "White Cap",
+      "category": "Beer",
+      "price": 250,
+      "cost": 200,
+      "preparation_time": 2,
+      "description": "Smooth premium lager"
+    },
+    {
+      "name": "Guinness",
+      "category": "Beer",
+      "price": 300,
+      "cost": 240,
+      "preparation_time": 2,
+      "description": "World famous stout"
+    },
+    {
+      "name": "Pilsner",
+      "category": "Beer",
+      "price": 250,
+      "cost": 200,
+      "preparation_time": 2,
+      "description": "Crisp pilsner beer"
+    },
+    {
+      "name": "Heineken",
+      "category": "Beer",
+      "price": 350,
+      "cost": 280,
+      "preparation_time": 2,
+      "description": "Premium international lager"
+    },
+    {
+      "name": "Black Ice",
+      "category": "Beer",
+      "price": 280,
+      "cost": 220,
+      "preparation_time": 2,
+      "description": "Strong premium beer"
+    },
+    {
+      "name": "Tusker Cider",
+      "category": "Ciders",
+      "price": 280,
+      "cost": 220,
+      "preparation_time": 2,
+      "description": "Apple cider with local twist"
+    },
+    {
+      "name": "Snapp Cider",
+      "category": "Ciders",
+      "price": 300,
+      "cost": 240,
+      "preparation_time": 2,
+      "description": "Crisp apple cider"
+    },
+    {
+      "name": "Hunters Gold",
+      "category": "Ciders",
+      "price": 320,
+      "cost": 250,
+      "preparation_time": 2,
+      "description": "Premium golden cider"
+    },
+    {
+      "name": "Savanna Dry",
+      "category": "Ciders",
+      "price": 300,
+      "cost": 240,
+      "preparation_time": 2,
+      "description": "Dry apple cider"
+    },
+    {
+      "name": "Johnnie Walker Black Label 750ml",
+      "category": "Whiskey",
+      "price": 4500,
+      "cost": 3600,
+      "preparation_time": 2,
+      "description": "Premium Scotch whisky"
+    },
+    {
+      "name": "Johnnie Walker Red Label 750ml",
+      "category": "Whiskey",
+      "price": 3200,
+      "cost": 2500,
+      "preparation_time": 2,
+      "description": "Classic blended Scotch"
+    },
+    {
+      "name": "Jack Daniels 750ml",
+      "category": "Whiskey",
+      "price": 5000,
+      "cost": 4000,
+      "preparation_time": 2,
+      "description": "Tennessee whiskey"
+    },
+    {
+      "name": "Jameson 750ml",
+      "category": "Whiskey",
+      "price": 4200,
+      "cost": 3400,
+      "preparation_time": 2,
+      "description": "Irish whiskey"
+    },
+    {
+      "name": "Grants 750ml",
+      "category": "Whiskey",
+      "price": 2800,
+      "cost": 2200,
+      "preparation_time": 2,
+      "description": "Blended Scotch whisky"
+    },
+    {
+      "name": "Famous Grouse 1L",
+      "category": "Whiskey",
+      "price": 3500,
+      "cost": 2800,
+      "preparation_time": 2,
+      "description": "Premium blended whisky"
+    },
+    {
+      "name": "Hunters Choice 750ml",
+      "category": "Whiskey",
+      "price": 1800,
+      "cost": 1400,
+      "preparation_time": 2,
+      "description": "Local premium whisky"
+    },
+    {
+      "name": "Bond 7",
+      "category": "Whiskey",
+      "price": 2200,
+      "cost": 1800,
+      "preparation_time": 2,
+      "description": "Smooth blended whisky"
+    },
+    {
+      "name": "Tanqueray London Dry",
+      "category": "Gin",
+      "price": 4000,
+      "cost": 3200,
+      "preparation_time": 2,
+      "description": "Premium London dry gin"
+    },
+    {
+      "name": "Bombay Sapphire",
+      "category": "Gin",
+      "price": 4500,
+      "cost": 3600,
+      "preparation_time": 2,
+      "description": "Premium gin with botanicals"
+    },
+    {
+      "name": "Gilbeys Gin",
+      "category": "Gin",
+      "price": 1800,
+      "cost": 1400,
+      "preparation_time": 2,
+      "description": "Classic dry gin"
+    },
+    {
+      "name": "Smirnoff Vodka 750ml",
+      "category": "Vodka",
+      "price": 2800,
+      "cost": 2200,
+      "preparation_time": 2,
+      "description": "Premium vodka"
+    },
+    {
+      "name": "Absolut Vodka",
+      "category": "Vodka",
+      "price": 4200,
+      "cost": 3400,
+      "preparation_time": 2,
+      "description": "Swedish premium vodka"
+    },
+    {
+      "name": "Chrome Vodka",
+      "category": "Vodka",
+      "price": 1600,
+      "cost": 1300,
+      "preparation_time": 2,
+      "description": "Local premium vodka"
+    },
+    {
+      "name": "Captain Morgan",
+      "category": "Rum",
+      "price": 3200,
+      "cost": 2500,
+      "preparation_time": 2,
+      "description": "Spiced rum"
+    },
+    {
+      "name": "Bacardi White",
+      "category": "Rum",
+      "price": 3500,
+      "cost": 2800,
+      "preparation_time": 2,
+      "description": "White rum"
+    },
+    {
+      "name": "Viceroy Brandy 750ml",
+      "category": "Brandy",
+      "price": 2200,
+      "cost": 1800,
+      "preparation_time": 2,
+      "description": "Premium brandy"
+    },
+    {
+      "name": "Richot Brandy 750ml",
+      "category": "Brandy",
+      "price": 1800,
+      "cost": 1400,
+      "preparation_time": 2,
+      "description": "Local brandy"
+    },
+    {
+      "name": "Jose Cuervo Gold",
+      "category": "Tequila",
+      "price": 4800,
+      "cost": 3800,
+      "preparation_time": 2,
+      "description": "Premium gold tequila"
+    },
+    {
+      "name": "Camino Real Gold",
+      "category": "Tequila",
+      "price": 3500,
+      "cost": 2800,
+      "preparation_time": 2,
+      "description": "Mexican gold tequila"
+    },
+    {
+      "name": "Drostdy Hof Red",
+      "category": "Wines",
+      "price": 1800,
+      "cost": 1400,
+      "preparation_time": 2,
+      "description": "South African red wine"
+    },
+    {
+      "name": "Drostdy Hof White",
+      "category": "Wines",
+      "price": 1800,
+      "cost": 1400,
+      "preparation_time": 2,
+      "description": "South African white wine"
+    },
+    {
+      "name": "Cellar Cask Red",
+      "category": "Wines",
+      "price": 2200,
+      "cost": 1800,
+      "preparation_time": 2,
+      "description": "Premium red wine"
+    },
+    {
+      "name": "4th Street Sweet Red",
+      "category": "Wines",
+      "price": 800,
+      "cost": 600,
+      "preparation_time": 2,
+      "description": "Sweet red wine"
+    },
+    {
+      "name": "Baileys Irish Cream",
+      "category": "Liqueurs",
+      "price": 4500,
+      "cost": 3600,
+      "preparation_time": 2,
+      "description": "Creamy liqueur"
+    },
+    {
+      "name": "Amarula",
+      "category": "Liqueurs",
+      "price": 3800,
+      "cost": 3000,
+      "preparation_time": 2,
+      "description": "African cream liqueur"
+    },
+    {
+      "name": "Southern Comfort",
+      "category": "Liqueurs",
+      "price": 4000,
+      "cost": 3200,
+      "preparation_time": 2,
+      "description": "American liqueur"
+    },
+    {
+      "name": "Coca Cola 300ml",
+      "category": "Soft Drinks",
+      "price": 80,
+      "cost": 60,
+      "preparation_time": 1,
+      "description": "Classic cola"
+    },
+    {
+      "name": "Fanta Orange 300ml",
+      "category": "Soft Drinks",
+      "price": 80,
+      "cost": 60,
+      "preparation_time": 1,
+      "description": "Orange soda"
+    },
+    {
+      "name": "Sprite 300ml",
+      "category": "Soft Drinks",
+      "price": 80,
+      "cost": 60,
+      "preparation_time": 1,
+      "description": "Lemon-lime soda"
+    },
+    {
+      "name": "Pepsi 300ml",
+      "category": "Soft Drinks",
+      "price": 80,
+      "cost": 60,
+      "preparation_time": 1,
+      "description": "Cola drink"
+    },
+    {
+      "name": "Water 500ml",
+      "category": "Soft Drinks",
+      "price": 50,
+      "cost": 35,
+      "preparation_time": 1,
+      "description": "Bottled water"
+    },
+    {
+      "name": "Minute Maid Orange",
+      "category": "Juices",
+      "price": 120,
+      "cost": 90,
+      "preparation_time": 1,
+      "description": "Orange juice"
+    },
+    {
+      "name": "Minute Maid Apple",
+      "category": "Juices",
+      "price": 120,
+      "cost": 90,
+      "preparation_time": 1,
+      "description": "Apple juice"
+    },
+    {
+      "name": "Del Monte Pineapple",
+      "category": "Juices",
+      "price": 150,
+      "cost": 120,
+      "preparation_time": 1,
+      "description": "Pineapple juice"
+    },
+    {
+      "name": "Fresh Passion Juice",
+      "category": "Juices",
+      "price": 200,
+      "cost": 150,
+      "preparation_time": 5,
+      "description": "Freshly squeezed passion fruit juice"
+    },
+    {
+      "name": "Red Bull",
+      "category": "Energy Drinks",
+      "price": 250,
+      "cost": 200,
+      "preparation_time": 1,
+      "description": "Energy drink"
+    },
+    {
+      "name": "Monster Energy",
+      "category": "Energy Drinks",
+      "price": 280,
+      "cost": 220,
+      "preparation_time": 1,
+      "description": "Energy drink"
+    },
+    {
+      "name": "Beef Stew & Rice",
+      "category": "Main Dishes",
+      "price": 600,
+      "cost": 400,
+      "preparation_time": 25,
+      "description": "Traditional beef stew served with rice"
+    },
+    {
+      "name": "Chicken Stew & Ugali",
+      "category": "Main Dishes",
+      "price": 650,
+      "cost": 450,
+      "preparation_time": 30,
+      "description": "Chicken stew with ugali"
+    },
+    {
+      "name": "Pilau Rice",
+      "category": "Main Dishes",
+      "price": 500,
+      "cost": 350,
+      "preparation_time": 35,
+      "description": "Spiced rice with meat"
+    },
+    {
+      "name": "Biryani",
+      "category": "Main Dishes",
+      "price": 800,
+      "cost": 550,
+      "preparation_time": 40,
+      "description": "Aromatic rice with meat and spices"
+    },
+    {
+      "name": "Githeri",
+      "category": "Main Dishes",
+      "price": 350,
+      "cost": 250,
+      "preparation_time": 20,
+      "description": "Mixed beans and maize"
+    },
+    {
+      "name": "Nyama Choma - Goat",
+      "category": "Grilled Meats",
+      "price": 800,
+      "cost": 600,
+      "preparation_time": 45,
+      "description": "Grilled goat meat"
+    },
+    {
+      "name": "Nyama Choma - Beef",
+      "category": "Grilled Meats",
+      "price": 700,
+      "cost": 500,
+      "preparation_time": 40,
+      "description": "Grilled beef"
+    },
+    {
+      "name": "Grilled Chicken Quarter",
+      "category": "Grilled Meats",
+      "price": 450,
+      "cost": 300,
+      "preparation_time": 25,
+      "description": "Quarter chicken grilled"
+    },
+    {
+      "name": "Grilled Chicken Half",
+      "category": "Grilled Meats",
+      "price": 800,
+      "cost": 550,
+      "preparation_time": 30,
+      "description": "Half chicken grilled"
+    },
+    {
+      "name": "Mutura",
+      "category": "Grilled Meats",
+      "price": 300,
+      "cost": 200,
+      "preparation_time": 15,
+      "description": "Traditional blood sausage"
+    },
+    {
+      "name": "Kware",
+      "category": "Grilled Meats",
+      "price": 250,
+      "cost": 180,
+      "preparation_time": 20,
+      "description": "Grilled beef tripe"
+    },
+    {
+      "name": "Tilapia Fish",
+      "category": "Fish",
+      "price": 600,
+      "cost": 400,
+      "preparation_time": 25,
+      "description": "Fresh tilapia fish"
+    },
+    {
+      "name": "Fish & Chips",
+      "category": "Fish",
+      "price": 550,
+      "cost": 380,
+      "preparation_time": 20,
+      "description": "Fried fish with chips"
+    },
+    {
+      "name": "Fish Stew",
+      "category": "Fish",
+      "price": 500,
+      "cost": 350,
+      "preparation_time": 30,
+      "description": "Fish in rich tomato stew"
+    },
+    {
+      "name": "Fried Chicken",
+      "category": "Chicken",
+      "price": 400,
+      "cost": 280,
+      "preparation_time": 20,
+      "description": "Crispy fried chicken"
+    },
+    {
+      "name": "Chicken Curry",
+      "category": "Chicken",
+      "price": 650,
+      "cost": 450,
+      "preparation_time": 35,
+      "description": "Chicken in curry sauce"
+    },
+    {
+      "name": "Chicken Wings",
+      "category": "Chicken",
+      "price": 350,
+      "cost": 250,
+      "preparation_time": 15,
+      "description": "Spicy chicken wings"
+    },
+    {
+      "name": "Pork Ribs",
+      "category": "Pork",
+      "price": 750,
+      "cost": 550,
+      "preparation_time": 45,
+      "description": "Barbecued pork ribs"
+    },
+    {
+      "name": "Pork Chops",
+      "category": "Pork",
+      "price": 650,
+      "cost": 450,
+      "preparation_time": 30,
+      "description": "Grilled pork chops"
+    },
+    {
+      "name": "Vegetable Rice",
+      "category": "Vegetarian",
+      "price": 300,
+      "cost": 200,
+      "preparation_time": 20,
+      "description": "Rice with mixed vegetables"
+    },
+    {
+      "name": "Spinach & Ugali",
+      "category": "Vegetarian",
+      "price": 250,
+      "cost": 170,
+      "preparation_time": 15,
+      "description": "Spinach served with ugali"
+    },
+    {
+      "name": "Cabbage & Ugali",
+      "category": "Vegetarian",
+      "price": 200,
+      "cost": 140,
+      "preparation_time": 15,
+      "description": "Cabbage served with ugali"
+    },
+    {
+      "name": "Samosas",
+      "category": "Snacks",
+      "price": 100,
+      "cost": 70,
+      "preparation_time": 10,
+      "description": "Crispy pastries with filling"
+    },
+    {
+      "name": "Chapati",
+      "category": "Snacks",
+      "price": 50,
+      "cost": 35,
+      "preparation_time": 8,
+      "description": "Soft flatbread"
+    },
+    {
+      "name": "Mandazi",
+      "category": "Snacks",
+      "price": 30,
+      "cost": 20,
+      "preparation_time": 5,
+      "description": "Sweet fried dough"
+    },
+    {
+      "name": "Chips",
+      "category": "Snacks",
+      "price": 200,
+      "cost": 140,
+      "preparation_time": 15,
+      "description": "French fries"
+    },
+    {
+      "name": "Smokies",
+      "category": "Snacks",
+      "price": 150,
+      "cost": 100,
+      "preparation_time": 10,
+      "description": "Smoked sausages"
+    },
+    {
+      "name": "English Breakfast",
+      "category": "Breakfast",
+      "price": 450,
+      "cost": 300,
+      "preparation_time": 20,
+      "description": "Full English breakfast"
+    },
+    {
+      "name": "Pancakes",
+      "category": "Breakfast",
+      "price": 300,
+      "cost": 200,
+      "preparation_time": 15,
+      "description": "Fluffy pancakes"
+    },
+    {
+      "name": "French Toast",
+      "category": "Breakfast",
+      "price": 250,
+      "cost": 170,
+      "preparation_time": 12,
+      "description": "Golden french toast"
+    },
+    {
+      "name": "Chicken Soup",
+      "category": "Soups",
+      "price": 200,
+      "cost": 140,
+      "preparation_time": 15,
+      "description": "Hot chicken soup"
+    },
+    {
+      "name": "Vegetable Soup",
+      "category": "Soups",
+      "price": 150,
+      "cost": 100,
+      "preparation_time": 12,
+      "description": "Mixed vegetable soup"
+    },
+    {
+      "name": "Beef Burger",
+      "category": "Burgers",
+      "price": 400,
+      "cost": 280,
+      "preparation_time": 15,
+      "description": "Juicy beef burger"
+    },
+    {
+      "name": "Chicken Burger",
+      "category": "Burgers",
+      "price": 350,
+      "cost": 250,
+      "preparation_time": 15,
+      "description": "Grilled chicken burger"
+    }
+  ]
+}

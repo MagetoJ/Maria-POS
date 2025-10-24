@@ -125,13 +125,33 @@ export default function MenuGrid() {
             onClick={() => addItemToOrder(product)}
             className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-yellow-400 transition-all group"
           >
-            <div className="aspect-square bg-gray-50 flex items-center justify-center">
-              {/* Image would go here if available */}
-              <span className="text-3xl text-gray-300">{product.name.charAt(0)}</span>
+            <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+              {product.image_url ? (
+                <img 
+                  src={product.image_url} 
+                  alt={product.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    target.parentElement!.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-100 to-yellow-200"><span class="text-2xl font-bold text-yellow-600">${product.name.charAt(0)}</span></div>`;
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-100 to-yellow-200">
+                  <span className="text-2xl font-bold text-yellow-600">{product.name.charAt(0)}</span>
+                </div>
+              )}
             </div>
             <div className="p-4">
-              <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 h-12">{product.name}</h3>
-              <div className="flex items-center justify-between mt-2">
+              <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 h-10">{product.name}</h3>
+              {product.preparation_time && product.preparation_time > 2 && (
+                <div className="flex items-center text-xs text-gray-500 mb-1">
+                  <Clock className="w-3 h-3 mr-1" />
+                  {product.preparation_time} min
+                </div>
+              )}
+              <div className="flex items-center justify-between mt-1">
                 <span className="text-lg font-bold text-gray-900">
                   {formatCurrency(product.price)}
                 </span>

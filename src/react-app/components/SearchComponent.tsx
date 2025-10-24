@@ -36,13 +36,15 @@ interface SearchComponentProps {
   onClose?: () => void;
   placeholder?: string;
   autoFocus?: boolean;
+  onAddToOrder?: (product: SearchResult) => void; // New prop for adding products to order
 }
 
 export default function SearchComponent({ 
   onSelectResult, 
   onClose, 
   placeholder = "Search across all data...",
-  autoFocus = true 
+  autoFocus = true,
+  onAddToOrder
 }: SearchComponentProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -136,6 +138,14 @@ export default function SearchComponent({
   }, [showResults, results, selectedIndex]);
 
   const handleResultClick = (result: SearchResult) => {
+    // If it's a menu item and onAddToOrder is provided, add it directly to order
+    if (result.type === 'menu' && onAddToOrder) {
+      onAddToOrder(result);
+      handleClose();
+      return;
+    }
+    
+    // Otherwise use the normal selection behavior
     if (onSelectResult) {
       onSelectResult(result, result.type);
     }

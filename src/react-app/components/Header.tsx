@@ -51,6 +51,17 @@ export default function Header() {
     navigateToSearchResult(result, navigate, user?.role);
   };
 
+  const handleAddToOrder = (product: any) => {
+    console.log('Adding product to order:', product);
+    setShowSearch(false);
+    
+    // Emit a custom event to add the product to order
+    const event = new CustomEvent('posAddToOrder', {
+      detail: { product }
+    });
+    window.dispatchEvent(event);
+  };
+
   const handleSearchClose = () => {
     setShowSearch(false);
   };
@@ -81,6 +92,7 @@ export default function Header() {
               onClose={handleSearchClose}
               placeholder="Search staff, inventory, orders..."
               autoFocus={true}
+              onAddToOrder={window.location.pathname === '/pos' ? handleAddToOrder : undefined}
             />
           ) : (
             <button
@@ -141,6 +153,7 @@ export default function Header() {
                 onClose={handleSearchClose}
                 placeholder="Search staff, inventory, orders..."
                 autoFocus={true}
+                onAddToOrder={window.location.pathname === '/pos' ? handleAddToOrder : undefined}
               />
             </div>
           </div>

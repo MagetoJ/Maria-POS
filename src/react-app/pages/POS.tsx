@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { usePOS } from '../contexts/POSContext';
 import Header from '../components/Header';
 import { navigateToSearchResult } from '../utils/searchNavigation';
 import QuickPOSHeader from '../components/QuickPOSHeader';
@@ -27,6 +28,7 @@ interface POSProps {
 
 export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) {
   const { user } = useAuth();
+  const { addItemToOrder } = usePOS();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables'>('menu');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
@@ -48,14 +50,37 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
       navigateToSearchResult(result, navigate, userRole, undefined, setActiveView);
     };
 
+    const handlePOSAddToOrder = (event: CustomEvent) => {
+      const { product } = event.detail;
+      console.log('POS adding product to order:', product);
+      
+      // Convert search result to product format and add to order
+      const productToAdd = {
+        id: product.id,
+        category_id: 1, // Default category, can be extracted from metadata if needed
+        name: product.title,
+        description: product.description || '',
+        price: product.metadata?.price || 0,
+        is_available: true,
+        preparation_time: 0
+      };
+      
+      addItemToOrder(productToAdd, 1, orderType);
+      
+      // Switch to menu view to show the order has been added
+      setActiveView('menu');
+    };
+
     // Listen for search events
     window.addEventListener('posSearchSelect', handlePOSSearchSelect as EventListener);
+    window.addEventListener('posAddToOrder', handlePOSAddToOrder as EventListener);
     
     // Cleanup
     return () => {
       window.removeEventListener('posSearchSelect', handlePOSSearchSelect as EventListener);
+      window.removeEventListener('posAddToOrder', handlePOSAddToOrder as EventListener);
     };
-  }, [navigate]);
+  }, [navigate, addItemToOrder, orderType]);
 
   const renderMainContent = () => {
     switch (activeView) {
