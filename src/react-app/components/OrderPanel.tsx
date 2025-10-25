@@ -46,11 +46,11 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
             width: 300px; 
             margin: 0; 
             padding: 10px; 
-            font-size: 16px; /* <-- INCREASED BASE FONT */
+            font-size: 19px; /* <-- INCREASED BASE FONT */
           }
           .receipt { text-align: center; }
           .logo {
-            max-width: 160px; /* <-- INCREASED LOGO SIZE */
+            max-width: 170px; /* <-- INCREASED LOGO SIZE */
             height: auto;
             margin: 0 auto 10px;
             display: block;
@@ -58,11 +58,11 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
           .header { font-size: 18px;  font-weight: bold;  margin-bottom: 5px; }
           .divider { border-top: 1px dashed #000; margin: 10px 0; }
           .order-info { text-align: left; margin: 10px 0; font-size: 14px; font-weight: normal; } /* <-- Increased */
-          .item-row { display: flex; justify-content: space-between; margin: 5px 0; font-size: 14px; font-weight: normal;} /* <-- Increased */
-          .totals { margin-top: 10px;  font-weight: bold;  font-size: 15px; } /* <-- Increased */
-          .total-row { display: flex; justify-content: space-between; margin: 5px 0; }
+          .item-row { display: flex; justify-content: space-between; margin: 5px 0; font-size: 17px; font-weight: normal;} /* <-- Increased */
+          .totals { margin-top: 14px;  font-weight: bold;  font-size: 18px; } /* <-- Increased */
+          .total-row { display: flex; justify-content: space-between; margin: 7px 0; }
           .total-row-main { font-size: 18px !important; } /* <-- Increased */
-          .footer { margin-top: 20px; font-size: 12px; font-weight: normal;} /* <-- Increased */
+          .footer { margin-top: 22px; font-size: 14px; font-weight: normal;} /* <-- Increased */
         </style>
       </head>
       <body>
