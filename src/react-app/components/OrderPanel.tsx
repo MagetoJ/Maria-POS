@@ -39,7 +39,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
       <html>
       <head>
         <title>Receipt - ${orderNumber}</title>
-       <style>
+      <style>
           body { 
             /* --- Font Family (Keep your choice) --- */
             font-family: Arial, Helvetica, sans-serif; 
