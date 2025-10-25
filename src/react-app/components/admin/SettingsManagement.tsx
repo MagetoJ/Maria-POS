@@ -110,7 +110,6 @@ export default function SettingsManagement() {
                             <h3 className="text-lg font-semibold text-gray-900">Financial Settings</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <SettingInput label="Tax Rate (%)" type="number" value={settings.tax_rate_percentage || ''} onChange={e => handleInputChange('tax_rate_percentage', e.target.value)} />
                             <SettingInput label="Service Charge (%)" type="number" value={settings.service_charge_percentage || ''} onChange={e => handleInputChange('service_charge_percentage', e.target.value)} />
                         </div>
                     </div>

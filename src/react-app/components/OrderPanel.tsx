@@ -16,7 +16,6 @@ interface ReceiptDetails {
   staff: User;
   orderNumber: string;
   subtotal: number;
-  tax: number;
   total: number;
   orderType: 'dine_in' | 'takeaway' | 'delivery' | 'room_service';
   locationDetail?: string;
@@ -30,7 +29,7 @@ interface OrderPanelProps {
 
 // --- Receipt Preview Component (Internal to OrderPanel) ---
 const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => void }> = ({ details, onClose }) => {
-  const { order, staff, orderNumber, subtotal, tax, total, orderType, locationDetail } = details;
+  const { order, staff, orderNumber, subtotal, total, orderType, locationDetail } = details;
 
   const handlePrint = () => {
     const locationLine = locationDetail ? `<div>Location: ${locationDetail}</div>` : '';
@@ -41,20 +40,35 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
       <head>
         <title>Receipt - ${orderNumber}</title>
        <style>
-          body { font-family: 'Courier New', monospace; width: 300px; margin: 0; padding: 10px; }
-          .receipt { text-align: center; }
-          /* --- Style for the logo --- */
-          .logo {
-            max-width: 150px; 
-            margin: 0 auto 10px;
+          body { 
+            /* --- Font Family (Keep your choice) --- */
+            font-family: Arial, Helvetica, sans-serif; 
+            
+            /* --- ✅ ADDED BOLD WEIGHT --- */
+            font-weight: bold; 
+            
+            width: 300px; 
+            margin: 0; 
+            padding: 10px; 
+            font-size: 14px; /* Adjust size if needed */
           }
-          .header { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+          /* --- Other styles --- */
+          .receipt { text-align: center; }
+          .logo {
+            max-width: 80px; 
+            height: auto;
+            margin: 0 auto 10px;
+            display: block;
+          }
+          /* --- Header/Totals already have bold, this might make them extra bold --- */
+          .header { font-size: 16px;  font-weight: bold;  margin-bottom: 5px; } /* Base body bold might be enough */
           .divider { border-top: 1px dashed #000; margin: 10px 0; }
-          .order-info { text-align: left; margin: 10px 0; font-size: 14px; }
-          .item-row { display: flex; justify-content: space-between; margin: 5px 0; }
-          .totals { margin-top: 10px; font-weight: bold; font-size: 15px; }
+          .order-info { text-align: left; margin: 10px 0; font-size: 12px; font-weight: normal; } /* Made info normal weight */
+          .item-row { display: flex; justify-content: space-between; margin: 5px 0; font-size: 12px; font-weight: normal;} /* Made items normal weight */
+          .totals { margin-top: 10px;  font-weight: bold;  font-size: 13px; } /* Base body bold might be enough */
           .total-row { display: flex; justify-content: space-between; margin: 5px 0; }
-          .footer { margin-top: 20px; font-size: 12px; }
+          .total-row-main { font-size: 16px !important; } 
+          .footer { margin-top: 20px; font-size: 10px; font-weight: normal;} /* Made footer normal weight */
         </style>
       </head>
       <body>
@@ -88,10 +102,6 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
               <div>Subtotal:</div>
               <div>${formatCurrency(subtotal)}</div>
             </div>
-            <div class="total-row">
-              <div>Tax (16%):</div>
-              <div>${formatCurrency(tax)}</div>
-            </div>
             <div class="total-row" style="font-size: 18px;">
               <div>TOTAL:</div>
               <div>${formatCurrency(total)}</div>
@@ -105,8 +115,29 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
         </div>
         <script>
           window.onload = function() {
-            window.print();
-            setTimeout(function() { window.close(); }, 100);
+            // Wait for logo to load before printing
+            const logo = document.querySelector('.logo');
+            if (logo) {
+              logo.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                  setTimeout(function() { window.close(); }, 100);
+                }, 500);
+              };
+              // If logo is already loaded
+              if (logo.complete) {
+                setTimeout(function() {
+                  window.print();
+                  setTimeout(function() { window.close(); }, 100);
+                }, 500);
+              }
+            } else {
+              // Fallback if no logo
+              setTimeout(function() {
+                window.print();
+                setTimeout(function() { window.close(); }, 100);
+              }, 500);
+            }
           }
         </script>
       </body>
@@ -131,6 +162,10 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50 border-b">
           <div className="bg-white p-3 rounded-md shadow-inner">
             <div className="text-center font-['Courier_New',_monospace]">
+              {/* Logo in preview */}
+              <div className="mb-3">
+                <img src="/logo.PNG" alt="Restaurant Logo" className="h-16 mx-auto" />
+              </div>
               <div className="text-xl font-extrabold mb-1">MARIA HAVENS</div>
               <div className="text-sm">Restaurant & Hotel</div>
               <div className="border-t border-dashed border-gray-400 my-3"></div>
@@ -155,7 +190,6 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
               <div className="border-t border-dashed border-gray-400 my-3"></div>
               <div className="text-md font-bold space-y-1">
                 <div className="flex justify-between"><span>Subtotal:</span> <span>{formatCurrency(subtotal)}</span></div>
-                <div className="flex justify-between"><span>Tax (16%):</span> <span>{formatCurrency(tax)}</span></div>
                 <div className="flex justify-between text-lg mt-2 pt-2 border-t border-gray-200"><span>TOTAL:</span> <span>{formatCurrency(total)}</span></div>
               </div>
               <div className="border-t border-dashed border-gray-400 my-3"></div>
@@ -248,8 +282,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
   };
 
   const subtotal = currentOrder?.items.reduce((acc, item) => acc + item.price * item.quantity, 0) ?? 0;
-  const tax = subtotal * 0.16;
-  const total = subtotal + tax;
+  const total = subtotal;
 
   const handleQuantityChange = (itemId: number, newQuantity: number) => {
     updateItemQuantity(itemId, newQuantity);
@@ -329,7 +362,6 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       staff,
       orderNumber,
       subtotal,
-      tax,
       total,
       orderType: currentOrderType,
       locationDetail,
@@ -366,7 +398,6 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       pin: pin,
       total_amount: total,
       subtotal: subtotal,
-      tax_amount: tax,
     };
 
     try {
@@ -519,10 +550,6 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
             <div className="flex justify-between">
               <span>Subtotal</span>
               <span>{formatCurrency(subtotal)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Tax (16%)</span>
-              <span>{formatCurrency(tax)}</span>
             </div>
             <div className="flex justify-between font-bold text-lg">
               <span>Total</span>

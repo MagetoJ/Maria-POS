@@ -1,6 +1,18 @@
 import { Request, Response } from 'express';
 import db from '../db';
 
+export const getPublicCategories = async (req: Request, res: Response) => {
+  try {
+    const categories = await db('categories')
+      .select('id', 'name', 'description', 'display_order') // Select only needed fields
+      .where('is_active', true) // Only show active categories
+      .orderBy('display_order', 'asc');
+    res.json(categories);
+  } catch (error) {
+    console.error('Get public categories error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
 // Get all categories
 export const getAllCategories = async (req: Request, res: Response) => {
   try {

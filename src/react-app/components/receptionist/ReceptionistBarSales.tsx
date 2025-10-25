@@ -28,7 +28,6 @@ interface ReceiptData {
     totalPrice: number;
   }>;
   subtotal: number;
-  tax: number;
   total: number;
   paymentMethod: string;
   staffName: string;
@@ -74,8 +73,7 @@ export default function ReceptionistBarSales() {
         
         // Generate receipt data
         const subtotal = saleModal.quantity * saleModal.item.cost_per_unit;
-        const tax = subtotal * 0.16; // 16% tax
-        const total = subtotal + tax;
+        const total = subtotal;
         
         const receipt: ReceiptData = {
           orderNumber: result.order_number,
@@ -86,7 +84,6 @@ export default function ReceptionistBarSales() {
             totalPrice: subtotal
           }],
           subtotal,
-          tax,
           total,
           paymentMethod: saleModal.paymentMethod,
           staffName: user.name || user.username,

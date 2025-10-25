@@ -40,7 +40,6 @@ export const createOrder = async (req: Request, res: Response) => {
         staff_id: validation.staffId,
         order_number: generateOrderNumber(),
         subtotal: Number(orderToInsert.subtotal || 0),
-        tax_amount: Number(orderToInsert.tax_amount || 0),
         total_amount: Number(orderToInsert.total_amount || 0),
         created_at: new Date(),
         updated_at: new Date()

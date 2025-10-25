@@ -16,7 +16,7 @@ import { WebSocketService } from './services/websocket';
 
 // Import middleware
 import { authenticateToken } from './middleware/auth';
-
+import publicMenuRoutes from './routes/publicMenuRoutes';
 // Import routes
 import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
@@ -343,7 +343,7 @@ app.get('/api/search', async (req, res) => {
     res.status(500).json({ message: 'Error performing search' });
   }
 });
-
+app.use('/api/public/menu', publicMenuRoutes);
 // --- Catch-all route to serve frontend ---
 // IMPORTANT: This must be AFTER all API routes
 app.get('*', (req, res) => {

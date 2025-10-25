@@ -7,14 +7,13 @@ const DEFAULT_SETTINGS = {
   business_address: '',
   business_phone: '',
   business_email: '',
-  tax_rate: 16.0,
+  business_logo: '/logo.PNG',
   service_charge_rate: 10.0,
   currency: 'KES',
   timezone: 'Africa/Nairobi',
   receipt_footer_text: 'Thank you for your business!',
   enable_tips: true,
   enable_service_charge: true,
-  enable_tax: true,
   max_discount_percentage: 20.0,
   auto_print_receipts: false,
   require_customer_info: false,
@@ -112,7 +111,6 @@ export const getAllSettings = async (req: Request, res: Response) => {
       'restaurant_name': 'business_name',
       'restaurant_address': 'business_address',
       'restaurant_phone': 'business_phone',
-      'tax_rate': 'tax_rate_percentage',
       'service_charge': 'service_charge_percentage',
       'currency': 'currency_symbol'
     };
@@ -357,7 +355,6 @@ async function getAllSettingsInternal() {
     'restaurant_name': 'business_name',
     'restaurant_address': 'business_address',
     'restaurant_phone': 'business_phone',
-    'tax_rate': 'tax_rate_percentage',
     'service_charge': 'service_charge_percentage',
     'currency': 'currency_symbol'
   };

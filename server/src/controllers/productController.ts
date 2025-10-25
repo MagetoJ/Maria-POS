@@ -1,6 +1,47 @@
 import { Request, Response } from 'express';
 import db from '../db';
 
+export const getPublicProducts = async (req: Request, res: Response) => {
+  try {
+    const products = await db('products')
+      .leftJoin('categories', 'products.category_id', 'categories.id') // Join to get category name
+      .select(
+        'products.id',
+        'products.name',
+        'products.description',
+        'products.price',
+        'products.image_url',
+        'products.category_id',
+        'categories.name as category_name' // Select category name
+      )
+      .where('products.is_active', true) // Only active products
+      .where('products.is_available', true) // Only available products
+      .orderBy('categories.display_order', 'asc') // Order by category display order
+      .orderBy('products.name', 'asc'); // Then by product name
+
+    // Group products by category for easier use on the frontend
+    const groupedProducts = products.reduce((acc, product) => {
+      const categoryName = product.category_name || 'Uncategorized';
+      if (!acc[categoryName]) {
+        acc[categoryName] = [];
+      }
+      acc[categoryName].push({
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        image_url: product.image_url,
+      });
+      return acc;
+    }, {} as Record<string, any[]>);
+
+
+    res.json(groupedProducts); // Return the grouped structure
+  } catch (err) {
+    console.error('Error fetching public products:', err);
+    res.status(500).json({ message: 'Error fetching public products' });
+  }
+};
 // Get all products
 export const getProducts = async (req: Request, res: Response) => {
   try {

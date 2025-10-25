@@ -11,7 +11,6 @@ interface ReceiptModalProps {
       totalPrice: number;
     }>;
     subtotal: number;
-    tax: number;
     total: number;
     paymentMethod: string;
     staffName: string;
@@ -37,6 +36,7 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
           .receipt { text-align: center; }
           .logo {
             max-width: 120px; 
+            height: auto;
             margin: 0 auto 10px;
             display: block;
           }
@@ -123,10 +123,7 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
               <div>Subtotal:</div>
               <div>${formatCurrency(receiptData.subtotal)}</div>
             </div>
-            <div class="total-row">
-              <div>Tax (16%):</div>
-              <div>${formatCurrency(receiptData.tax)}</div>
-            </div>
+
             <div class="total-row grand-total">
               <div>TOTAL:</div>
               <div>${formatCurrency(receiptData.total)}</div>
@@ -143,11 +140,29 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
         </div>
         <script>
           window.onload = function() {
-            // Give a moment for images to load
-            setTimeout(function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 100);
-            }, 500);
+            // Wait for logo to load before printing
+            const logo = document.querySelector('.logo');
+            if (logo) {
+              logo.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                  setTimeout(function() { window.close(); }, 100);
+                }, 500);
+              };
+              // If logo is already loaded
+              if (logo.complete) {
+                setTimeout(function() {
+                  window.print();
+                  setTimeout(function() { window.close(); }, 100);
+                }, 500);
+              }
+            } else {
+              // Fallback if no logo
+              setTimeout(function() {
+                window.print();
+                setTimeout(function() { window.close(); }, 100);
+              }, 500);
+            }
           }
         </script>
       </body>
@@ -226,10 +241,7 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
                 <span>Subtotal:</span>
                 <span>{formatCurrency(receiptData.subtotal)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Tax (16%):</span>
-                <span>{formatCurrency(receiptData.tax)}</span>
-              </div>
+
               <div className="border-t border-gray-400 pt-1 mt-1">
                 <div className="flex justify-between font-bold text-sm">
                   <span>TOTAL:</span>
