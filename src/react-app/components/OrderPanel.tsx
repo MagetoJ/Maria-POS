@@ -39,36 +39,30 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
       <html>
       <head>
         <title>Receipt - ${orderNumber}</title>
-      <style>
+  <style>
           body { 
-            /* --- Font Family (Keep your choice) --- */
             font-family: Arial, Helvetica, sans-serif; 
-            
-            /* --- ✅ ADDED BOLD WEIGHT --- */
             font-weight: bold; 
-            
             width: 300px; 
             margin: 0; 
             padding: 10px; 
-            font-size: 14px; /* Adjust size if needed */
+            font-size: 16px; /* <-- INCREASED BASE FONT */
           }
-          /* --- Other styles --- */
           .receipt { text-align: center; }
           .logo {
-            max-width: 80px; 
+            max-width: 160px; /* <-- INCREASED LOGO SIZE */
             height: auto;
             margin: 0 auto 10px;
             display: block;
           }
-          /* --- Header/Totals already have bold, this might make them extra bold --- */
-          .header { font-size: 16px;  font-weight: bold;  margin-bottom: 5px; } /* Base body bold might be enough */
+          .header { font-size: 18px;  font-weight: bold;  margin-bottom: 5px; }
           .divider { border-top: 1px dashed #000; margin: 10px 0; }
-          .order-info { text-align: left; margin: 10px 0; font-size: 12px; font-weight: normal; } /* Made info normal weight */
-          .item-row { display: flex; justify-content: space-between; margin: 5px 0; font-size: 12px; font-weight: normal;} /* Made items normal weight */
-          .totals { margin-top: 10px;  font-weight: bold;  font-size: 13px; } /* Base body bold might be enough */
+          .order-info { text-align: left; margin: 10px 0; font-size: 14px; font-weight: normal; } /* <-- Increased */
+          .item-row { display: flex; justify-content: space-between; margin: 5px 0; font-size: 14px; font-weight: normal;} /* <-- Increased */
+          .totals { margin-top: 10px;  font-weight: bold;  font-size: 15px; } /* <-- Increased */
           .total-row { display: flex; justify-content: space-between; margin: 5px 0; }
-          .total-row-main { font-size: 16px !important; } 
-          .footer { margin-top: 20px; font-size: 10px; font-weight: normal;} /* Made footer normal weight */
+          .total-row-main { font-size: 18px !important; } /* <-- Increased */
+          .footer { margin-top: 20px; font-size: 12px; font-weight: normal;} /* <-- Increased */
         </style>
       </head>
       <body>
@@ -76,8 +70,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
           
           <img src="/logo.PNG" alt="Restaurant Logo" class="logo" />
 
-          <div class="header">MARIA HAVENS</div>
-          <div>Restaurant & Hotel</div>
+         
           <div class="divider"></div>
           <div class="order-info">
             <div>Order: ${orderNumber}</div>
