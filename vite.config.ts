@@ -110,6 +110,7 @@ export default defineConfig({
   root: 'src/react-app',
   build: {
     outDir: '../../dist/client',
+   
     emptyOutDir: true,
   },
   server: {
