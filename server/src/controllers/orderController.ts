@@ -11,7 +11,7 @@ export const setWebSocketService = (wsService: WebSocketService) => {
 
 // Create new order with PIN validation
 export const createOrder = async (req: Request, res: Response) => {
-  const { items, staff_username, pin, ...orderData } = req.body;
+  const { items, staff_username, pin, payment_method = 'cash', ...orderData } = req.body;
 
   try {
     // Validate staff username and PIN
@@ -41,6 +41,7 @@ export const createOrder = async (req: Request, res: Response) => {
         order_number: generateOrderNumber(),
         subtotal: Number(orderToInsert.subtotal || 0),
         total_amount: Number(orderToInsert.total_amount || 0),
+        payment_method: payment_method || 'cash',
         created_at: new Date(),
         updated_at: new Date()
       };
@@ -54,8 +55,35 @@ export const createOrder = async (req: Request, res: Response) => {
 
       if (!orderId) throw new Error('Failed to create order and get ID');
 
-      // Insert order items
+      // Insert order items and handle bar item inventory deduction
       if (items && items.length > 0) {
+        // Check which items are bar items (inventory items with type 'bar')
+        const barItemIds = new Set<number>();
+        for (const item of items) {
+          const barItem = await trx('inventory_items')
+            .where({ id: item.product_id, inventory_type: 'bar', is_active: true })
+            .first();
+          
+          if (barItem) {
+            barItemIds.add(item.product_id);
+            
+            // Deduct inventory for bar items
+            const newStock = barItem.current_stock - Number(item.quantity);
+            if (newStock < 0) {
+              throw new Error(`Insufficient stock for ${barItem.name}. Available: ${barItem.current_stock}, Requested: ${item.quantity}`);
+            }
+            
+            await trx('inventory_items')
+              .where({ id: item.product_id })
+              .update({ 
+                current_stock: newStock,
+                updated_at: new Date()
+              });
+            
+            console.log(`Deducted inventory for bar item: ${barItem.name}, New stock: ${newStock}`);
+          }
+        }
+
         const orderItems = items.map((item: any) => ({
           order_id: orderId,
           product_id: item.product_id,
@@ -66,6 +94,16 @@ export const createOrder = async (req: Request, res: Response) => {
         }));
 
         await trx('order_items').insert(orderItems);
+      }
+
+      // Create payment record to associate payment method with order
+      if (payment_method) {
+        await trx('payments').insert({
+          order_id: orderId,
+          payment_method: payment_method,
+          amount: Number(orderToInsert.total_amount || 0),
+          status: 'completed'
+        });
       }
     });
 
@@ -212,6 +250,51 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error updating order status:', err);
     res.status(500).json({ message: 'Error updating order status' });
+  }
+};
+
+// Get staff member's recent orders (for My Recent Orders feature)
+export const getStaffRecentOrders = async (req: Request, res: Response) => {
+  try {
+    const staffId = req.user?.id;
+    if (!staffId) {
+      return res.status(401).json({ message: 'Unauthorized - No staff ID' });
+    }
+
+    const { limit = 20, offset = 0 } = req.query;
+
+    // Fetch orders for this staff member, ordered by most recent
+    const orders = await db('orders')
+      .where('staff_id', staffId)
+      .select('*')
+      .orderBy('created_at', 'desc')
+      .limit(parseInt(limit as string))
+      .offset(parseInt(offset as string));
+
+    // Get order items and payment details for each order
+    for (const order of orders) {
+      // Get order items
+      (order as any).items = await db('order_items')
+        .leftJoin('products', 'order_items.product_id', 'products.id')
+        .where('order_id', order.id)
+        .select(
+          'order_items.*',
+          'products.name as product_name'
+        );
+
+      // Get payment details
+      const payment = await db('payments')
+        .where('order_id', order.id)
+        .first();
+      
+      (order as any).payment_method = payment?.payment_method || order.payment_method || 'cash';
+    }
+
+    res.json(orders);
+
+  } catch (err) {
+    console.error('Error fetching staff recent orders:', err);
+    res.status(500).json({ message: 'Error fetching recent orders' });
   }
 };
 

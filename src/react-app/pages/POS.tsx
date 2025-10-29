@@ -11,6 +11,8 @@ import RoomView from '../components/RoomView';
 import DeliveryManagement from '../components/DeliveryManagement';
 import DashboardView from '../components/PerfomanceDashboardView';
 import TableManagementView from '../components/TableManagementView';
+import BarSales from '../components/BarSales';
+import QuickBarSalesPanel from '../components/QuickBarSalesPanel';
 import {
   UtensilsCrossed,
   Building,
@@ -19,6 +21,7 @@ import {
   LayoutGrid,
   ShoppingCart, // <-- Import ShoppingCart icon
   X, // <-- Import X icon
+  Wine, // <-- Import Wine icon for bar sales
 } from 'lucide-react';
 
 interface POSProps {
@@ -30,7 +33,7 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
   const { user } = useAuth();
   const { addItemToOrder } = usePOS();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables'>('menu');
+  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'bar_sales' | 'quick_bar_sales'>('menu');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   // State to manage order panel visibility on mobile
   const [isOrderPanelVisible, setOrderPanelVisible] = useState(false);
@@ -39,6 +42,7 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
   const canAccessDelivery = user?.role === 'delivery' || user?.role === 'manager' || user?.role === 'admin' || isQuickAccess;
   const canAccessDashboard = ['waiter', 'cashier', 'delivery', 'receptionist', 'manager', 'admin'].includes(user?.role ?? '');
   const canManageTables = user?.role === 'receptionist';
+  const canAccessBarSales = ['waiter', 'receptionist', 'manager', 'admin'].includes(user?.role ?? '') || isQuickAccess;
 
   // Handle search results from header search
   useEffect(() => {
@@ -92,6 +96,10 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
         return <DashboardView />;
       case 'manage_tables':
         return <TableManagementView />;
+      case 'bar_sales':
+        return <BarSales />;
+      case 'quick_bar_sales':
+        return <QuickBarSalesPanel isQuickAccess={isQuickAccess} />;
       default:
         return <MenuGrid />;
     }
@@ -144,6 +152,16 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
                 <button onClick={() => setActiveView('menu')} className={`p-2 rounded-lg transition-colors ${activeView === 'menu' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Menu">
                   <UtensilsCrossed className="w-5 h-5" />
                 </button>
+                {canAccessBarSales && isQuickAccess && (
+                  <button onClick={() => setActiveView('quick_bar_sales')} className={`p-2 rounded-lg transition-colors ${activeView === 'quick_bar_sales' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Bar Sales">
+                    <Wine className="w-5 h-5" />
+                  </button>
+                )}
+                {canAccessBarSales && !isQuickAccess && (
+                  <button onClick={() => setActiveView('bar_sales')} className={`p-2 rounded-lg transition-colors ${activeView === 'bar_sales' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Bar Sales">
+                    <Wine className="w-5 h-5" />
+                  </button>
+                )}
                 {canAccessRooms && (
                   <button onClick={() => setActiveView('rooms')} className={`p-2 rounded-lg transition-colors ${activeView === 'rooms' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Rooms">
                     <Building className="w-5 h-5" />

@@ -16,6 +16,8 @@ export const getInventory = async (req: Request, res: Response) => {
       query.where('inventory_type', 'kitchen');
     } else if (userRole === 'receptionist') {
       query.whereIn('inventory_type', ['bar', 'housekeeping', 'minibar']);
+    } else if (userRole === 'waiter' || userRole === 'quick_pos') {
+      query.where('inventory_type', 'bar');
     } else if (!['admin', 'manager'].includes(userRole)) {
       return res.json([]); // Return empty for other non-privileged roles
     }

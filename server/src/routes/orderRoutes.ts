@@ -11,6 +11,9 @@ router.post('/validate-pin', orderController.validatePin);
 // Protected routes require full authentication
 router.use(authenticateToken);
 
+// Get staff member's recent orders (for My Recent Orders feature)
+router.get('/staff/recent', orderController.getStaffRecentOrders);
+
 // Get orders with filtering (all authenticated users can view orders)
 router.get('/', orderController.getOrders);
 

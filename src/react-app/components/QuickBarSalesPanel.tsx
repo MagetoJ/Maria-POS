@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { usePOS, Product } from '../../contexts/POSContext';
-import { apiClient, IS_DEVELOPMENT } from '../../config/api';
+import { usePOS, Product } from '../contexts/POSContext';
+import { apiClient, IS_DEVELOPMENT } from '../config/api';
 import { Plus, Loader2, AlertCircle } from 'lucide-react';
 
 // Extended product interface to support bar items
@@ -19,7 +19,11 @@ const formatCurrency = (amount: number | string): string => {
   return `KES ${numAmount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
 
-export default function ReceptionistBarSales() {
+interface QuickBarSalesPanelProps {
+  isQuickAccess?: boolean;
+}
+
+export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSalesPanelProps) {
   const { addItemToOrder } = usePOS();
   const [barItems, setBarItems] = useState<BarProduct[]>([]);
   const [filteredItems, setFilteredItems] = useState<BarProduct[]>([]);
@@ -36,7 +40,7 @@ export default function ReceptionistBarSales() {
     setError(null);
     try {
       if (IS_DEVELOPMENT) {
-        console.log('📱 Fetching bar items...');
+        console.log('📱 Fetching bar items for Quick POS...');
       }
 
       const response = await apiClient.get('/api/receptionist/bar-items-as-products');
@@ -121,7 +125,7 @@ export default function ReceptionistBarSales() {
       <div className="flex flex-col items-center justify-center h-full p-8">
         <div className="text-center text-gray-500">
           <p className="font-semibold mb-2">No bar items available</p>
-          <p className="text-sm">No bar items available for sale at the moment.</p>
+          <p className="text-sm">No packaged products available for sale at the moment.</p>
         </div>
       </div>
     );
@@ -200,6 +204,15 @@ export default function ReceptionistBarSales() {
       {filteredItems.length === 0 && searchTerm && (
         <div className="text-center text-gray-500 py-12">
           <p className="font-semibold">No items found matching "{searchTerm}"</p>
+        </div>
+      )}
+
+      {/* Help text for Quick Access mode */}
+      {isQuickAccess && (
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-900">
+            💡 <strong>Tip:</strong> Add bar items to your order. PIN validation will be required at checkout.
+          </p>
         </div>
       )}
     </div>

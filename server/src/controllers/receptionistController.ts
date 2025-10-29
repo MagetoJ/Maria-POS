@@ -96,6 +96,36 @@ export const getBarInventory = async (req: Request, res: Response) => {
   }
 };
 
+// Get bar items formatted as products for Quick POS (packaged products)
+export const getBarItemsAsProducts = async (req: Request, res: Response) => {
+  try {
+    const barItems = await db('inventory_items')
+      .where({ inventory_type: 'bar', is_active: true })
+      .select('*')
+      .orderBy('name', 'asc');
+
+    // Format inventory items as Product interface compatible items
+    const formattedItems = barItems.map(item => ({
+      id: item.id,
+      category_id: 0, // Bar items are in category 0 (special category for bar)
+      name: item.name,
+      description: `${item.current_stock} ${item.unit} in stock`,
+      price: item.cost_per_unit,
+      is_available: item.current_stock > 0,
+      preparation_time: 0,
+      inventory_type: 'bar', // Mark as bar item for inventory tracking
+      current_stock: item.current_stock,
+      unit: item.unit
+    }));
+
+    res.json(formattedItems);
+
+  } catch (err) {
+    console.error('Error fetching bar items as products:', err);
+    res.status(500).json({ message: 'Error fetching bar items' });
+  }
+};
+
 // Get receptionist sales statistics
 export const getSalesStats = async (req: Request, res: Response) => {
   try {

@@ -473,3 +473,134 @@ export const getPerformanceReport = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+// --- NEW FUNCTION ADDED BELOW ---
+
+/**
+ * @description Fetches completed orders with full details for admin receipt auditing.
+ * @route GET /api/reports/receipts
+ * @access Admin
+ */
+export const getReceiptsByDate = async (req: Request, res: Response) => {
+  try {
+    const { 
+      start_date, 
+      end_date,
+      customer_name,
+      order_type,
+      limit = 100, 
+      offset = 0 
+    } = req.query;
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({ message: 'start_date and end_date are required' });
+    }
+
+    // 1. Get all completed orders in the date range with staff info
+    let ordersQuery = db('orders')
+      .join('staff', 'orders.staff_id', 'staff.id')
+      .where('orders.status', 'completed') // Only completed receipts
+      .whereBetween('orders.created_at', [start_date as string, end_date as string]);
+    
+    // Add customer name filter if provided
+    if (customer_name) {
+      ordersQuery = ordersQuery.where('orders.customer_name', 'ilike', `%${customer_name}%`);
+    }
+
+    // Add order type filter if provided
+    if (order_type) {
+      ordersQuery = ordersQuery.where('orders.order_type', order_type as string);
+    }
+
+    const orders = await ordersQuery
+      .select(
+        'orders.*',
+        'staff.name as staff_name'
+      )
+      .orderBy('orders.created_at', 'desc')
+      .limit(parseInt(limit as string))
+      .offset(parseInt(offset as string));
+
+    // 2. Format data for each order to match ReceiptModal expectations
+    const formattedOrders = [];
+    
+    for (const order of orders) {
+      // Get order items
+      const items = await db('order_items')
+        .leftJoin('products', 'order_items.product_id', 'products.id')
+        .where('order_id', order.id)
+        .select(
+          'order_items.quantity',
+          'order_items.unit_price',
+          'order_items.total_price',
+          'products.name'
+        );
+
+      // Get payment method (take the first payment method)
+      const payment = await db('payments')
+        .where('order_id', order.id)
+        .first();
+
+      // Format according to ReceiptModal interface
+      const formattedOrder = {
+        // Original order data for table display
+        id: order.id,
+        order_number: order.order_number,
+        created_at: order.created_at,
+        total_amount: parseFloat(order.total_amount) || 0,
+        customer_name: order.customer_name,
+        staff_name: order.staff_name,
+        order_type: order.order_type,
+        
+        // Formatted receipt data for ReceiptModal
+        receiptData: {
+          orderNumber: order.order_number,
+          customerName: order.customer_name,
+          items: items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: parseFloat(item.unit_price) || 0,
+            totalPrice: parseFloat(item.total_price) || 0
+          })),
+          subtotal: parseFloat(order.subtotal) || parseFloat(order.total_amount) || 0,
+          total: parseFloat(order.total_amount) || 0,
+          paymentMethod: payment?.payment_method || 'cash',
+          staffName: order.staff_name,
+          createdAt: order.created_at,
+          orderType: order.order_type || 'general' // Add order type for dynamic receipt headers
+        }
+      };
+
+      formattedOrders.push(formattedOrder);
+    }
+
+    // 3. Get total count for pagination
+    let countQuery = db('orders')
+      .where('status', 'completed')
+      .whereBetween('created_at', [start_date as string, end_date as string]);
+      
+    if (customer_name) {
+      countQuery = countQuery.where('customer_name', 'ilike', `%${customer_name}%`);
+    }
+    
+    if (order_type) {
+      countQuery = countQuery.where('order_type', order_type as string);
+    }
+      
+    const totalResult = await countQuery.count('id as total');
+    const total = (totalResult[0] as any).total;
+
+    res.json({
+      orders: formattedOrders,
+      pagination: {
+        total: total,
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string)
+      }
+    });
+
+  } catch (err) {
+    console.error('Error fetching receipts:', err);
+    res.status(500).json({ message: 'Error fetching receipts' });
+  }
+};

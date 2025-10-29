@@ -15,6 +15,7 @@ interface ReceiptModalProps {
     paymentMethod: string;
     staffName: string;
     createdAt: string;
+    orderType?: string;
   };
   onClose: () => void;
 }
@@ -22,6 +23,21 @@ interface ReceiptModalProps {
 export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps) {
   const formatCurrency = (amount: number) => {
     return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
+  };
+
+  const getReceiptTitle = (orderType?: string) => {
+    switch (orderType) {
+      case 'dine_in':
+        return 'Dine-In Receipt';
+      case 'takeaway':
+        return 'Takeaway Receipt';
+      case 'delivery':
+        return 'Delivery Receipt';
+      case 'room_service':
+        return 'Room Service Receipt';
+      default:
+        return 'Sales Receipt';
+    }
   };
 
   const handlePrint = () => {
@@ -84,7 +100,7 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
           <img src="/logo.PNG" alt="Restaurant Logo" class="logo" />
           <div class="header">MARIA HAVENS</div>
           <div class="subheader">Restaurant & Hotel</div>
-          <div class="subheader">Bar Sales Receipt</div>
+          <div class="subheader">${getReceiptTitle(receiptData.orderType)}</div>
           <div class="divider"></div>
           
           <div class="order-info">
@@ -201,7 +217,7 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
             {/* Header */}
             <div className="font-bold text-sm mb-1">MARIA HAVENS</div>
             <div className="text-xs mb-2">Restaurant & Hotel</div>
-            <div className="text-xs mb-3">Bar Sales Receipt</div>
+            <div className="text-xs mb-3">{getReceiptTitle(receiptData.orderType)}</div>
             <div className="border-t border-dashed border-gray-400 my-2"></div>
             
             {/* Order Info */}

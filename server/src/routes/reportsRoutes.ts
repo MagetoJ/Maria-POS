@@ -1,10 +1,22 @@
+// server/src/routes/reportsRoutes.ts
 import express from 'express';
-import { authenticateToken } from '../middleware/auth';
+// --- MODIFICATION: Import authorizeRoles ---
+import { authenticateToken, authorizeRoles } from '../middleware/auth';
 import * as reportsController from '../controllers/reportsController';
 
 const router = express.Router();
 
-// All routes require authentication
+// --- ADD NEW ADMIN-ONLY ROUTE HERE ---
+// This route is checked first and is restricted to admins.
+router.get(
+  '/receipts',
+  authenticateToken,
+  authorizeRoles('admin'), // Ensures only admins can access
+  reportsController.getReceiptsByDate // The new controller function
+);
+
+
+// All routes below this line require authentication for *any* role
 router.use(authenticateToken);
 
 // Personal sales report

@@ -6,6 +6,7 @@ import {
   Award, Target, Loader2, Calendar, Filter
 } from 'lucide-react';
 import MyShiftsView from './MyShiftsView'; // 1. IMPORT THE NEW COMPONENT
+import MyRecentOrders from './MyRecentOrders'; // 2. IMPORT RECENT ORDERS COMPONENT
 import KitchenDisplay from '../pages/KitchenDisplay';
 
 
@@ -220,7 +221,12 @@ export default function PerformanceDashboard() {
 
       {/* 2. RENDER THE NEW COMPONENT HERE */}
       {user.role !== 'admin' && user.role !== 'manager' && (
-        <MyShiftsView />
+        <>
+          <MyShiftsView />
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <MyRecentOrders />
+          </div>
+        </>
       )}
 
       {/* My Performance Section */}

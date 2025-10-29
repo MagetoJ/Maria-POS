@@ -147,3 +147,43 @@ if (IS_DEVELOPMENT && import.meta.env.VITE_DEBUG_API === 'true') {
   console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
   console.groupEnd();
 }
+
+// --- ADD THIS NEW FUNCTION ---
+/**
+ * Fetches completed orders with items and payments for admin receipt auditing.
+ */
+export const fetchReceiptsByDate = async (
+  startDate: string, 
+  endDate: string, 
+  limit: number, 
+  offset: number,
+  orderType?: string,
+  customerName?: string
+) => {
+  // Construct the endpoint with query parameters
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+    limit: limit.toString(),
+    offset: offset.toString()
+  });
+  
+  if (orderType) {
+    params.append('order_type', orderType);
+  }
+  
+  if (customerName) {
+    params.append('customer_name', customerName);
+  }
+  
+  const endpoint = `/api/reports/receipts?${params.toString()}`;
+  
+  // Use the correct 'apiClient'
+  const response = await apiClient.get(endpoint);
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to fetch receipts');
+  }
+  return response.json(); // Return the JSON data
+};

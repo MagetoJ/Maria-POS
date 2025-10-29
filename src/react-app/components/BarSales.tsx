@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { usePOS, Product } from '../../contexts/POSContext';
-import { apiClient, IS_DEVELOPMENT } from '../../config/api';
+import { usePOS, Product } from '../contexts/POSContext';
+import { apiClient, IS_DEVELOPMENT } from '../config/api';
 import { Plus, Loader2, AlertCircle } from 'lucide-react';
 
 // Extended product interface to support bar items
@@ -19,7 +19,7 @@ const formatCurrency = (amount: number | string): string => {
   return `KES ${numAmount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
 
-export default function ReceptionistBarSales() {
+export default function BarSales() {
   const { addItemToOrder } = usePOS();
   const [barItems, setBarItems] = useState<BarProduct[]>([]);
   const [filteredItems, setFilteredItems] = useState<BarProduct[]>([]);

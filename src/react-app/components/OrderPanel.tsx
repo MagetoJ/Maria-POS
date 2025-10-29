@@ -234,6 +234,9 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
   // New state for customer name and table selection
   const [customerName, setCustomerName] = useState('');
   const [selectedTableId, setSelectedTableId] = useState<number | ''>('');
+  
+  // New state for payment method
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile_money' | 'room_charge'>('cash');
 
   useEffect(() => {
     if (currentOrder && currentOrder.order_type) {
@@ -391,6 +394,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       pin: pin,
       total_amount: total,
       subtotal: subtotal,
+      payment_method: paymentMethod,
     };
 
     try {
@@ -537,6 +541,23 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
                 />
               </div>
             )}
+            
+            {/* Payment Method Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Method
+              </label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as 'cash' | 'card' | 'mobile_money' | 'room_charge')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+              >
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="mobile_money">Mobile Money</option>
+                <option value="room_charge">Room Charge</option>
+              </select>
+            </div>
           </div>
 
           <div className="space-y-2 mb-4">
