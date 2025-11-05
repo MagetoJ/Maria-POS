@@ -36,6 +36,14 @@ import categoriesRoutes from './routes/categoriesRoutes';
 import settingsRoutes from './routes/settingsRoutes';
 import performanceRoutes from './routes/performanceRoutes';
 import maintenanceRoutes from './routes/maintenanceRoutes';
+import expensesRoutes from './routes/expensesRoutes';
+import productReturnsRoutes from './routes/productReturnsRoutes';
+import suppliersRoutes from './routes/suppliersRoutes';
+import purchaseOrdersRoutes from './routes/purchaseOrdersRoutes';
+import recipesRoutes from './routes/recipesRoutes';
+import wastageRoutes from './routes/wastageRoutes';
+import stockTransfersRoutes from './routes/stockTransfersRoutes';
+import inventoryAuditsRoutes from './routes/inventoryAuditsRoutes';
 
 // --- Initialization ---
 dotenv.config();
@@ -59,7 +67,8 @@ app.use(cors({
   origin: config.server.corsOrigins,
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization'],
-  methods: ['POST', 'GET', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['POST', 'GET', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+
 }));
 
 app.use(express.json());
@@ -137,6 +146,14 @@ app.use('/api/categories', categoriesRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/maintenance-requests', maintenanceRoutes);
+app.use('/api/expenses', expensesRoutes);
+app.use('/api/product-returns', productReturnsRoutes);
+app.use('/api/suppliers', suppliersRoutes);
+app.use('/api/purchase-orders', purchaseOrdersRoutes);
+app.use('/api/recipes', recipesRoutes);
+app.use('/api/wastage', wastageRoutes);
+app.use('/api/stock-transfers', stockTransfersRoutes);
+app.use('/api/inventory-audits', inventoryAuditsRoutes);
 
 // --- Search Endpoint ---
 app.get('/api/search', async (req, res) => {

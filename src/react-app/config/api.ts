@@ -136,6 +136,27 @@ export const apiClient = {
     
     return response;
   },
+
+  patch: async (endpoint: string, data?: any, options?: RequestInit) => {
+    envLog.dev('📡 PATCH Request to:', `${API_URL}${endpoint}`);
+
+    const headers = getAuthHeaders();
+
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'PATCH',
+      ...options,
+      headers: {
+        ...headers,
+        ...options?.headers,
+      },
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: 'include',
+    });
+
+    envLog.dev('📥 Response status:', response.status);
+
+    return response;
+  },
 };
 
 // Enhanced environment logging in development (only for debugging)

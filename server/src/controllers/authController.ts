@@ -29,8 +29,16 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Account not properly configured. Please contact administrator.' });
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
+    // Try bcrypt comparison first (for hashed passwords)
+    let passwordValid = false;
+    try {
+      passwordValid = await bcrypt.compare(password, user.password);
+    } catch (bcryptError) {
+      // If bcrypt fails, try plain text comparison for backwards compatibility
+      passwordValid = password === user.password;
+    }
+
+    if (!passwordValid) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 

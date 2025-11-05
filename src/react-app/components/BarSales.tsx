@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { usePOS, Product } from '../contexts/POSContext';
 import { apiClient, IS_DEVELOPMENT } from '../config/api';
-import { Plus, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Loader2, AlertCircle, Wine } from 'lucide-react';
 
 // Extended product interface to support bar items
 interface BarProduct extends Product {
@@ -155,9 +155,15 @@ export default function BarSales() {
           >
             {/* Item Image/Icon Area */}
             <div className="aspect-square bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center overflow-hidden relative">
-              <div className="text-4xl font-bold text-amber-600">
-                🍸
-              </div>
+              {item.image_url ? (
+                <img
+                  src={item.image_url}
+                  alt={item.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Wine className="w-12 h-12 text-amber-600" />
+              )}
               {item.current_stock !== undefined && (
                 <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
                   {item.current_stock} {item.unit}

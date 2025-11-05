@@ -4,7 +4,7 @@ import {
   X, 
   Users, 
   Package, 
-  UtensilsCrossed, 
+  Menu, 
   FileText, 
   Bed,
   Loader2,
@@ -170,9 +170,9 @@ export default function SearchComponent({
       case 'inventory':
         return <Package className={iconClass} />;
       case 'menu':
-        return <UtensilsCrossed className={iconClass} />;
+        return <Menu className={iconClass} />;
       case 'category':
-        return <UtensilsCrossed className={iconClass} />;
+        return <Menu className={iconClass} />;
       case 'order':
         return <FileText className={iconClass} />;
       case 'room':

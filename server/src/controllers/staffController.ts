@@ -5,14 +5,32 @@ import db from '../db';
 // Get all staff members
 export const getStaff = async (req: Request, res: Response) => {
   try {
-    const staff = await db('staff')
-      .select('id', 'employee_id', 'username', 'name', 'role', 'email', 'is_active', 'created_at')
-      .orderBy('name', 'asc');
-    
-    res.json(staff);
+    // Try to select all columns including email, fall back if email column doesn't exist
+    try {
+      const staff = await db('staff')
+        .select('id', 'employee_id', 'username', 'name', 'role', 'email', 'is_active', 'created_at')
+        .orderBy('name', 'asc');
+      
+      res.json(staff);
+    } catch (columnErr: any) {
+      // If email column doesn't exist, query without it
+      if (columnErr.message?.includes('email') && columnErr.message?.includes('does not exist')) {
+        console.warn('Email column not found in staff table, querying without email');
+        const staff = await db('staff')
+          .select('id', 'employee_id', 'username', 'name', 'role', 'is_active', 'created_at')
+          .orderBy('name', 'asc');
+        
+        res.json(staff);
+      } else {
+        throw columnErr;
+      }
+    }
   } catch (err) {
     console.error('Error fetching staff:', err);
-    res.status(500).json({ message: 'Error fetching staff' });
+    res.status(500).json({ 
+      message: 'Error fetching staff',
+      error: process.env.NODE_ENV === 'development' ? (err as Error).message : undefined
+    });
   }
 };
 
@@ -21,19 +39,41 @@ export const getStaffById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
-    const staff = await db('staff')
-      .where({ id })
-      .select('id', 'employee_id', 'username', 'name', 'role', 'email', 'is_active', 'created_at')
-      .first();
+    try {
+      const staff = await db('staff')
+        .where({ id })
+        .select('id', 'employee_id', 'username', 'name', 'role', 'email', 'is_active', 'created_at')
+        .first();
 
-    if (!staff) {
-      return res.status(404).json({ message: 'Staff member not found' });
+      if (!staff) {
+        return res.status(404).json({ message: 'Staff member not found' });
+      }
+
+      res.json(staff);
+    } catch (columnErr: any) {
+      // If email column doesn't exist, query without it
+      if (columnErr.message?.includes('email') && columnErr.message?.includes('does not exist')) {
+        console.warn('Email column not found in staff table, querying without email');
+        const staff = await db('staff')
+          .where({ id })
+          .select('id', 'employee_id', 'username', 'name', 'role', 'is_active', 'created_at')
+          .first();
+
+        if (!staff) {
+          return res.status(404).json({ message: 'Staff member not found' });
+        }
+
+        res.json(staff);
+      } else {
+        throw columnErr;
+      }
     }
-
-    res.json(staff);
   } catch (err) {
     console.error('Error fetching staff member:', err);
-    res.status(500).json({ message: 'Error fetching staff member' });
+    res.status(500).json({ 
+      message: 'Error fetching staff member',
+      error: process.env.NODE_ENV === 'development' ? (err as Error).message : undefined
+    });
   }
 };
 
@@ -90,12 +130,11 @@ export const createStaff = async (req: Request, res: Response) => {
       hashedPassword = await bcrypt.hash(password, 10);
     }
 
-    const insertData = {
+    const insertData: any = {
       employee_id: employee_id || null,
       username,
       name,
       role,
-      email: email || null,
       password: hashedPassword,
       pin: pin || null,
       is_active: is_active !== undefined ? is_active : true,
@@ -103,26 +142,56 @@ export const createStaff = async (req: Request, res: Response) => {
       updated_at: new Date()
     };
 
+    // Only include email if the column exists (will be added by migration)
+    if (email) {
+      insertData.email = email;
+    }
+
     console.log('💾 Inserting staff member:', { ...insertData, password: '***', pin: '***' });
 
-    const [newStaff] = await db('staff')
-      .insert(insertData)
-      .returning(['id', 'employee_id', 'username', 'name', 'role', 'email', 'is_active', 'created_at']);
+    try {
+      const [newStaff] = await db('staff')
+        .insert(insertData)
+        .returning(['id', 'employee_id', 'username', 'name', 'role', 'email', 'is_active', 'created_at']);
 
-    console.log('✅ Staff member created successfully:', newStaff);
-    res.status(201).json(newStaff);
+      console.log('✅ Staff member created successfully:', newStaff);
+      res.status(201).json(newStaff);
+    } catch (insertErr: any) {
+      // If email column doesn't exist, insert without it
+      if (insertErr.message?.includes('email') && insertErr.message?.includes('does not exist')) {
+        console.warn('Email column not found in staff table, inserting without email');
+        delete insertData.email;
+
+        const [newStaff] = await db('staff')
+          .insert(insertData)
+          .returning(['id', 'employee_id', 'username', 'name', 'role', 'is_active', 'created_at']);
+
+        console.log('✅ Staff member created successfully (without email):', newStaff);
+        res.status(201).json(newStaff);
+      } else {
+        throw insertErr;
+      }
+    }
 
   } catch (err) {
     console.error('❌ Error adding staff member:', err);
+    const errorMsg = (err as any).message || (err as Error).message;
     console.error('Error details:', {
-      message: (err as Error).message,
-      stack: (err as Error).stack,
+      message: errorMsg,
       name: (err as Error).name
     });
     
+    // Provide detailed error messages for specific cases
+    if (errorMsg?.includes('duplicate key')) {
+      return res.status(400).json({ 
+        message: 'A staff member with this username, employee ID, or email already exists',
+        error: process.env.NODE_ENV === 'development' ? errorMsg : undefined
+      });
+    }
+    
     res.status(500).json({ 
       message: 'Error adding staff member', 
-      error: (err as Error).message 
+      error: process.env.NODE_ENV === 'development' ? errorMsg : undefined
     });
   }
 };
@@ -134,7 +203,7 @@ export const updateStaff = async (req: Request, res: Response) => {
     console.log('📥 Update data:', req.body);
 
     const { id } = req.params;
-    const updateData = { ...req.body };
+    const updateData: any = { ...req.body };
 
     // Remove id from update data if present
     delete updateData.id;
@@ -186,23 +255,49 @@ export const updateStaff = async (req: Request, res: Response) => {
 
     console.log('💾 Updating with data:', { ...updateData, password: updateData.password ? '***' : undefined });
 
-    const [updatedStaff] = await db('staff')
-      .where({ id })
-      .update(updateData)
-      .returning(['id', 'employee_id', 'username', 'name', 'role', 'email', 'is_active', 'updated_at']);
+    try {
+      const [updatedStaff] = await db('staff')
+        .where({ id })
+        .update(updateData)
+        .returning(['id', 'employee_id', 'username', 'name', 'role', 'email', 'is_active', 'updated_at']);
 
-    console.log('✅ Staff member updated successfully');
-    res.json(updatedStaff);
+      console.log('✅ Staff member updated successfully');
+      res.json(updatedStaff);
+    } catch (updateErr: any) {
+      // If email column doesn't exist in returning clause, remove it
+      if (updateErr.message?.includes('email') && updateErr.message?.includes('does not exist')) {
+        console.warn('Email column not found in staff table, updating without email');
+        const [updatedStaff] = await db('staff')
+          .where({ id })
+          .update(updateData)
+          .returning(['id', 'employee_id', 'username', 'name', 'role', 'is_active', 'updated_at']);
+
+        console.log('✅ Staff member updated successfully (without email)');
+        res.json(updatedStaff);
+      } else {
+        throw updateErr;
+      }
+    }
 
   } catch (err) {
     console.error('❌ Error updating staff member:', err);
+    const errorMsg = (err as any).message || (err as Error).message;
     console.error('Error details:', {
-      message: (err as Error).message,
-      stack: (err as Error).stack
+      message: errorMsg,
+      name: (err as Error).name
     });
+    
+    // Provide detailed error messages for specific cases
+    if (errorMsg?.includes('duplicate key')) {
+      return res.status(400).json({ 
+        message: 'A staff member with this username, employee ID, or email already exists',
+        error: process.env.NODE_ENV === 'development' ? errorMsg : undefined
+      });
+    }
+    
     res.status(500).json({ 
       message: 'Error updating staff member',
-      error: (err as Error).message 
+      error: process.env.NODE_ENV === 'development' ? errorMsg : undefined
     });
   }
 };
@@ -231,7 +326,11 @@ export const deleteStaff = async (req: Request, res: Response) => {
 
   } catch (err) {
     console.error('Error deleting staff member:', err);
-    res.status(500).json({ message: 'Error deleting staff member' });
+    const errorMsg = (err as any).message || (err as Error).message;
+    res.status(500).json({ 
+      message: 'Error deleting staff member',
+      error: process.env.NODE_ENV === 'development' ? errorMsg : undefined
+    });
   }
 };
 
@@ -246,6 +345,10 @@ export const getWaiters = async (req: Request, res: Response) => {
     res.json(waiters);
   } catch (err) {
     console.error('Error fetching waiters:', err);
-    res.status(500).json({ message: 'Error fetching waiters' });
+    const errorMsg = (err as any).message || (err as Error).message;
+    res.status(500).json({ 
+      message: 'Error fetching waiters',
+      error: process.env.NODE_ENV === 'development' ? errorMsg : undefined
+    });
   }
 };

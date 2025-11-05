@@ -83,24 +83,26 @@ export const getSalesAnalytics = async (req: Request, res: Response) => {
     const salesByCategory = await db('order_items')
       .join('orders', 'order_items.order_id', 'orders.id')
       .join('products', 'order_items.product_id', 'products.id')
-      .select('products.category')
+      .leftJoin('categories', 'products.category_id', 'categories.id')
+      .select('products.category_id', 'categories.name as category_name')
       .sum('order_items.total_price as total')
       .count('order_items.id as items_sold')
       .where('orders.created_at', '>=', startDate)
       .where('orders.status', 'completed')
-      .groupBy('products.category')
+      .groupBy('products.category_id', 'categories.id', 'categories.name')
       .orderBy('total', 'desc');
 
     // Top selling products
     const topProducts = await db('order_items')
       .join('orders', 'order_items.order_id', 'orders.id')
       .join('products', 'order_items.product_id', 'products.id')
-      .select('products.name', 'products.category')
+      .leftJoin('categories', 'products.category_id', 'categories.id')
+      .select('products.name', 'products.category_id', 'categories.name as category_name')
       .sum('order_items.quantity as quantity_sold')
       .sum('order_items.total_price as revenue')
       .where('orders.created_at', '>=', startDate)
       .where('orders.status', 'completed')
-      .groupBy('products.id', 'products.name', 'products.category')
+      .groupBy('products.id', 'products.name', 'products.category_id', 'categories.id', 'categories.name')
       .orderBy('quantity_sold', 'desc')
       .limit(10);
 

@@ -50,7 +50,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
           }
           .receipt { text-align: center; }
           .logo {
-            max-width: 170px; /* <-- INCREASED LOGO SIZE */
+            max-width: 220px; /* <-- INCREASED LOGO SIZE FOR PROMINENCE */
             height: auto;
             margin: 0 auto 10px;
             display: block;
@@ -157,7 +157,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
             <div className="text-center font-['Courier_New',_monospace]">
               {/* Logo in preview */}
               <div className="mb-3">
-                <img src="/logo.PNG" alt="Restaurant Logo" className="h-16 mx-auto" />
+                <img src="/logo.PNG" alt="Restaurant Logo" className="h-32 mx-auto" />
               </div>
               <div className="text-xl font-extrabold mb-1">MARIA HAVENS</div>
               <div className="text-sm">Restaurant & Hotel</div>

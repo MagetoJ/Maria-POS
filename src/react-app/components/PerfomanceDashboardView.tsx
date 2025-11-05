@@ -5,9 +5,6 @@ import {
   TrendingUp, DollarSign, ShoppingBag, Star, Clock, Users,
   Award, Target, Loader2, Calendar, Filter
 } from 'lucide-react';
-import MyShiftsView from './MyShiftsView'; // 1. IMPORT THE NEW COMPONENT
-import MyRecentOrders from './MyRecentOrders'; // 2. IMPORT RECENT ORDERS COMPONENT
-import KitchenDisplay from '../pages/KitchenDisplay';
 
 
 interface PerformanceData {
@@ -93,6 +90,7 @@ export default function PerformanceDashboard() {
   const [allStaffPerformance, setAllStaffPerformance] = useState<AllStaffPerformance[]>([]);
   const [waiterPerformance, setWaiterPerformance] = useState<WaiterPerformance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
@@ -105,44 +103,74 @@ export default function PerformanceDashboard() {
 
   const fetchPerformanceData = async () => {
     setIsLoading(true);
+    setError(null);
     const token = localStorage.getItem('pos_token');
 
     try {
       // Fetch own performance for all users
       if (user) {
-        const myResponse = await fetch(
-          `${API_URL}/api/performance/staff/${user.id}?start_date=${dateRange.start}&end_date=${dateRange.end}`,
-          { headers: { 'Authorization': `Bearer ${token}` } }
-        );
-        if (myResponse.ok) {
-          setMyPerformance(await myResponse.json());
+        try {
+          const myResponse = await fetch(
+            `${API_URL}/api/performance/staff/${user.id}?start_date=${dateRange.start}&end_date=${dateRange.end}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+          if (myResponse.ok) {
+            const data = await myResponse.json();
+            setMyPerformance(data);
+            console.log('✅ Performance data loaded:', data);
+          } else {
+            const errorText = await myResponse.text();
+            console.warn('⚠️ Failed to fetch own performance:', myResponse.status, errorText);
+          }
+        } catch (err) {
+          console.error('❌ Error fetching own performance:', err);
+          setError('Failed to load your performance data');
         }
       }
 
       // Fetch all staff performance for admin/manager
       if (user?.role === 'admin' || user?.role === 'manager') {
-        const roleQuery = selectedRole !== 'all' ? `&role=${selectedRole}` : '';
-        const allResponse = await fetch(
-          `${API_URL}/api/performance/all?start_date=${dateRange.start}&end_date=${dateRange.end}${roleQuery}`,
-          { headers: { 'Authorization': `Bearer ${token}` } }
-        );
-        if (allResponse.ok) {
-          setAllStaffPerformance(await allResponse.json());
+        try {
+          const roleQuery = selectedRole !== 'all' ? `&role=${selectedRole}` : '';
+          const allResponse = await fetch(
+            `${API_URL}/api/performance/all?start_date=${dateRange.start}&end_date=${dateRange.end}${roleQuery}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+          if (allResponse.ok) {
+            const data = await allResponse.json();
+            setAllStaffPerformance(data);
+            console.log('✅ Team performance data loaded:', data);
+          } else {
+            const errorText = await allResponse.text();
+            console.warn('⚠️ Failed to fetch team performance:', allResponse.status, errorText);
+          }
+        } catch (err) {
+          console.error('❌ Error fetching team performance:', err);
         }
       }
 
       // Fetch waiter performance for receptionist
       if (user?.role === 'receptionist') {
-        const waiterResponse = await fetch(
-          `${API_URL}/api/performance/waiters?start_date=${dateRange.start}&end_date=${dateRange.end}`,
-          { headers: { 'Authorization': `Bearer ${token}` } }
-        );
-        if (waiterResponse.ok) {
-          setWaiterPerformance(await waiterResponse.json());
+        try {
+          const waiterResponse = await fetch(
+            `${API_URL}/api/performance/waiters?start_date=${dateRange.start}&end_date=${dateRange.end}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+          if (waiterResponse.ok) {
+            const data = await waiterResponse.json();
+            setWaiterPerformance(data);
+            console.log('✅ Waiter performance data loaded:', data);
+          } else {
+            const errorText = await waiterResponse.text();
+            console.warn('⚠️ Failed to fetch waiter performance:', waiterResponse.status, errorText);
+          }
+        } catch (err) {
+          console.error('❌ Error fetching waiter performance:', err);
         }
       }
     } catch (error) {
-      console.error('Error fetching performance:', error);
+      console.error('Error in fetchPerformanceData:', error);
+      setError('An unexpected error occurred while loading performance data');
     } finally {
       setIsLoading(false);
     }
@@ -161,8 +189,21 @@ export default function PerformanceDashboard() {
     );
   }
 
+  // Check if any data is available
+  const hasData = myPerformance || allStaffPerformance.length > 0 || waiterPerformance.length > 0;
+
   return (
     <div className="space-y-6">
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+          <div className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5">⚠️</div>
+          <div>
+            <h3 className="font-semibold text-red-800">Error Loading Data</h3>
+            <p className="text-sm text-red-700 mt-1">{error}</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -218,16 +259,6 @@ export default function PerformanceDashboard() {
           )}
         </div>
       </div>
-
-      {/* 2. RENDER THE NEW COMPONENT HERE */}
-      {user.role !== 'admin' && user.role !== 'manager' && (
-        <>
-          <MyShiftsView />
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <MyRecentOrders />
-          </div>
-        </>
-      )}
 
       {/* My Performance Section */}
       {myPerformance && (
@@ -601,6 +632,24 @@ export default function PerformanceDashboard() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!hasData && !error && (
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-12 text-center border-2 border-dashed border-gray-300">
+          <div className="flex justify-center mb-4">
+            <TrendingUp className="w-16 h-16 text-gray-300" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Performance Data Available</h3>
+          <p className="text-gray-600 mb-4">
+            {user.role === 'admin' || user.role === 'manager'
+              ? 'Your team hasn\'t created any orders yet. Performance metrics will appear here once team members start processing orders.'
+              : 'You haven\'t created any orders in the selected period. Start processing orders to see your performance metrics.'}
+          </p>
+          <p className="text-sm text-gray-500">
+            Showing data from {dateRange.start} to {dateRange.end}
+          </p>
         </div>
       )}
     </div>

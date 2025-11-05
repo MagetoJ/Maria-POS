@@ -14,7 +14,6 @@ import TableManagementView from '../components/TableManagementView';
 import BarSales from '../components/BarSales';
 import QuickBarSalesPanel from '../components/QuickBarSalesPanel';
 import {
-  UtensilsCrossed,
   Building,
   Settings,
   BarChart3,
@@ -22,6 +21,7 @@ import {
   ShoppingCart, // <-- Import ShoppingCart icon
   X, // <-- Import X icon
   Wine, // <-- Import Wine icon for bar sales
+  Menu,
 } from 'lucide-react';
 
 interface POSProps {
@@ -114,75 +114,78 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
         <div className="flex-1 flex flex-col relative overflow-hidden">
           {/* Top Bar with controls */}
           <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              {/* Order Type Controls */}
-              <div className="flex items-center gap-2 flex-wrap">
+            {/* First Row: Order Type Controls (scrollable on mobile) */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-3">
+              <button
+                onClick={() => { setOrderType('dine_in'); setActiveView('menu'); }}
+                className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 rounded-lg font-medium transition-colors whitespace-nowrap flex-shrink-0 ${orderType === 'dine_in' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+              >
+                Dine In
+              </button>
+              <button
+                onClick={() => { setOrderType('takeaway'); setActiveView('menu'); }}
+                className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 rounded-lg font-medium transition-colors whitespace-nowrap flex-shrink-0 ${orderType === 'takeaway' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+              >
+                Takeaway
+              </button>
+              {canAccessDelivery && (
                 <button
-                  onClick={() => { setOrderType('dine_in'); setActiveView('menu'); }}
-                  className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 rounded-lg font-medium transition-colors ${orderType === 'dine_in' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                  onClick={() => { setOrderType('delivery'); setActiveView('delivery'); }}
+                  className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 rounded-lg font-medium transition-colors whitespace-nowrap flex-shrink-0 ${orderType === 'delivery' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
                 >
-                  Dine In
+                  Delivery
                 </button>
+              )}
+              {canAccessRooms && (
                 <button
-                  onClick={() => { setOrderType('takeaway'); setActiveView('menu'); }}
-                  className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 rounded-lg font-medium transition-colors ${orderType === 'takeaway' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                  onClick={() => { setOrderType('room_service'); setActiveView('rooms'); }}
+                  className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 rounded-lg font-medium transition-colors whitespace-nowrap flex-shrink-0 ${orderType === 'room_service' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
                 >
-                  Takeaway
+                  Room Service
                 </button>
-                {canAccessDelivery && (
-                  <button
-                    onClick={() => { setOrderType('delivery'); setActiveView('delivery'); }}
-                    className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 rounded-lg font-medium transition-colors ${orderType === 'delivery' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-                  >
-                    Delivery
-                  </button>
-                )}
-                {canAccessRooms && (
-                  <button
-                    onClick={() => { setOrderType('room_service'); setActiveView('rooms'); }}
-                    className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 rounded-lg font-medium transition-colors ${orderType === 'room_service' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-                  >
-                    Room Service
-                  </button>
-                )}
-              </div>
+              )}
+            </div>
 
-              {/* View Controls */}
-              <div className="flex items-center gap-2">
-                <button onClick={() => setActiveView('menu')} className={`p-2 rounded-lg transition-colors ${activeView === 'menu' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Menu">
-                  <UtensilsCrossed className="w-5 h-5" />
+            {/* Second Row: View Controls - Always Visible Icons */}
+            <div className="flex items-center gap-2 overflow-x-auto">
+              {/* Always show Menu button */}
+              <button onClick={() => setActiveView('menu')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'menu' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Menu">
+                <Menu className="w-5 h-5" />
+              </button>
+              
+              {/* Always show Bar Sales button if user has access */}
+              {canAccessBarSales && isQuickAccess && (
+                <button onClick={() => setActiveView('quick_bar_sales')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'quick_bar_sales' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Bar Sales (Wine)">
+                  <Wine className="w-5 h-5" />
                 </button>
-                {canAccessBarSales && isQuickAccess && (
-                  <button onClick={() => setActiveView('quick_bar_sales')} className={`p-2 rounded-lg transition-colors ${activeView === 'quick_bar_sales' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Bar Sales">
-                    <Wine className="w-5 h-5" />
-                  </button>
-                )}
-                {canAccessBarSales && !isQuickAccess && (
-                  <button onClick={() => setActiveView('bar_sales')} className={`p-2 rounded-lg transition-colors ${activeView === 'bar_sales' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Bar Sales">
-                    <Wine className="w-5 h-5" />
-                  </button>
-                )}
-                {canAccessRooms && (
-                  <button onClick={() => setActiveView('rooms')} className={`p-2 rounded-lg transition-colors ${activeView === 'rooms' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Rooms">
-                    <Building className="w-5 h-5" />
-                  </button>
-                )}
-                {canManageTables && (
-                  <button onClick={() => setActiveView('manage_tables')} className={`p-2 rounded-lg transition-colors ${activeView === 'manage_tables' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Manage Tables">
-                    <LayoutGrid className="w-5 h-5" />
-                  </button>
-                )}
-                {canAccessDashboard && (
-                  <button onClick={() => setActiveView('dashboard')} className={`p-2 rounded-lg transition-colors ${activeView === 'dashboard' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Dashboard">
-                    <BarChart3 className="w-5 h-5" />
-                  </button>
-                )}
-                {(user?.role === 'admin' || user?.role === 'manager') && (
-                  <button onClick={() => alert('Admin settings access - functionality coming soon')} className="p-2 rounded-lg transition-colors text-gray-500 hover:bg-gray-100" title="Settings">
-                    <Settings className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
+              )}
+              {canAccessBarSales && !isQuickAccess && (
+                <button onClick={() => setActiveView('bar_sales')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'bar_sales' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Bar Sales (Wine)">
+                  <Wine className="w-5 h-5" />
+                </button>
+              )}
+              
+              {/* Remaining buttons - can scroll if needed */}
+              {canAccessRooms && (
+                <button onClick={() => setActiveView('rooms')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'rooms' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Rooms">
+                  <Building className="w-5 h-5" />
+                </button>
+              )}
+              {canManageTables && (
+                <button onClick={() => setActiveView('manage_tables')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'manage_tables' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Manage Tables">
+                  <LayoutGrid className="w-5 h-5" />
+                </button>
+              )}
+              {canAccessDashboard && (
+                <button onClick={() => setActiveView('dashboard')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'dashboard' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Dashboard">
+                  <BarChart3 className="w-5 h-5" />
+                </button>
+              )}
+              {(user?.role === 'admin' || user?.role === 'manager') && (
+                <button onClick={() => alert('Admin settings access - functionality coming soon')} className="p-2 rounded-lg transition-colors text-gray-500 hover:bg-gray-100 flex-shrink-0" title="Settings">
+                  <Settings className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
 

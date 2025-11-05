@@ -11,10 +11,15 @@ import RoomManagement from '../components/admin/RoomManagement';
 import ReportsManagement from '../components/admin/ReportsManagement';
 import SettingsManagement from '../components/admin/SettingsManagement';
 import ShiftManagement from '../components/admin/ShiftManagement';
-import PerformanceDashboard from '../components/PerfomanceDashboardView';
+import ExpensesManagement from '../components/admin/ExpensesManagement';
+import ProductReturnsManagement from '../components/admin/ProductReturnsManagement';
+import SuppliersManagement from '../components/admin/SuppliersManagement';
+import PurchaseOrdersManagement from '../components/admin/PurchaseOrdersManagement';
+import PerfomanceDashboard from '../components/PerfomanceDashboardView';
 import PersonalSalesReport from '../components/PersonalSalesReport';
 import SearchComponent from '../components/SearchComponent';
 import { navigateToSearchResult } from '../utils/searchNavigation';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 import {
   BarChart3,
@@ -22,7 +27,7 @@ import {
   Package,
   Settings,
   FileText,
-  UtensilsCrossed,
+  Menu,
   Bed,
   AlertTriangle,
   DollarSign,
@@ -30,6 +35,10 @@ import {
   Clock, 
   TrendingUp,
   Search,
+  Receipt,
+  RotateCcw,
+  Truck,
+  ShoppingCart,
 } from 'lucide-react';
 
 // --- Helper Functions ---
@@ -113,6 +122,19 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
+  
+  // Chart data state
+  const [revenueData] = useState([
+    { date: 'Mon', revenue: 4500 },
+    { date: 'Tue', revenue: 5200 },
+    { date: 'Wed', revenue: 4800 },
+    { date: 'Thu', revenue: 6100 },
+    { date: 'Fri', revenue: 7200 },
+    { date: 'Sat', revenue: 8900 },
+    { date: 'Sun', revenue: 6500 },
+  ]);
+  
+  const [lowStockChartData, setLowStockChartData] = useState<Array<{ name: string; current: number; minimum: number }>>([]);
 
   // Handle navigation from URL hash (for search result navigation)
   useEffect(() => {
@@ -155,6 +177,13 @@ export default function AdminDashboard() {
       if (response.ok) {
         const data = await response.json();
         setLowStockItems(data);
+        // Prepare chart data
+        const chartData = data.map((item: LowStockItem) => ({
+          name: item.name.substring(0, 12), // Truncate for better chart display
+          current: item.current_stock,
+          minimum: item.minimum_stock,
+        }));
+        setLowStockChartData(chartData);
         envLog.dev('✅ Low stock items loaded:', data);
       }
     } catch (error) {
@@ -222,8 +251,12 @@ export default function AdminDashboard() {
     { id: 'shifts', label: 'Shift Management', icon: Clock },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'inventory', label: 'Inventory', icon: Package },
-    { id: 'menu', label: 'Menu Management', icon: UtensilsCrossed },
+    { id: 'menu', label: 'Menu Management', icon: Menu },
     { id: 'rooms', label: 'Room Management', icon: Bed },
+    { id: 'suppliers', label: 'Suppliers', icon: Truck },
+    { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+    { id: 'expenses', label: 'Expenses', icon: Receipt },
+    { id: 'product-returns', label: 'Product Returns', icon: RotateCcw },
     { id: 'reports', label: 'Reports', icon: FileText },
     { id: 'sales-reports', label: 'Sales Reports', icon: DollarSign },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -308,6 +341,60 @@ export default function AdminDashboard() {
                 </div>
             </div>
             </div>
+        </div>
+
+        {/* Charts Section - Revenue Over Time and Low Stock Visualization */}
+        <div className="grid grid-cols-1 gap-6">
+            {/* Revenue Chart */}
+            <div className="bg-white rounded-lg p-6 border border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend (This Week)</h3>
+              <div style={{ width: '100%', height: '320px', minHeight: '320px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={revenueData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" stroke="#6b7280" />
+                    <YAxis stroke="#6b7280" />
+                    <Tooltip 
+                      formatter={(value) => `KES ${value.toLocaleString('en-KE')}`}
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    />
+                    <Legend />
+                    <Line 
+                      type="monotone" 
+                      dataKey="revenue" 
+                      stroke="#facc15" 
+                      strokeWidth={3}
+                      dot={{ fill: '#facc15', r: 5 }}
+                      activeDot={{ r: 7 }}
+                      name="Daily Revenue"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Low Stock Items Chart */}
+            {lowStockChartData.length > 0 && (
+              <div className="bg-white rounded-lg p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Low Stock Items - Current vs Minimum</h3>
+                <div style={{ width: '100%', height: '320px', minHeight: '320px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={lowStockChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="name" stroke="#6b7280" />
+                      <YAxis stroke="#6b7280" />
+                      <Tooltip 
+                        formatter={(value) => value}
+                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                      />
+                      <Legend />
+                      <Bar dataKey="current" fill="#10b981" name="Current Stock" />
+                      <Bar dataKey="minimum" fill="#ef4444" name="Minimum Required" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
         </div>
 
         {/* Recent Activity & Quick Actions */}
@@ -497,7 +584,7 @@ export default function AdminDashboard() {
             
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 bg-yellow-100 rounded-lg">
-                <UtensilsCrossed className="w-6 h-6 text-yellow-600" />
+                <Menu className="w-6 h-6 text-yellow-600" />
               </div>
               <h3 className="text-sm font-medium text-gray-900">Menu</h3>
               <p className="text-xs text-gray-500">Search dishes</p>
@@ -542,6 +629,14 @@ export default function AdminDashboard() {
         return <MenuManagement />;
       case 'rooms':
         return <RoomManagement />;
+      case 'suppliers':
+        return <SuppliersManagement />;
+      case 'purchase-orders':
+        return <PurchaseOrdersManagement />;
+      case 'expenses':
+        return <ExpensesManagement />;
+      case 'product-returns':
+        return <ProductReturnsManagement />;
       case 'reports':
         return <ReportsManagement />;
       case 'sales-reports':

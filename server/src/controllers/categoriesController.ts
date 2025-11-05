@@ -20,26 +20,24 @@ export const getAllCategories = async (req: Request, res: Response) => {
       .select('*')
       .orderBy('name', 'asc');
 
-    // If no categories exist, return distinct categories from products table
+    // If no categories exist, try to create default categories from products table
     if (categories.length === 0) {
-      const productCategories = await db('products')
-        .distinct('category')
-        .whereNotNull('category')
-        .where('category', '!=', '')
-        .select('category as name')
-        .orderBy('category', 'asc');
+      try {
+        // Query categories from products table via category_id
+        const productCategories = await db('products')
+          .whereNotNull('category_id')
+          .distinct('category_id')
+          .join('categories', 'products.category_id', '=', 'categories.id')
+          .select('categories.id', 'categories.name', 'categories.description')
+          .orderBy('categories.name', 'asc');
 
-      // Create basic category structure from product categories
-      const categoriesFromProducts = productCategories.map((cat, index) => ({
-        id: `temp-${index}`,
-        name: cat.name,
-        description: `Category for ${cat.name}`,
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date()
-      }));
-
-      return res.json(categoriesFromProducts);
+        if (productCategories.length > 0) {
+          return res.json(productCategories);
+        }
+      } catch (error) {
+        // Silently fail if there's an error, will return empty array
+        console.debug('Could not fetch categories from products:', error);
+      }
     }
 
     res.json(categories);
@@ -174,7 +172,7 @@ export const deleteCategory = async (req: Request, res: Response) => {
 
     // Check if category is used by products
     const productsUsingCategory = await db('products')
-      .where('category', existingCategory.name)
+      .where('category_id', id)
       .count('id as count')
       .first();
 

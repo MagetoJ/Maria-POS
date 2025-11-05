@@ -48,12 +48,12 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
       <head>
         <title>Receipt - ${receiptData.orderNumber}</title>
         <style>
-          body { font-family: 'Courier New', monospace; width: 300px; margin: 0; padding: 10px; font-size: 12px; }
+          body { font-family: 'Courier New', monospace; width: 360px; margin: 0; padding: 10px; font-size: 12px; }
           .receipt { text-align: center; }
           .logo {
-            max-width: 120px; 
+            max-width: 360px; 
             height: auto;
-            margin: 0 auto 10px;
+            margin: 0 auto 15px;
             display: block;
           }
           .header { font-size: 16px; font-weight: bold; margin-bottom: 8px; }
@@ -211,7 +211,7 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
           <div className="bg-gray-50 p-4 rounded-lg font-mono text-xs text-center">
             {/* Logo */}
             <div className="mb-3">
-              <img src="/logo.PNG" alt="Restaurant Logo" className="h-16 mx-auto" />
+              <img src="/logo.PNG" alt="Restaurant Logo" className="h-80 mx-auto object-contain" />
             </div>
             
             {/* Header */}
