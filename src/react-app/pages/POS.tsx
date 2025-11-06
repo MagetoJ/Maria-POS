@@ -33,7 +33,7 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
   const { user } = useAuth();
   const { addItemToOrder } = usePOS();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'bar_sales' | 'quick_bar_sales'>('menu');
+  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'bar_sales' | 'quick_bar_sales'>(isQuickAccess ? 'quick_bar_sales' : 'menu');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   // State to manage order panel visibility on mobile
   const [isOrderPanelVisible, setOrderPanelVisible] = useState(false);
@@ -42,7 +42,7 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
   const canAccessDelivery = user?.role === 'delivery' || user?.role === 'manager' || user?.role === 'admin' || isQuickAccess;
   const canAccessDashboard = ['waiter', 'cashier', 'delivery', 'receptionist', 'manager', 'admin'].includes(user?.role ?? '');
   const canManageTables = user?.role === 'receptionist';
-  const canAccessBarSales = ['waiter', 'receptionist', 'manager', 'admin'].includes(user?.role ?? '') || isQuickAccess;
+  const canAccessBarSales = ['waiter', 'cashier', 'receptionist', 'manager', 'admin'].includes(user?.role ?? '') || isQuickAccess;
 
   // Handle search results from header search
   useEffect(() => {
@@ -154,7 +154,7 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
               </button>
               
               {/* Show Bar Sales button - always available in Quick POS, role-based for regular users */}
-              {(isQuickAccess || canAccessBarSales) && (
+              {canAccessBarSales && (
                 <button
                   onClick={() => setActiveView(isQuickAccess ? 'quick_bar_sales' : 'bar_sales')}
                   className={`p-2 rounded-lg transition-colors flex-shrink-0 ${(activeView === 'quick_bar_sales' || activeView === 'bar_sales') ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`}

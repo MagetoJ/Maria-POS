@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, Plus, Edit3, Trash2, AlertTriangle } from 'lucide-react';
+import { Package, Plus, Edit3, Trash2, AlertTriangle, Search } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { useAuth } from '../../contexts/AuthContext'; 
 
@@ -22,6 +22,8 @@ export default function InventoryManagement() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [selectedType, setSelectedType] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -55,8 +57,18 @@ export default function InventoryManagement() {
   const canAddItems = allowedTypes.length > 0;
 
   useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [searchTerm]);
+
+  useEffect(() => {
     fetchInventory();
-  }, []);
+  }, [selectedType, debouncedSearchTerm]);
 
   const fetchInventory = async () => {
     setLoading(true);
@@ -65,7 +77,16 @@ export default function InventoryManagement() {
       const token = localStorage.getItem('pos_token');
       if (!token) return setError('No authentication token found');
 
-      const response = await fetch(`${API_URL}/api/inventory`, {
+      const params = new URLSearchParams();
+      if (selectedType !== 'all') {
+        params.append('inventory_type', selectedType);
+      }
+      const trimmedSearch = debouncedSearchTerm.trim();
+      if (trimmedSearch.length >= 3) {
+        params.append('search', trimmedSearch);
+      }
+
+      const response = await fetch(`${API_URL}/api/inventory?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -315,6 +336,20 @@ export default function InventoryManagement() {
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <div className="text-2xl font-bold text-purple-600">{inventory.filter(i => i.inventory_type === 'kitchen').length}</div>
           <div className="text-sm text-gray-600">Kitchen Items</div>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="bg-white rounded-lg p-4 border border-gray-200">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search inventory by name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg pl-10 focus:ring-2 focus:ring-blue-500"
+          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
         </div>
       </div>
 

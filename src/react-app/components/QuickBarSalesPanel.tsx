@@ -27,10 +27,12 @@ interface QuickBarSalesPanelProps {
 
 export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSalesPanelProps) {
   const { addItemToOrder } = usePOS();
-  const [barItems, setBarItems] = useState<BarProduct[]>([]);
-  const [filteredItems, setFilteredItems] = useState<BarProduct[]>([]);
+  // Initialize state directly from the cache
+  const [barItems, setBarItems] = useState<BarProduct[]>(barItemsCache || []);
+  const [filteredItems, setFilteredItems] = useState<BarProduct[]>(barItemsCache || []);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(!barItemsCache);
+  // Always set isLoading to true on mount to ensure fetchBarItems runs and completes
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

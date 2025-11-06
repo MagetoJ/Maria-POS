@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../config/api';
-import { Plus, Trash2, Edit2, Loader2, AlertCircle, X, CheckCircle, Truck } from 'lucide-react';
+import { Plus, Trash2, Edit2, Loader2, AlertCircle, X, CheckCircle, Truck, Search } from 'lucide-react';
 
 interface InventoryItem {
   id: number;
@@ -49,6 +49,8 @@ export default function PurchaseOrdersManagement() {
   const [showReceiveForm, setShowReceiveForm] = useState(false);
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [formData, setFormData] = useState({
     supplier_id: '',
@@ -60,13 +62,33 @@ export default function PurchaseOrdersManagement() {
   const [receiveData, setReceiveData] = useState<{ [key: number]: number }>({});
 
   useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [searchTerm]);
+
+  useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
       try {
         console.log('📦 Fetching POs, suppliers, and inventory...');
+        // Build PO query params
+        const poParams = new URLSearchParams();
+        const trimmedSearch = debouncedSearchTerm.trim();
+        if (trimmedSearch.length >= 3) {
+          poParams.append('search', trimmedSearch);
+        }
+        if (statusFilter !== 'all') {
+          poParams.append('status', statusFilter);
+        }
+
         const [posRes, suppliersRes, inventoryRes] = await Promise.all([
-          apiClient.get('/api/purchase-orders'),
+          apiClient.get(`/api/purchase-orders?${poParams.toString()}`),
           apiClient.get('/api/suppliers'),
           apiClient.get('/api/inventory'),
         ]);
@@ -98,7 +120,7 @@ export default function PurchaseOrdersManagement() {
     };
 
     fetchData();
-  }, []);
+  }, [debouncedSearchTerm, statusFilter]);
 
   const handleAddItem = () => {
     setFormData({
@@ -274,6 +296,36 @@ export default function PurchaseOrdersManagement() {
           <Plus className="w-5 h-5" />
           New Purchase Order
         </button>
+      </div>
+
+      {/* Search and Filter */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex-1">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search by PO#, Supplier, or Item..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          </div>
+        </div>
+        <div className="sm:w-48">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="ordered">Ordered</option>
+            <option value="partially_received">Partially Received</option>
+            <option value="received">Received</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
       </div>
 
       {/* Error Alert */}

@@ -4,8 +4,23 @@ import db from '../db';
 // Get inventory items based on user role
 export const getInventory = async (req: Request, res: Response) => {
   try {
+    const {
+      inventory_type,
+      low_stock,
+      search
+    } = req.query;
+
     const userRole = req.user?.role;
-    let query = db('inventory_items').select('*').orderBy('name', 'asc');
+
+    let query = db('inventory_items')
+      .leftJoin('suppliers', 'inventory_items.supplier_id', 'suppliers.id')
+      .leftJoin('products', 'inventory_items.product_id', 'products.id')
+      .select(
+        'inventory_items.*',
+        'suppliers.name as supplier_name',
+        'products.name as product_name'
+      )
+      .orderBy('inventory_items.name', 'asc');
 
     if (!userRole) {
       return res.status(403).json({ message: 'User role not found' });
@@ -13,15 +28,29 @@ export const getInventory = async (req: Request, res: Response) => {
 
     // Apply role-based filtering
     if (userRole === 'kitchen_staff') {
-      query.where('inventory_type', 'kitchen');
+      query.where('inventory_items.inventory_type', 'kitchen');
     } else if (userRole === 'receptionist') {
-      query.whereIn('inventory_type', ['bar', 'housekeeping', 'minibar']);
+      query.whereIn('inventory_items.inventory_type', ['bar', 'housekeeping', 'minibar']);
     } else if (userRole === 'waiter' || userRole === 'quick_pos') {
-      query.where('inventory_type', 'bar');
+      query.where('inventory_items.inventory_type', 'bar');
     } else if (!['admin', 'manager'].includes(userRole)) {
       return res.json([]); // Return empty for other non-privileged roles
     }
-    
+
+    if (inventory_type) {
+      query = query.where('inventory_items.inventory_type', inventory_type as string);
+    }
+
+    if (low_stock === 'true') {
+      query = query.whereRaw('inventory_items.current_stock <= inventory_items.low_stock_threshold');
+    }
+
+    // Add search logic
+    if (search) {
+      const searchTerm = search as string;
+      query = query.where('inventory_items.name', 'ilike', `%${searchTerm}%`);
+    }
+
     const inventory = await query;
     res.json(inventory);
 

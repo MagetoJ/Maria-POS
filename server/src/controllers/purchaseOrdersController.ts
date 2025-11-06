@@ -1,71 +1,88 @@
 import { Request, Response } from 'express';
 import db from '../db';
 
-// Get all purchase orders
 export const getPurchaseOrders = async (req: Request, res: Response) => {
   try {
-    const { status, supplierId, search } = req.query;
+    const {
+      status,
+      supplier_id,
+      search // <-- 1. Accept 'search' param
+    } = req.query;
 
-    if (search && typeof search === 'string' && search.trim().length > 0) {
-      // When searching, we need to find purchase orders that contain items matching the search term
-      const searchTerm = `%${search.toLowerCase()}%`;
+    // Start query on purchase_orders
+    let query = db('purchase_orders')
+      .leftJoin('suppliers', 'purchase_orders.supplier_id', 'suppliers.id');
 
-      const orderIds = await db('purchase_order_items as poi')
-        .join('inventory_items as ii', function() {
-          this.on('poi.inventory_item_id', '=', 'ii.id')
-              .orOn('poi.item_id', '=', 'ii.id');
+    // --- 2. Add search logic ---
+    if (search) {
+      const searchTerm = search as string;
+      // If searching, we must also join tables to find item names
+      query = query
+        .leftJoin('purchase_order_items', 'purchase_orders.id', 'purchase_order_items.purchase_order_id')
+        .leftJoin('inventory_items', 'purchase_order_items.inventory_item_id', 'inventory_items.id')
+        .where(function() {
+          this.where('purchase_orders.po_number', 'ilike', `%${searchTerm}%`)
+            .orWhere('suppliers.name', 'ilike', `%${searchTerm}%`)
+            .orWhere('inventory_items.name', 'ilike', `%${searchTerm}%`); // <-- Search by item name
         })
-        .whereRaw('LOWER(ii.name) LIKE ?', [searchTerm])
-        .distinct('poi.purchase_order_id')
-        .pluck('poi.purchase_order_id');
-
-      let query = db('purchase_orders')
-        .join('suppliers', 'purchase_orders.supplier_id', 'suppliers.id')
-        .select('purchase_orders.*', 'suppliers.name as supplier_name')
-        .whereIn('purchase_orders.id', orderIds);
-
-      if (status) {
-        query = query.where('purchase_orders.status', status);
-      }
-      if (supplierId) {
-        query = query.where('purchase_orders.supplier_id', supplierId);
-      }
-
-      const orders = await query.orderBy('purchase_orders.order_date', 'desc');
-      const normalizedOrders = orders.map((order: any) => ({
-        ...order,
-        po_number: order.po_number || order.order_number,
-        order_number: order.order_number || order.po_number,
-        supplier: order.supplier || order.supplier_name || null,
-        total_amount: Number(order.total_amount ?? 0),
-      }));
-      res.json(normalizedOrders);
-    } else {
-      // Original logic when not searching
-      let query = db('purchase_orders')
-        .join('suppliers', 'purchase_orders.supplier_id', 'suppliers.id')
-        .select('purchase_orders.*', 'suppliers.name as supplier_name');
-
-      if (status) {
-        query = query.where('purchase_orders.status', status);
-      }
-      if (supplierId) {
-        query = query.where('purchase_orders.supplier_id', supplierId);
-      }
-
-      const orders = await query.orderBy('purchase_orders.order_date', 'desc');
-      const normalizedOrders = orders.map((order: any) => ({
-        ...order,
-        po_number: order.po_number || order.order_number,
-        order_number: order.order_number || order.po_number,
-        supplier: order.supplier || order.supplier_name || null,
-        total_amount: Number(order.total_amount ?? 0),
-      }));
-      res.json(normalizedOrders);
+        // Get unique POs, as a search for "Beer" might match multiple items in one PO
+        .distinct('purchase_orders.id');
     }
-  } catch (error) {
-    console.error('Get purchase orders error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    // --- End of new logic ---
+
+    // Apply standard filters
+    if (status) {
+      query = query.where('purchase_orders.status', status as string);
+    }
+
+    if (supplier_id) {
+      query = query.where('purchase_orders.supplier_id', supplier_id as string);
+    }
+
+    // --- 3. Get the filtered list of PO IDs ---
+    // We get IDs first to avoid complex grouping issues
+    const poIdObjects = await query.select('purchase_orders.id');
+    const poIds = poIdObjects.map((p: { id: number }) => p.id);
+
+    if (poIds.length === 0) {
+      return res.json([]);
+    }
+
+    // --- 4. Now, fetch the full PO data for the filtered IDs ---
+    const pos = await db('purchase_orders')
+      .leftJoin('suppliers', 'purchase_orders.supplier_id', 'suppliers.id')
+      .select(
+        'purchase_orders.*',
+        'suppliers.name as supplier_name'
+      )
+      .whereIn('purchase_orders.id', poIds)
+      .orderBy('purchase_orders.created_at', 'desc');
+
+    // --- 5. Attach items (as the original function did) ---
+    for (const po of pos) {
+      (po as any).items = await db('purchase_order_items')
+        .leftJoin('inventory_items', 'purchase_order_items.inventory_item_id', 'inventory_items.id')
+        .where('purchase_order_id', po.id)
+        .select(
+          'purchase_order_items.*',
+          'inventory_items.name as item_name',
+          'inventory_items.unit as item_unit'
+        );
+    }
+
+    // Normalize the data
+    const normalizedOrders = pos.map((order: any) => ({
+      ...order,
+      po_number: order.po_number || order.order_number,
+      order_number: order.order_number || order.po_number,
+      supplier: order.supplier || order.supplier_name || null,
+      total_amount: Number(order.total_amount ?? 0),
+    }));
+
+    res.json(normalizedOrders);
+  } catch (err) {
+    console.error('Error fetching purchase orders:', err);
+    res.status(500).json({ message: 'Error fetching purchase orders' });
   }
 };
 
