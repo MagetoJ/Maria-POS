@@ -28,7 +28,7 @@ export const createOrder = async (req: Request, res: Response) => {
       }
 
       const validation = await validateStaffPinForOrder(staff_username, pin);
-      if (!validation.valid || !validation.staffId) {
+      if (!validation.valid || !validation.staffId || !validation.staffName) {
         return res.status(401).json({ message: 'Invalid username or PIN' });
       }
 
@@ -125,7 +125,7 @@ export const createOrder = async (req: Request, res: Response) => {
 
     res.status(201).json({
       message: 'Order created successfully',
-      staff_name: validation.staffName,
+      staff_name: staffName,
     });
 
   } catch (err) {

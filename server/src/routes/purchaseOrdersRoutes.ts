@@ -4,18 +4,11 @@ import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = Router();
 
-// PUBLIC ROUTES - No authentication required for Quick POS bar sales
-// Get bar items formatted as products for Quick POS (accessible without authentication)
-router.get('/bar-items-as-products',
-  purchaseOrdersController.getBarItemsAsProducts
-);
+// All purchase order routes require authentication
+router.use(authenticateToken);
 
-// Sell bar inventory item - public access (no authentication required)
-router.post('/sell-item',
-  purchaseOrdersController.sellBarItem
-);
-
-// All purchase order routes are now public
+// Only admin and manager can access purchase order routes
+router.use(authorizeRoles('admin', 'manager'));
 
 // Get all purchase orders with optional filtering
 router.get('/', purchaseOrdersController.getPurchaseOrders);

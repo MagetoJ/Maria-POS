@@ -53,7 +53,7 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
         console.log('📱 Fetching bar items for Quick POS...');
       }
 
-      const response = await apiClient.get('/api/purchase-orders/bar-items-as-products');
+      const response = await apiClient.get('/api/quick-pos/bar-items-as-products');
 
       if (!response.ok) {
         throw new Error('Failed to fetch bar items. Please try again.');
