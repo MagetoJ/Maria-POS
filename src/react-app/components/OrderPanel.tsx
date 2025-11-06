@@ -295,10 +295,15 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       alert('Cannot process an empty order.');
       return;
     }
-    if (waitersList.length === 0) {
-      await fetchWaiters();
+    if (isQuickAccess) {
+      // For quick access, submit directly without PIN
+      await submitOrder(null);
+    } else {
+      if (waitersList.length === 0) {
+        await fetchWaiters();
+      }
+      setShowPinModal(true);
     }
-    setShowPinModal(true);
   };
 
   const handlePinInput = (digit: string) => {
@@ -376,10 +381,10 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
     }
   };
 
-  const submitOrder = async (staff: User) => {
+  const submitOrder = async (staff: User | null) => {
     if (!currentOrder) return;
     const { id, ...orderData } = currentOrder;
-    const orderPayload = {
+    const orderPayload: any = {
       ...orderData,
       customer_name: customerName.trim() || null,
       table_id: currentOrderType === 'dine_in' && selectedTableId ? selectedTableId : null,
@@ -390,12 +395,15 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
         total_price: item.price * item.quantity,
         notes: item.notes,
       })),
-      staff_username: staff.username,
-      pin: pin,
       total_amount: total,
       subtotal: subtotal,
       payment_method: paymentMethod,
     };
+
+    if (staff) {
+      orderPayload.staff_username = staff.username;
+      orderPayload.pin = pin;
+    }
 
     try {
       const url = import.meta.env.DEV ? '/api/orders' : `${API_URL}/api/orders`;

@@ -53,7 +53,7 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
         console.log('📱 Fetching bar items for Quick POS...');
       }
 
-      const response = await apiClient.get('/api/receptionist/bar-items-as-products');
+      const response = await apiClient.get('/api/purchase-orders/bar-items-as-products');
 
       if (!response.ok) {
         throw new Error('Failed to fetch bar items. Please try again.');
@@ -80,9 +80,19 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
 
   // Filter items based on search term
   useEffect(() => {
-    const filtered = barItems.filter(item =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    if (!searchTerm.trim()) {
+      setFilteredItems(barItems);
+      return;
+    }
+
+    const filtered = barItems.filter(item => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        item.name.toLowerCase().includes(searchLower) ||
+        (item.description && item.description.toLowerCase().includes(searchLower)) ||
+        (item.unit && item.unit.toLowerCase().includes(searchLower))
+      );
+    });
     setFilteredItems(filtered);
   }, [searchTerm, barItems]);
 
@@ -99,7 +109,7 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
       image_url: item.image_url
     };
 
-    addItemToOrder(productToAdd, 1, 'dine_in');
+    addItemToOrder(productToAdd, 1, 'bar_sale');
   };
 
   const hasData = barItems.length > 0;

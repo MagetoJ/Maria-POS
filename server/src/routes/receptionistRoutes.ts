@@ -10,14 +10,13 @@ router.get('/bar-items-as-products',
   receptionistController.getBarItemsAsProducts
 );
 
-// All receptionist routes require authentication and specific roles
-router.use(authenticateToken);
-
-// Sell bar inventory item - allow receptionist, waiter, quick_pos (per requirements)
-router.post('/sell-item', 
-  authorizeRoles('receptionist', 'waiter', 'quick_pos', 'admin', 'manager'),
+// Sell bar inventory item - public access (no authentication required)
+router.post('/sell-item',
   receptionistController.sellBarItem
 );
+
+// All receptionist routes require authentication and specific roles
+router.use(authenticateToken);
 
 // Get bar inventory items - allow same roles as sell-item
 router.get('/bar-inventory', 

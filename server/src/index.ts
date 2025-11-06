@@ -337,6 +337,46 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
+    // Search Purchase Orders
+    if (!type || type === 'purchase_order') {
+      const poResults = await db('purchase_orders')
+        .leftJoin('suppliers', 'purchase_orders.supplier_id', 'suppliers.id')
+        .whereRaw('LOWER(purchase_orders.po_number) LIKE ?', [searchTerm])
+        .orWhereRaw('LOWER(purchase_orders.order_number) LIKE ?', [searchTerm])
+        .orWhereRaw('LOWER(suppliers.name) LIKE ?', [searchTerm])
+        .limit(limitNum)
+        .select(
+          'purchase_orders.id',
+          'purchase_orders.po_number',
+          'purchase_orders.order_number',
+          'purchase_orders.status',
+          'purchase_orders.total_amount',
+          'purchase_orders.order_date',
+          'purchase_orders.expected_delivery_date',
+          'suppliers.name as supplier_name'
+        );
+
+      for (const po of poResults) {
+        searchResults.push({
+          id: po.id,
+          type: 'purchase_order',
+          title: po.po_number || po.order_number || `PO-${po.id}`,
+          subtitle: `${po.supplier_name || 'No Supplier'} - ${po.status}`,
+          description: `Total: KES ${po.total_amount || 0} - Ordered: ${po.order_date ? new Date(po.order_date).toLocaleDateString() : 'N/A'}`,
+          metadata: {
+            po_number: po.po_number,
+            order_number: po.order_number,
+            supplier_name: po.supplier_name,
+            status: po.status,
+            total_amount: po.total_amount,
+            order_date: po.order_date,
+            expected_delivery_date: po.expected_delivery_date,
+            created_at: po.order_date
+          }
+        });
+      }
+    }
+
     // Sort results by relevance (exact matches first, then partial matches)
     searchResults.sort((a, b) => {
       const aExact = a.title.toLowerCase().includes(q.toLowerCase()) ? 0 : 1;

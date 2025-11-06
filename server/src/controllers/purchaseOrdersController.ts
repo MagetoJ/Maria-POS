@@ -4,27 +4,65 @@ import db from '../db';
 // Get all purchase orders
 export const getPurchaseOrders = async (req: Request, res: Response) => {
   try {
-    const { status, supplierId } = req.query;
-    let query = db('purchase_orders')
-      .join('suppliers', 'purchase_orders.supplier_id', 'suppliers.id')
-      .select('purchase_orders.*', 'suppliers.name as supplier_name');
+    const { status, supplierId, search } = req.query;
 
-    if (status) {
-      query = query.where('purchase_orders.status', status);
-    }
-    if (supplierId) {
-      query = query.where('purchase_orders.supplier_id', supplierId);
-    }
+    if (search && typeof search === 'string' && search.trim().length > 0) {
+      // When searching, we need to find purchase orders that contain items matching the search term
+      const searchTerm = `%${search.toLowerCase()}%`;
 
-    const orders = await query.orderBy('purchase_orders.order_date', 'desc');
-    const normalizedOrders = orders.map((order: any) => ({
-      ...order,
-      po_number: order.po_number || order.order_number,
-      order_number: order.order_number || order.po_number,
-      supplier: order.supplier || order.supplier_name || null,
-      total_amount: Number(order.total_amount ?? 0),
-    }));
-    res.json(normalizedOrders);
+      const orderIds = await db('purchase_order_items as poi')
+        .join('inventory_items as ii', function() {
+          this.on('poi.inventory_item_id', '=', 'ii.id')
+              .orOn('poi.item_id', '=', 'ii.id');
+        })
+        .whereRaw('LOWER(ii.name) LIKE ?', [searchTerm])
+        .distinct('poi.purchase_order_id')
+        .pluck('poi.purchase_order_id');
+
+      let query = db('purchase_orders')
+        .join('suppliers', 'purchase_orders.supplier_id', 'suppliers.id')
+        .select('purchase_orders.*', 'suppliers.name as supplier_name')
+        .whereIn('purchase_orders.id', orderIds);
+
+      if (status) {
+        query = query.where('purchase_orders.status', status);
+      }
+      if (supplierId) {
+        query = query.where('purchase_orders.supplier_id', supplierId);
+      }
+
+      const orders = await query.orderBy('purchase_orders.order_date', 'desc');
+      const normalizedOrders = orders.map((order: any) => ({
+        ...order,
+        po_number: order.po_number || order.order_number,
+        order_number: order.order_number || order.po_number,
+        supplier: order.supplier || order.supplier_name || null,
+        total_amount: Number(order.total_amount ?? 0),
+      }));
+      res.json(normalizedOrders);
+    } else {
+      // Original logic when not searching
+      let query = db('purchase_orders')
+        .join('suppliers', 'purchase_orders.supplier_id', 'suppliers.id')
+        .select('purchase_orders.*', 'suppliers.name as supplier_name');
+
+      if (status) {
+        query = query.where('purchase_orders.status', status);
+      }
+      if (supplierId) {
+        query = query.where('purchase_orders.supplier_id', supplierId);
+      }
+
+      const orders = await query.orderBy('purchase_orders.order_date', 'desc');
+      const normalizedOrders = orders.map((order: any) => ({
+        ...order,
+        po_number: order.po_number || order.order_number,
+        order_number: order.order_number || order.po_number,
+        supplier: order.supplier || order.supplier_name || null,
+        total_amount: Number(order.total_amount ?? 0),
+      }));
+      res.json(normalizedOrders);
+    }
   } catch (error) {
     console.error('Get purchase orders error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -431,6 +469,110 @@ export const cancelPurchaseOrder = async (req: Request, res: Response) => {
     res.json({ message: 'Purchase order cancelled successfully' });
   } catch (error) {
     console.error('Cancel purchase order error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Sell bar inventory item
+export const sellBarItem = async (req: Request, res: Response) => {
+  const { inventory_item_id, quantity, unit_price, payment_method } = req.body;
+  const staff_id = req.user?.id || null;
+
+  if (!inventory_item_id || !quantity || !unit_price || !payment_method) {
+    return res.status(400).json({
+      message: 'Item ID, quantity, price, and payment method are required.'
+    });
+  }
+
+  try {
+    const item = await db('inventory_items')
+      .where({ id: inventory_item_id, inventory_type: 'bar' })
+      .first();
+
+    if (!item) {
+      return res.status(404).json({ message: 'Bar inventory item not found.' });
+    }
+
+    if (item.current_stock < quantity) {
+      return res.status(400).json({ message: 'Not enough stock available.' });
+    }
+
+    const newStock = item.current_stock - quantity;
+    const total_amount = quantity * unit_price;
+    const order_number = `BAR-${Date.now()}`;
+
+    await db.transaction(async (trx) => {
+      // Update inventory stock
+      await trx('inventory_items')
+        .where({ id: inventory_item_id })
+        .update({
+          current_stock: newStock
+        });
+
+      // Create order record
+      const [order] = await trx('orders').insert({
+        order_number,
+        order_type: 'bar_sale',
+        status: 'completed',
+        staff_id,
+        total_amount,
+        payment_status: 'paid'
+      }).returning('id');
+
+      // Create payment record
+      await trx('payments').insert({
+        order_id: order.id || order,
+        payment_method,
+        amount: total_amount,
+        status: 'completed'
+      });
+
+      // Create order item record
+      await trx('order_items').insert({
+        order_id: order.id || order,
+        product_id: inventory_item_id, // Using inventory_item_id as product_id for bar items
+        quantity,
+        unit_price,
+        total_price: total_amount,
+      });
+    });
+
+    res.json({
+      message: 'Bar item sold successfully.',
+      order_number,
+      total_amount
+    });
+  } catch (error) {
+    console.error('Sell bar item error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get bar items formatted as products for Quick POS
+export const getBarItemsAsProducts = async (req: Request, res: Response) => {
+  try {
+    const barItems = await db('inventory_items')
+      .where({ inventory_type: 'bar', is_active: true })
+      .select('*')
+      .orderBy('name', 'asc');
+
+    // Format inventory items as Product interface compatible items
+    const formattedItems = barItems.map(item => ({
+      id: item.id,
+      category_id: 0, // Bar items are in category 0 (special category for bar)
+      name: item.name,
+      description: item.description || '',
+      price: item.cost_per_unit || 0, // Use cost_per_unit as price for bar items
+      is_available: item.current_stock > 0,
+      image_url: item.image_url || null,
+      preparation_time: 0, // Bar items don't have preparation time
+      current_stock: item.current_stock,
+      unit: item.unit,
+    }));
+
+    res.json(formattedItems);
+  } catch (error) {
+    console.error('Get bar items as products error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };

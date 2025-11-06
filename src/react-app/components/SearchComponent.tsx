@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  Search, 
-  X, 
-  Users, 
-  Package, 
-  Menu, 
-  FileText, 
+import {
+  Search,
+  X,
+  Users,
+  Package,
+  Menu,
+  FileText,
   Bed,
   Loader2,
   ArrowRight,
-  Clock
+  Clock,
+  ClipboardList
 } from 'lucide-react';
 import { apiClient } from '../config/api';
 import { envLog } from '../config/environment';
@@ -177,6 +178,8 @@ export default function SearchComponent({
         return <FileText className={iconClass} />;
       case 'room':
         return <Bed className={iconClass} />;
+      case 'purchase_order':
+        return <ClipboardList className={iconClass} />;
       default:
         return <Search className={iconClass} />;
     }
@@ -189,7 +192,8 @@ export default function SearchComponent({
       menu: 'Menu Item',
       category: 'Category',
       order: 'Order',
-      room: 'Room'
+      room: 'Room',
+      purchase_order: 'Purchase Order'
     };
     return labels[type] || type;
   };
@@ -201,7 +205,8 @@ export default function SearchComponent({
       menu: 'text-yellow-600 bg-yellow-50',
       category: 'text-orange-600 bg-orange-50',
       order: 'text-purple-600 bg-purple-50',
-      room: 'text-gray-600 bg-gray-50'
+      room: 'text-gray-600 bg-gray-50',
+      purchase_order: 'text-indigo-600 bg-indigo-50'
     };
     return colors[type] || 'text-gray-600 bg-gray-50';
   };
@@ -302,6 +307,9 @@ export default function SearchComponent({
                               )}
                               {result.type === 'inventory' && result.metadata.current_stock !== undefined && (
                                 <span>Stock: {result.metadata.current_stock}</span>
+                              )}
+                              {result.type === 'purchase_order' && result.metadata.total_amount && (
+                                <span>{formatCurrency(result.metadata.total_amount)}</span>
                               )}
                               {result.metadata.created_at && (
                                 <span className="flex items-center gap-1">

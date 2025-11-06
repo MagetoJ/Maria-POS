@@ -32,13 +32,15 @@ import {
   AlertTriangle,
   DollarSign,
   Loader2,
-  Clock, 
+  Clock,
   TrendingUp,
   Search,
   Receipt,
   RotateCcw,
   Truck,
   ShoppingCart,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 
 // --- Helper Functions ---
@@ -122,6 +124,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Chart data state
   const [revenueData] = useState([
@@ -293,7 +296,7 @@ export default function AdminDashboard() {
       return (
         <div className="space-y-6">
         {/* Key Metrics */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
             <div className="bg-white rounded-lg p-3 lg:p-6 border border-gray-200">
             <div className="flex items-center">
                 <div className="p-1.5 lg:p-2 bg-green-100 rounded-lg">
@@ -344,28 +347,28 @@ export default function AdminDashboard() {
         </div>
 
         {/* Charts Section - Revenue Over Time and Low Stock Visualization */}
-        <div className="grid grid-cols-1 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Revenue Chart */}
-            <div className="bg-white rounded-lg p-6 border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend (This Week)</h3>
-              <div style={{ width: '100%', height: '320px', minHeight: '320px' }}>
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+              <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">Revenue Trend (This Week)</h3>
+              <div className="w-full h-64 lg:h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={revenueData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="date" stroke="#6b7280" />
-                    <YAxis stroke="#6b7280" />
-                    <Tooltip 
+                    <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
+                    <YAxis stroke="#6b7280" fontSize={12} />
+                    <Tooltip
                       formatter={(value) => `KES ${value.toLocaleString('en-KE')}`}
                       contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
                     />
                     <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="revenue" 
-                      stroke="#facc15" 
-                      strokeWidth={3}
-                      dot={{ fill: '#facc15', r: 5 }}
-                      activeDot={{ r: 7 }}
+                    <Line
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#facc15"
+                      strokeWidth={2}
+                      dot={{ fill: '#facc15', r: 4 }}
+                      activeDot={{ r: 6 }}
                       name="Daily Revenue"
                     />
                   </LineChart>
@@ -375,15 +378,15 @@ export default function AdminDashboard() {
 
             {/* Low Stock Items Chart */}
             {lowStockChartData.length > 0 && (
-              <div className="bg-white rounded-lg p-6 border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Low Stock Items - Current vs Minimum</h3>
-                <div style={{ width: '100%', height: '320px', minHeight: '320px' }}>
+              <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">Low Stock Items - Current vs Minimum</h3>
+                <div className="w-full h-64 lg:h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={lowStockChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="name" stroke="#6b7280" />
-                      <YAxis stroke="#6b7280" />
-                      <Tooltip 
+                      <XAxis dataKey="name" stroke="#6b7280" fontSize={10} />
+                      <YAxis stroke="#6b7280" fontSize={12} />
+                      <Tooltip
                         formatter={(value) => value}
                         contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
                       />
@@ -399,17 +402,17 @@ export default function AdminDashboard() {
 
         {/* Recent Activity & Quick Actions */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-lg p-6 border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Orders</h3>
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+            <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">Recent Orders</h3>
             <div className="space-y-3">
                 {overviewData.recentOrders && overviewData.recentOrders.length > 0 ? (
                     overviewData.recentOrders.map((order) => (
-                    <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                        <p className="font-medium text-gray-900">{order.order_number}</p>
-                        <p className="text-sm text-gray-600">{order.location}</p>
+                    <div key={order.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 rounded-lg gap-2">
+                        <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{order.order_number}</p>
+                        <p className="text-sm text-gray-600 truncate">{order.location}</p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-left sm:text-right flex-shrink-0">
                         <p className="font-medium text-gray-900">{formatCurrency(order.total_amount)}</p>
                         <p className="text-sm text-gray-600">{timeAgo(order.created_at)}</p>
                         </div>
@@ -421,24 +424,24 @@ export default function AdminDashboard() {
             </div>
             </div>
 
-            <div className="bg-white rounded-lg p-6 border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => setActiveTab('staff')} className="flex flex-col items-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
-                <Users className="w-8 h-8 text-blue-600 mb-2" />
-                <span className="text-sm font-medium text-blue-900">Add Staff</span>
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+            <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
+                <button onClick={() => setActiveTab('staff')} className="flex flex-col items-center p-3 lg:p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                <Users className="w-6 h-6 lg:w-8 lg:h-8 text-blue-600 mb-2" />
+                <span className="text-xs lg:text-sm font-medium text-blue-900 text-center">Add Staff</span>
                 </button>
-                <button onClick={() => setActiveTab('inventory')} className="flex flex-col items-center p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
-                <Package className="w-8 h-8 text-green-600 mb-2" />
-                <span className="text-sm font-medium text-green-900">Update Inventory</span>
+                <button onClick={() => setActiveTab('inventory')} className="flex flex-col items-center p-3 lg:p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
+                <Package className="w-6 h-6 lg:w-8 lg:h-8 text-green-600 mb-2" />
+                <span className="text-xs lg:text-sm font-medium text-green-900 text-center">Update Inventory</span>
                 </button>
-                <button onClick={() => setActiveTab('reports')} className="flex flex-col items-center p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
-                <FileText className="w-8 h-8 text-purple-600 mb-2" />
-                <span className="text-sm font-medium text-purple-900">Generate Report</span>
+                <button onClick={() => setActiveTab('reports')} className="flex flex-col items-center p-3 lg:p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
+                <FileText className="w-6 h-6 lg:w-8 lg:h-8 text-purple-600 mb-2" />
+                <span className="text-xs lg:text-sm font-medium text-purple-900 text-center">Generate Report</span>
                 </button>
-                <button onClick={() => setActiveTab('settings')} className="flex flex-col items-center p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors">
-                <Settings className="w-8 h-8 text-yellow-600 mb-2" />
-                <span className="text-sm font-medium text-yellow-900">System Settings</span>
+                <button onClick={() => setActiveTab('settings')} className="flex flex-col items-center p-3 lg:p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors">
+                <Settings className="w-6 h-6 lg:w-8 lg:h-8 text-yellow-600 mb-2" />
+                <span className="text-xs lg:text-sm font-medium text-yellow-900 text-center">System Settings</span>
                 </button>
             </div>
             </div>
@@ -447,42 +450,42 @@ export default function AdminDashboard() {
         {/* Active Users & Low Stock Alerts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Active Users & Sessions */}
-            <div className="bg-white rounded-lg p-6 border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-blue-600" />
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Users className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
                     User Sessions ({activeUsers.length})
                 </h3>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
+                <div className="space-y-3 max-h-48 lg:max-h-64 overflow-y-auto">
                     {activeUsers && activeUsers.length > 0 ? (
                         activeUsers.map((session) => (
-                            <div key={`${session.staff_id}-${session.login_time}`} className={`flex items-center justify-between p-3 rounded-lg border ${
-                                session.is_active 
-                                    ? 'bg-green-50 border-green-200' 
+                            <div key={`${session.staff_id}-${session.login_time}`} className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border gap-2 ${
+                                session.is_active
+                                    ? 'bg-green-50 border-green-200'
                                     : 'bg-gray-50 border-gray-200'
                             }`}>
-                                <div className="flex-1">
-                                    <p className="font-medium text-gray-900">{session.name}</p>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm text-gray-600 capitalize bg-gray-100 px-2 py-1 rounded-full text-xs">
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900 truncate">{session.name}</p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-xs text-gray-600 capitalize bg-gray-100 px-2 py-1 rounded-full">
                                             {session.role}
                                         </span>
                                         <span className={`text-xs ${session.is_active ? 'text-green-600' : 'text-gray-500'}`}>
-                                            • {session.is_active 
-                                                ? `Logged in ${timeAgo(session.login_time)}` 
+                                            • {session.is_active
+                                                ? `Logged in ${timeAgo(session.login_time)}`
                                                 : `Last logged in ${timeAgo(session.logout_time || session.login_time)}`}
                                         </span>
                                     </div>
                                 </div>
-                                <div className="text-right flex flex-col items-end">
+                                <div className="flex flex-col items-start sm:items-end flex-shrink-0">
                                     <div className="flex items-center gap-1">
                                         <div className={`w-2 h-2 rounded-full ${
-                                            session.is_active 
-                                                ? 'bg-green-500 animate-pulse' 
+                                            session.is_active
+                                                ? 'bg-green-500 animate-pulse'
                                                 : 'bg-gray-400'
                                         }`}></div>
-                                        <p className={`text-sm font-medium ${
-                                            session.is_active 
-                                                ? 'text-green-600' 
+                                        <p className={`text-xs lg:text-sm font-medium ${
+                                            session.is_active
+                                                ? 'text-green-600'
                                                 : 'text-gray-500'
                                         }`}>
                                             {session.is_active ? 'Active' : 'Offline'}
@@ -496,7 +499,7 @@ export default function AdminDashboard() {
                         ))
                     ) : (
                         <div className="text-center py-6">
-                            <Users className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                            <Users className="w-8 h-8 lg:w-12 lg:h-12 text-gray-300 mx-auto mb-2" />
                             <p className="text-sm text-gray-500">No user sessions found</p>
                             <p className="text-xs text-gray-400">Users will appear here when they log in</p>
                         </div>
@@ -505,22 +508,22 @@ export default function AdminDashboard() {
             </div>
 
             {/* Low Stock Alerts */}
-            <div className="bg-white rounded-lg p-6 border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-red-600" />
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 lg:w-5 lg:h-5 text-red-600" />
                     Low Stock Alerts ({lowStockItems.length})
                 </h3>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
+                <div className="space-y-3 max-h-48 lg:max-h-64 overflow-y-auto">
                     {lowStockItems && lowStockItems.length > 0 ? (
                         lowStockItems.map((item) => (
-                            <div key={item.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
-                                <div>
-                                    <p className="font-medium text-gray-900">{item.name}</p>
-                                    <p className="text-sm text-gray-600 capitalize">
+                            <div key={item.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-red-50 rounded-lg border border-red-100 gap-2">
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900 truncate">{item.name}</p>
+                                    <p className="text-sm text-gray-600 capitalize truncate">
                                         {item.inventory_type} • {item.unit}
                                     </p>
                                 </div>
-                                <div className="text-right">
+                                <div className="text-left sm:text-right flex-shrink-0">
                                     <p className="text-sm text-red-600 font-medium">
                                         {item.current_stock} / {item.minimum_stock}
                                     </p>
@@ -530,7 +533,7 @@ export default function AdminDashboard() {
                         ))
                     ) : (
                         <div className="text-center py-4">
-                            <Package className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                            <Package className="w-6 h-6 lg:w-8 lg:h-8 text-green-500 mx-auto mb-2" />
                             <p className="text-sm text-green-600 font-medium">All items well stocked!</p>
                         </div>
                     )}
@@ -565,7 +568,7 @@ export default function AdminDashboard() {
             autoFocus={false}
           />
           
-          <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 bg-blue-100 rounded-lg">
                 <Users className="w-6 h-6 text-blue-600" />
@@ -573,7 +576,7 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-medium text-gray-900">Staff</h3>
               <p className="text-xs text-gray-500">Search employees</p>
             </div>
-            
+
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 bg-green-100 rounded-lg">
                 <Package className="w-6 h-6 text-green-600" />
@@ -581,7 +584,7 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-medium text-gray-900">Inventory</h3>
               <p className="text-xs text-gray-500">Find items</p>
             </div>
-            
+
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 bg-yellow-100 rounded-lg">
                 <Menu className="w-6 h-6 text-yellow-600" />
@@ -589,7 +592,7 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-medium text-gray-900">Menu</h3>
               <p className="text-xs text-gray-500">Search dishes</p>
             </div>
-            
+
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 bg-purple-100 rounded-lg">
                 <FileText className="w-6 h-6 text-purple-600" />
@@ -597,13 +600,21 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-medium text-gray-900">Orders</h3>
               <p className="text-xs text-gray-500">Find orders</p>
             </div>
-            
+
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 bg-gray-100 rounded-lg">
                 <Bed className="w-6 h-6 text-gray-600" />
               </div>
               <h3 className="text-sm font-medium text-gray-900">Rooms</h3>
               <p className="text-xs text-gray-500">Search rooms</p>
+            </div>
+
+            <div className="text-center">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 bg-indigo-100 rounded-lg">
+                <ShoppingCart className="w-6 h-6 text-indigo-600" />
+              </div>
+              <h3 className="text-sm font-medium text-gray-900">Purchase Orders</h3>
+              <p className="text-xs text-gray-500">Find POs</p>
             </div>
           </div>
         </div>
@@ -649,27 +660,86 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-gray-50">
       <Header />
-      
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
         {/* Mobile Tab Navigation */}
-        <div className="lg:hidden bg-white border-b border-gray-200 p-4">
-          <select 
-            value={activeTab}
-            onChange={(e) => setActiveTab(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-base"
-          >
-            {menuItems.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+        <div className="md:hidden bg-white border-b border-gray-200">
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <Menu className="w-4 h-4" />
+                <span className="font-medium text-gray-900">
+                  {menuItems.find(item => item.id === activeTab)?.label || 'Menu'}
+                </span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="text-sm text-gray-600">
+              {user?.role === 'admin' ? 'Admin' : 'Manager'}
+            </div>
+          </div>
+
+          {/* Mobile Menu Overlay */}
+          {isMobileMenuOpen && (
+            <div className="fixed inset-0 z-50 md:hidden">
+              <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setIsMobileMenuOpen(false)} />
+              <div className="fixed top-0 left-0 right-0 bottom-0 max-w-sm bg-white shadow-xl transform transition-transform">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <h2 className="text-lg font-semibold text-gray-900">Admin Dashboard</h2>
+                  <button
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <nav className="flex-1 overflow-y-auto p-4">
+                  <div className="space-y-2">
+                    {menuItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setActiveTab(item.id);
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-colors ${
+                            activeTab === item.id
+                              ? 'bg-yellow-100 text-yellow-900'
+                              : 'text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          <Icon className="w-5 h-5" />
+                          <span className="font-medium">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Mobile Role Badge */}
+                  <div className="mt-6 p-4 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                      <span className="text-sm font-medium text-gray-900">System Status</span>
+                    </div>
+                    <p className="text-xs text-gray-600">All systems operational</p>
+                    <p className="text-xs text-gray-600 mt-1">Access Level: {user?.role === 'admin' ? 'Full Admin' : 'Manager'}</p>
+                  </div>
+                </nav>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Desktop Sidebar */}
-        <div className="hidden lg:block w-64 bg-white border-r border-gray-200 p-6">
+        <div className="hidden md:block w-64 bg-white border-r border-gray-200 p-6 flex-shrink-0">
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-gray-900">Admin Dashboard</h2>
             <p className="text-sm text-gray-600">Management & Analytics</p>
@@ -708,7 +778,9 @@ export default function AdminDashboard() {
 
         {/* Main Content */}
         <div className="flex-1 p-4 lg:p-6 overflow-y-auto">
-          {renderContent()}
+          <div className="max-w-full">
+            {renderContent()}
+          </div>
         </div>
       </div>
     </div>

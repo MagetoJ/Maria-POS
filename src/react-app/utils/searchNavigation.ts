@@ -2,7 +2,7 @@ import { NavigateFunction } from 'react-router-dom';
 
 export interface SearchResult {
   id: number;
-  type: 'staff' | 'inventory' | 'menu' | 'order' | 'room';
+  type: 'staff' | 'inventory' | 'menu' | 'order' | 'room' | 'purchase_order';
   title: string;
   subtitle: string;
   description?: string;
@@ -43,6 +43,9 @@ export const navigateToSearchResult = (
           break;
         case 'room':
           setActiveTab('rooms');
+          break;
+        case 'purchase_order':
+          setActiveTab('purchase-orders');
           break;
         default:
           setActiveTab('search');
@@ -117,6 +120,14 @@ export const navigateToSearchResult = (
           console.warn('Room management requires appropriate access');
         }
         break;
+      case 'purchase_order':
+        // Purchase orders are typically managed by admin/manager
+        if (userRole === 'admin' || userRole === 'manager') {
+          navigate('/admin#purchase-orders');
+        } else {
+          console.warn('Purchase order management requires admin access');
+        }
+        break;
       default:
         // Default to POS for general access
         navigate('/pos');
@@ -134,7 +145,8 @@ const getTabForType = (type: string): string => {
     inventory: 'inventory',
     menu: 'menu',
     order: 'reports',
-    room: 'rooms'
+    room: 'rooms',
+    purchase_order: 'purchase-orders'
   };
   return tabMap[type] || 'search';
 };
@@ -165,6 +177,8 @@ export const canAccessResultType = (type: string, userRole?: string): boolean =>
       return true; // Most users can see orders
     case 'room':
       return canAccessRooms(userRole);
+    case 'purchase_order':
+      return userRole === 'admin' || userRole === 'manager'; // Only admins and managers can access purchase orders
     default:
       return true;
   }

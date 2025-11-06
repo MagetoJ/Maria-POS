@@ -153,14 +153,13 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
                 <Menu className="w-5 h-5" />
               </button>
               
-              {/* Always show Bar Sales button if user has access */}
-              {canAccessBarSales && isQuickAccess && (
-                <button onClick={() => setActiveView('quick_bar_sales')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'quick_bar_sales' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Bar Sales (Wine)">
-                  <Wine className="w-5 h-5" />
-                </button>
-              )}
-              {canAccessBarSales && !isQuickAccess && (
-                <button onClick={() => setActiveView('bar_sales')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'bar_sales' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Bar Sales (Wine)">
+              {/* Show Bar Sales button - always available in Quick POS, role-based for regular users */}
+              {(isQuickAccess || canAccessBarSales) && (
+                <button
+                  onClick={() => setActiveView(isQuickAccess ? 'quick_bar_sales' : 'bar_sales')}
+                  className={`p-2 rounded-lg transition-colors flex-shrink-0 ${(activeView === 'quick_bar_sales' || activeView === 'bar_sales') ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`}
+                  title="Bar Sales (Wine)"
+                >
                   <Wine className="w-5 h-5" />
                 </button>
               )}

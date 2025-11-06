@@ -14,17 +14,28 @@ export const createOrder = async (req: Request, res: Response) => {
   const { items, staff_username, pin, payment_method = 'cash', ...orderData } = req.body;
 
   try {
-    // Validate staff username and PIN
-    if (!staff_username || !pin) {
-      return res.status(400).json({ message: 'Staff username and PIN are required' });
-    }
+    let staffId = null;
+    let staffName = 'Quick POS';
 
-    const validation = await validateStaffPinForOrder(staff_username, pin);
-    if (!validation.valid || !validation.staffId) {
-      return res.status(401).json({ message: 'Invalid username or PIN' });
-    }
+    // For bar sales, skip PIN validation
+    if (orderData.order_type === 'bar_sale') {
+      // No PIN required for bar sales
+      console.log('Bar sale order - no PIN validation required');
+    } else {
+      // Validate staff username and PIN for other orders
+      if (!staff_username || !pin) {
+        return res.status(400).json({ message: 'Staff username and PIN are required' });
+      }
 
-    console.log('PIN validated for order by:', validation.staffName);
+      const validation = await validateStaffPinForOrder(staff_username, pin);
+      if (!validation.valid || !validation.staffId) {
+        return res.status(401).json({ message: 'Invalid username or PIN' });
+      }
+
+      staffId = validation.staffId;
+      staffName = validation.staffName;
+      console.log('PIN validated for order by:', staffName);
+    }
 
     // Function to generate a unique order_number
     const generateOrderNumber = () => `ORD-${Date.now()}`;
@@ -37,7 +48,7 @@ export const createOrder = async (req: Request, res: Response) => {
       // Ensure numeric fields and add order_number
       const safeOrder = {
         ...orderToInsert,
-        staff_id: validation.staffId,
+        staff_id: staffId,
         order_number: generateOrderNumber(),
         subtotal: Number(orderToInsert.subtotal || 0),
         total_amount: Number(orderToInsert.total_amount || 0),

@@ -39,7 +39,7 @@ export default function BarSales() {
         console.log('📱 Fetching bar items...');
       }
 
-      const response = await apiClient.get('/api/receptionist/bar-items-as-products');
+      const response = await apiClient.get('/api/purchase-orders/bar-items-as-products');
 
       if (!response.ok) {
         throw new Error('Failed to fetch bar items. Please try again.');

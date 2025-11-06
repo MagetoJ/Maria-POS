@@ -309,17 +309,17 @@ export default function PurchaseOrdersManagement() {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-6 border-b bg-white">
-              <h3 className="text-lg font-bold">Create New Purchase Order</h3>
-              <button onClick={() => setShowForm(false)} className="text-gray-500 hover:text-gray-700">
-                <X className="w-6 h-6" />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 sm:p-6 border-b bg-white">
+              <h3 className="text-base sm:text-lg font-bold">Create New Purchase Order</h3>
+              <button onClick={() => setShowForm(false)} className="text-gray-500 hover:text-gray-700 self-end sm:self-auto">
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Supplier *
@@ -392,7 +392,7 @@ export default function PurchaseOrdersManagement() {
                 <div className="space-y-2 max-h-40 overflow-y-auto">
                   {formData.items.map((item, index) => (
                     <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <select
                           value={item.inventory_item_id}
                           onChange={(e) => {
@@ -400,7 +400,7 @@ export default function PurchaseOrdersManagement() {
                             newItems[index].inventory_item_id = e.target.value;
                             setFormData({ ...formData, items: newItems });
                           }}
-                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="w-full px-2 sm:px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                           required
                         >
                           <option value="">Select item</option>
@@ -409,7 +409,7 @@ export default function PurchaseOrdersManagement() {
                           ))}
                         </select>
                       </div>
-                      <div className="w-full sm:w-24">
+                      <div className="w-full sm:w-20 md:w-24">
                         <input
                           type="number"
                           min="1"
@@ -419,12 +419,12 @@ export default function PurchaseOrdersManagement() {
                             newItems[index].quantity_ordered = e.target.value;
                             setFormData({ ...formData, items: newItems });
                           }}
-                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="w-full px-2 sm:px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                           placeholder="Qty"
                           required
                         />
                       </div>
-                      <div className="w-full sm:w-32">
+                      <div className="w-full sm:w-24 md:w-32">
                         <input
                           type="number"
                           step="0.01"
@@ -435,7 +435,7 @@ export default function PurchaseOrdersManagement() {
                             newItems[index].unit_cost = e.target.value;
                             setFormData({ ...formData, items: newItems });
                           }}
-                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="w-full px-2 sm:px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                           placeholder="Unit Cost"
                           required
                         />
@@ -476,16 +476,16 @@ export default function PurchaseOrdersManagement() {
 
       {/* Receive Form Modal */}
       {showReceiveForm && selectedPO && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-6 border-b bg-white">
-              <h3 className="text-lg font-bold">Receive PO {selectedPO.po_number}</h3>
-              <button onClick={() => { setShowReceiveForm(false); setSelectedPO(null); }} className="text-gray-500 hover:text-gray-700">
-                <X className="w-6 h-6" />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 sm:p-6 border-b bg-white">
+              <h3 className="text-base sm:text-lg font-bold">Receive PO {selectedPO.po_number}</h3>
+              <button onClick={() => { setShowReceiveForm(false); setSelectedPO(null); }} className="text-gray-500 hover:text-gray-700 self-end sm:self-auto">
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
-            <form onSubmit={handleReceive} className="p-6 space-y-4">
+            <form onSubmit={handleReceive} className="p-4 sm:p-6 space-y-4">
               <div className="space-y-3">
                 {selectedPO.items?.map((item) => (
                   <div key={item.id} className="flex flex-col gap-3 sm:flex-row sm:items-center p-3 bg-gray-50 rounded-lg">
@@ -526,7 +526,7 @@ export default function PurchaseOrdersManagement() {
         </div>
       )}
 
-      {/* POs Table */}
+      {/* POs Table/Cards */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {filteredPOs.length === 0 ? (
           <div className="text-center py-12">
@@ -534,70 +534,131 @@ export default function PurchaseOrdersManagement() {
             <p className="text-gray-600">No purchase orders found.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">PO Number</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Supplier</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Order Date</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Total</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredPOs.map((po) => (
-                  <tr key={po.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{po.po_number}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{po.supplier_name || 'Unknown'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{new Date(po.order_date).toLocaleDateString()}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">KES {po.total_amount.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(po.status)}`}>
-                        {po.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {po.status === 'pending' || po.status === 'partially_received' ? (
-                          <>
-                            <button
-                              onClick={() => {
-                                setSelectedPO(po);
-                                // Load full PO details
-                                apiClient.get(`/api/purchase-orders/${po.id}`).then(res => {
-                                  if (res.ok) {
-                                    res.json().then(data => {
-                                      setSelectedPO(data);
-                                      setShowReceiveForm(true);
-                                    });
-                                  }
-                                });
-                              }}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Receive"
-                            >
-                              <Truck className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleCancel(po.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Cancel"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </>
-                        ) : (
-                          <span className="text-gray-500 text-xs">No actions available</span>
-                        )}
-                      </div>
-                    </td>
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">PO Number</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Supplier</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Order Date</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Total</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                    <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredPOs.map((po) => (
+                    <tr key={po.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{po.po_number}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{po.supplier_name || 'Unknown'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{new Date(po.order_date).toLocaleDateString()}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">KES {po.total_amount.toFixed(2)}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(po.status)}`}>
+                          {po.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {po.status === 'pending' || po.status === 'partially_received' ? (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setSelectedPO(po);
+                                  // Load full PO details
+                                  apiClient.get(`/api/purchase-orders/${po.id}`).then(res => {
+                                    if (res.ok) {
+                                      res.json().then(data => {
+                                        setSelectedPO(data);
+                                        setShowReceiveForm(true);
+                                      });
+                                    }
+                                  });
+                                }}
+                                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                title="Receive"
+                              >
+                                <Truck className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleCancel(po.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Cancel"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-gray-500 text-xs">No actions available</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="lg:hidden divide-y divide-gray-200">
+              {filteredPOs.map((po) => (
+                <div key={po.id} className="p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate">{po.po_number}</h3>
+                      <p className="text-sm text-gray-600 truncate">{po.supplier_name || 'Unknown'}</p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(po.status)}`}>
+                      {po.status.replace('_', ' ')}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-gray-600">Order Date</span>
+                      <span className="font-medium">{new Date(po.order_date).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex flex-col gap-1 text-right">
+                      <span className="text-gray-600">Total</span>
+                      <span className="font-semibold text-gray-900">KES {po.total_amount.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {(po.status === 'pending' || po.status === 'partially_received') && (
+                    <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                      <button
+                        onClick={() => {
+                          setSelectedPO(po);
+                          // Load full PO details
+                          apiClient.get(`/api/purchase-orders/${po.id}`).then(res => {
+                            if (res.ok) {
+                              res.json().then(data => {
+                                setSelectedPO(data);
+                                setShowReceiveForm(true);
+                              });
+                            }
+                          });
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
+                      >
+                        <Truck className="w-4 h-4" />
+                        Receive
+                      </button>
+                      <button
+                        onClick={() => handleCancel(po.id)}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                      >
+                        <X className="w-4 h-4" />
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

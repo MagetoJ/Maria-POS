@@ -48,13 +48,18 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
       <head>
         <title>Receipt - ${receiptData.orderNumber}</title>
         <style>
-          body { font-family: 'Courier New', monospace; width: 360px; margin: 0; padding: 10px; font-size: 12px; }
+          body { font-family: 'Segoe UI', 'Arial', sans-serif; width: 360px; margin: 0; padding: 10px; font-size: 12px; }
           .receipt { text-align: center; }
           .logo {
-            max-width: 360px; 
+            max-width: 360px;
             height: auto;
-            margin: 0 auto 15px;
+            margin: 0 auto 20px;
             display: block;
+            border: 2px solid #000;
+            border-radius: 8px;
+            padding: 10px;
+            background: #f8f8f8;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           }
           .header { font-size: 16px; font-weight: bold; margin-bottom: 8px; }
           .subheader { font-size: 12px; margin-bottom: 10px; }
@@ -208,10 +213,10 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
 
         {/* Receipt Preview */}
         <div className="flex-1 p-4 overflow-y-auto">
-          <div className="bg-gray-50 p-4 rounded-lg font-mono text-xs text-center">
+          <div className="bg-gray-50 p-4 rounded-lg font-sans text-xs text-center">
             {/* Logo */}
-            <div className="mb-3">
-              <img src="/logo.PNG" alt="Restaurant Logo" className="h-80 mx-auto object-contain" />
+            <div className="mb-4">
+              <img src="/logo.PNG" alt="Restaurant Logo" className="h-96 mx-auto object-contain border-2 border-black rounded-lg p-3 bg-gray-50 shadow-md" />
             </div>
             
             {/* Header */}
