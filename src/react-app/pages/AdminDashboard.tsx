@@ -645,7 +645,7 @@ export default function AdminDashboard() {
       case 'shifts':
         return <ShiftManagement />;
       case 'performance':
-        return <PerformanceDashboard />;
+        return <PerfomanceDashboard />;
       case 'inventory':
         return <InventoryManagement />;
       case 'menu':

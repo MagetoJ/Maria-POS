@@ -39,6 +39,8 @@ interface PurchaseOrder {
   created_at: string;
 }
 
+const formatInventoryOption = (item: InventoryItem) => `${item.id} - ${item.name} (${item.unit})`;
+
 export default function PurchaseOrdersManagement() {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -56,10 +58,11 @@ export default function PurchaseOrdersManagement() {
     supplier_id: '',
     order_date: new Date().toISOString().split('T')[0],
     expected_delivery_date: '',
-    items: [{ inventory_item_id: '', quantity_ordered: '', unit_cost: '' }],
+    items: [{ inventory_item_id: '', quantity_ordered: '', unit_cost: '', item_display: '' }],
     notes: '',
   });
   const [receiveData, setReceiveData] = useState<{ [key: number]: number }>({});
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const timerId = setTimeout(() => {
@@ -122,10 +125,45 @@ export default function PurchaseOrdersManagement() {
     fetchData();
   }, [debouncedSearchTerm, statusFilter]);
 
+  const handleItemSelect = (index: number, item: InventoryItem) => {
+    setFormData(prev => {
+      const newItems = [...prev.items];
+      newItems[index] = {
+        ...newItems[index],
+        inventory_item_id: String(item.id),
+        item_display: formatInventoryOption(item),
+      };
+      return { ...prev, items: newItems };
+    });
+    setActiveSuggestionIndex(null);
+  };
+
+  const handleItemLookup = (index: number, value: string) => {
+    const normalizedValue = value.trim().toLowerCase();
+    const matchByFormatted = inventoryItems.find(inv => formatInventoryOption(inv).toLowerCase() === normalizedValue);
+    const matchByName = inventoryItems.find(inv => inv.name.toLowerCase() === normalizedValue);
+    const matchById = inventoryItems.find(inv => String(inv.id) === normalizedValue);
+    const matchedItem = matchByFormatted || matchByName || matchById || null;
+    if (matchedItem) {
+      handleItemSelect(index, matchedItem);
+    } else {
+      setActiveSuggestionIndex(index);
+      setFormData(prev => {
+        const newItems = [...prev.items];
+        newItems[index] = {
+          ...newItems[index],
+          item_display: value,
+          inventory_item_id: '',
+        };
+        return { ...prev, items: newItems };
+      });
+    }
+  };
+
   const handleAddItem = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { inventory_item_id: '', quantity_ordered: '', unit_cost: '' }],
+      items: [...formData.items, { inventory_item_id: '', quantity_ordered: '', unit_cost: '', item_display: '' }],
     });
   };
 
@@ -177,7 +215,7 @@ export default function PurchaseOrdersManagement() {
         supplier_id: '',
         order_date: new Date().toISOString().split('T')[0],
         expected_delivery_date: '',
-        items: [{ inventory_item_id: '', quantity_ordered: '', unit_cost: '' }],
+        items: [{ inventory_item_id: '', quantity_ordered: '', unit_cost: '', item_display: '' }],
         notes: '',
       });
     } catch (err) {
@@ -286,7 +324,7 @@ export default function PurchaseOrdersManagement() {
               supplier_id: '',
               order_date: new Date().toISOString().split('T')[0],
               expected_delivery_date: '',
-              items: [{ inventory_item_id: '', quantity_ordered: '', unit_cost: '' }],
+              items: [{ inventory_item_id: '', quantity_ordered: '', unit_cost: '', item_display: '' }],
               notes: '',
             });
             setShowForm(true);
@@ -442,67 +480,103 @@ export default function PurchaseOrdersManagement() {
                 </div>
 
                 <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {formData.items.map((item, index) => (
-                    <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                      <div className="flex-1 min-w-0">
-                        <select
-                          value={item.inventory_item_id}
-                          onChange={(e) => {
-                            const newItems = [...formData.items];
-                            newItems[index].inventory_item_id = e.target.value;
-                            setFormData({ ...formData, items: newItems });
-                          }}
-                          className="w-full px-2 sm:px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                          required
-                        >
-                          <option value="">Select item</option>
-                          {inventoryItems.map(inv => (
-                            <option key={inv.id} value={inv.id}>{inv.name} ({inv.unit})</option>
-                          ))}
-                        </select>
+                  {formData.items.map((item, index) => {
+                    const selectedInventory = inventoryItems.find(inv => String(inv.id) === item.inventory_item_id);
+                    const query = item.item_display.trim().toLowerCase();
+                    const selectedDisplay = selectedInventory ? formatInventoryOption(selectedInventory).toLowerCase() : '';
+                    const suggestions = query.length === 0
+                      ? []
+                      : inventoryItems
+                          .filter(inv => {
+                            const option = formatInventoryOption(inv).toLowerCase();
+                            return option.includes(query) || inv.name.toLowerCase().includes(query);
+                          })
+                          .slice(0, 8);
+                    const showSuggestions = activeSuggestionIndex === index && suggestions.length > 0 && query !== selectedDisplay;
+                    return (
+                      <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                        <div className="flex-1 min-w-0">
+                          <div className="relative">
+                            {showSuggestions && (
+                              <div className="mb-1 w-full max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                                {suggestions.map(inv => (
+                                  <button
+                                    type="button"
+                                    key={inv.id}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => handleItemSelect(index, inv)}
+                                    className="w-full text-left px-3 py-2 hover:bg-gray-100"
+                                  >
+                                    <p className="text-sm font-medium text-gray-900">{inv.name}</p>
+                                    <p className="text-xs text-gray-500">ID: {inv.id} • Unit: {inv.unit} • Stock: {inv.current_stock}</p>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            <input
+                              value={item.item_display}
+                              onFocus={() => setActiveSuggestionIndex(index)}
+                              onChange={(e) => handleItemLookup(index, e.target.value)}
+                              onBlur={() => {
+                                window.setTimeout(() => {
+                                  setActiveSuggestionIndex(prev => (prev === index ? null : prev));
+                                }, 150);
+                              }}
+                              placeholder="Search inventory item"
+                              autoComplete="off"
+                              className="w-full px-2 sm:px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              required
+                            />
+                          </div>
+                          {selectedInventory && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              Unit: {selectedInventory.unit} • Stock: {selectedInventory.current_stock}
+                            </p>
+                          )}
+                        </div>
+                        <div className="w-full sm:w-20 md:w-24">
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity_ordered}
+                            onChange={(e) => {
+                              const newItems = [...formData.items];
+                              newItems[index].quantity_ordered = e.target.value;
+                              setFormData({ ...formData, items: newItems });
+                            }}
+                            className="w-full px-2 sm:px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            placeholder="Qty"
+                            required
+                          />
+                        </div>
+                        <div className="w-full sm:w-24 md:w-32">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={item.unit_cost}
+                            onChange={(e) => {
+                              const newItems = [...formData.items];
+                              newItems[index].unit_cost = e.target.value;
+                              setFormData({ ...formData, items: newItems });
+                            }}
+                            className="w-full px-2 sm:px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            placeholder="Unit Cost"
+                            required
+                          />
+                        </div>
+                        {formData.items.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(index)}
+                            className="self-end sm:self-auto p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
-                      <div className="w-full sm:w-20 md:w-24">
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity_ordered}
-                          onChange={(e) => {
-                            const newItems = [...formData.items];
-                            newItems[index].quantity_ordered = e.target.value;
-                            setFormData({ ...formData, items: newItems });
-                          }}
-                          className="w-full px-2 sm:px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                          placeholder="Qty"
-                          required
-                        />
-                      </div>
-                      <div className="w-full sm:w-24 md:w-32">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={item.unit_cost}
-                          onChange={(e) => {
-                            const newItems = [...formData.items];
-                            newItems[index].unit_cost = e.target.value;
-                            setFormData({ ...formData, items: newItems });
-                          }}
-                          className="w-full px-2 sm:px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                          placeholder="Unit Cost"
-                          required
-                        />
-                      </div>
-                      {formData.items.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(index)}
-                          className="self-end sm:self-auto p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

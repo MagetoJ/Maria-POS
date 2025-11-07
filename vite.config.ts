@@ -28,10 +28,11 @@ export default defineConfig({
             }
           },
           {
-            urlPattern: /\/api\/.*/i,
+            // Cache GET requests to API endpoints only
+            urlPattern: ({ request }) => request.url.includes('/api/') && request.method === 'GET',
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'api-cache',
+              cacheName: 'api-get-cache',
               expiration: {
                 maxEntries: 100,
                 maxAgeSeconds: 60 * 60 // 1 hour

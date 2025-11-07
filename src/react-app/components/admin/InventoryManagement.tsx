@@ -24,6 +24,7 @@ export default function InventoryManagement() {
   const [selectedType, setSelectedType] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -68,7 +69,7 @@ export default function InventoryManagement() {
 
   useEffect(() => {
     fetchInventory();
-  }, [selectedType, debouncedSearchTerm]);
+  }, [selectedType]);
 
   const fetchInventory = async () => {
     setLoading(true);
@@ -80,10 +81,6 @@ export default function InventoryManagement() {
       const params = new URLSearchParams();
       if (selectedType !== 'all') {
         params.append('inventory_type', selectedType);
-      }
-      const trimmedSearch = debouncedSearchTerm.trim();
-      if (trimmedSearch.length >= 3) {
-        params.append('search', trimmedSearch);
       }
 
       const response = await fetch(`${API_URL}/api/inventory?${params.toString()}`, {
@@ -117,8 +114,42 @@ export default function InventoryManagement() {
     ? inventory.filter(item => canManageType(item.inventory_type))
     : inventory.filter(item => item.inventory_type === selectedType && canManageType(item.inventory_type));
 
+  // Search suggestions
+  const searchSuggestions = (() => {
+    if (!debouncedSearchTerm.trim()) return [];
+
+    const searchLower = debouncedSearchTerm.toLowerCase().trim();
+    return inventory
+      .filter(item => {
+        return (
+          item.name.toLowerCase().includes(searchLower) ||
+          item.supplier.toLowerCase().includes(searchLower) ||
+          item.inventory_type.toLowerCase().includes(searchLower) ||
+          item.unit.toLowerCase().includes(searchLower) ||
+          String(item.id).includes(searchLower)
+        );
+      })
+      .slice(0, 8); // Limit to 8 suggestions
+  })();
+
   const lowStockItems = inventory.filter(item => item.current_stock <= item.minimum_stock);
   const totalValue = inventory.reduce((sum, item) => sum + (item.current_stock * item.cost_per_unit), 0);
+
+  const handleSuggestionClick = (item: InventoryItem) => {
+    setEditingItem(item);
+    setFormData({
+      name: item.name,
+      unit: item.unit,
+      current_stock: item.current_stock,
+      minimum_stock: item.minimum_stock,
+      cost_per_unit: item.cost_per_unit,
+      supplier: item.supplier,
+      inventory_type: item.inventory_type
+    });
+    setSearchTerm('');
+    setShowSuggestions(false);
+    setShowAddModal(true);
+  };
 
   const handleAdd = async () => {
     if (!formData.name || !formData.unit || !formData.supplier) {
@@ -342,11 +373,35 @@ export default function InventoryManagement() {
       {/* Search */}
       <div className="bg-white rounded-lg p-4 border border-gray-200">
         <div className="relative">
+          {showSuggestions && searchSuggestions.length > 0 && (
+            <div className="absolute top-full left-0 right-0 z-10 mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+              {searchSuggestions.map(item => (
+                <button
+                  type="button"
+                  key={item.id}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleSuggestionClick(item)}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
+                >
+                  <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                  <p className="text-xs text-gray-500">
+                    ID: {item.id} • {item.supplier} • Stock: {item.current_stock} {item.unit} • {item.inventory_type}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
           <input
             type="text"
-            placeholder="Search inventory by name..."
+            placeholder="Search inventory items to edit..."
             value={searchTerm}
+            onFocus={() => setShowSuggestions(true)}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onBlur={() => {
+              window.setTimeout(() => {
+                setShowSuggestions(false);
+              }, 150);
+            }}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg pl-10 focus:ring-2 focus:ring-blue-500"
           />
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />

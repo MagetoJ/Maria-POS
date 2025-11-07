@@ -381,7 +381,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
     }
   };
 
-  const submitOrder = async (staff: User | null) => {
+  const submitOrder = async (staff: User | null, retryCount = 0) => {
     if (!currentOrder) return;
     const { id, ...orderData } = currentOrder;
     const orderPayload: any = {
@@ -405,16 +405,46 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       orderPayload.pin = pin;
     }
 
+    const maxRetries = 2;
+
     try {
-      const url = import.meta.env.DEV ? '/api/orders' : `${API_URL}/api/orders`;
+      // Use the same API URL determination as apiClient for consistency
+      const url = API_URL ? `${API_URL}/api/orders` : '/api/orders';
+
+      // Log device and environment info for debugging (only on first attempt)
+      if (retryCount === 0) {
+        console.log('Submitting order to:', url);
+        console.log('Device info:', {
+          userAgent: navigator.userAgent,
+          isOnline: navigator.onLine,
+          platform: navigator.platform,
+          cookieEnabled: navigator.cookieEnabled,
+          onLine: navigator.onLine
+        });
+        console.log('Environment:', {
+          DEV: import.meta.env.DEV,
+          PROD: import.meta.env.PROD,
+          API_URL: API_URL
+        });
+        console.log('Order payload:', orderPayload);
+      } else {
+        console.log(`Retrying order submission (attempt ${retryCount + 1}/${maxRetries + 1})`);
+      }
+
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderPayload),
+        // Add timeout and better error handling
+        signal: AbortSignal.timeout(30000), // 30 second timeout
       });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (response.ok) {
         const result = await response.json();
+        console.log('Order submitted successfully:', result);
         const orderNumber = `ORD-${Date.now()}`;
         setShowPinModal(false);
         setPin('');
@@ -426,13 +456,61 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
         prepareAndShowReceiptModal(staff, orderNumber);
         return;
       } else {
-        const error = await response.json();
-        setPinError(error.message || 'Order submission failed.');
+        let errorMessage = 'Order submission failed.';
+        try {
+          const error = await response.json();
+          errorMessage = error.message || errorMessage;
+          console.error('Order submission error response:', error);
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+          // Try to get text response
+          try {
+            const errorText = await response.text();
+            console.error('Error response text:', errorText);
+            errorMessage = `Server error (${response.status}): ${errorText.substring(0, 100)}`;
+          } catch (textError) {
+            console.error('Failed to get error text:', textError);
+            errorMessage = `Network error (${response.status})`;
+          }
+        }
+        setPinError(errorMessage);
       }
     } catch (error) {
-      setPinError('An error occurred while submitting the order.');
+      console.error('Order submission exception:', error);
+
+      // Retry logic for network errors
+      const isRetryableError = error instanceof Error && (
+        error.name === 'TimeoutError' ||
+        (error.name === 'TypeError' && error.message.includes('fetch')) ||
+        error.message.includes('NetworkError') ||
+        error.message.includes('Failed to fetch')
+      );
+
+      if (isRetryableError && retryCount < maxRetries) {
+        console.log(`Network error detected, retrying in ${2 * (retryCount + 1)} seconds...`);
+        setTimeout(() => {
+          submitOrder(staff, retryCount + 1);
+        }, 2000 * (retryCount + 1)); // Exponential backoff: 2s, 4s
+        return; // Don't set error yet, we're retrying
+      }
+
+      let errorMessage = 'An error occurred while submitting the order.';
+      if (error instanceof Error) {
+        if (error.name === 'TimeoutError') {
+          errorMessage = 'Request timed out. Please check your connection and try again.';
+        } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your internet connection.';
+        } else {
+          errorMessage = `Error: ${error.message}`;
+        }
+      }
+
+      setPinError(errorMessage);
     } finally {
-      setIsSubmitting(false);
+      // Only set submitting to false if we're not retrying
+      if (retryCount >= maxRetries) {
+        setIsSubmitting(false);
+      }
     }
   };
 

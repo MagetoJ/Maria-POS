@@ -1,4 +1,4 @@
-import { LogOut, Clock, Search } from 'lucide-react';
+import { LogOut, Clock, Search, Utensils } from 'lucide-react';
 import { useState } from 'react';
 import SearchComponent from './SearchComponent';
 
@@ -43,10 +43,7 @@ export default function QuickPOSHeader({ onBackToLogin }: QuickPOSHeaderProps) {
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-lg flex items-center justify-center">
-                <div className="w-5 h-5 sm:w-6 sm:h-6 bg-black rounded-sm flex items-center justify-center relative">
-                  <div className="w-2 h-2 sm:w-3 sm:h-3 bg-yellow-400 rounded-sm"></div>
-                  <div className="absolute top-0 right-0 w-0.5 h-0.5 sm:w-1 sm:h-1 bg-white rounded-sm"></div>
-                </div>
+                <Utensils className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">Maria Havens Quick POS</h1>

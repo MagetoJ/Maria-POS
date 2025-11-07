@@ -12,15 +12,35 @@ export const getInventory = async (req: Request, res: Response) => {
 
     const userRole = req.user?.role;
 
-    let query = db('inventory_items')
-      .leftJoin('suppliers', 'inventory_items.supplier_id', 'suppliers.id')
-      .leftJoin('products', 'inventory_items.product_id', 'products.id')
-      .select(
-        'inventory_items.*',
-        'suppliers.name as supplier_name',
-        'products.name as product_name'
-      )
-      .orderBy('inventory_items.name', 'asc');
+    const [hasSupplierIdColumn, hasSupplierColumn, hasProductIdColumn] = await Promise.all([
+      db.schema.hasColumn('inventory_items', 'supplier_id'),
+      db.schema.hasColumn('inventory_items', 'supplier'),
+      db.schema.hasColumn('inventory_items', 'product_id')
+    ]);
+
+    let query = db('inventory_items');
+
+    if (hasSupplierIdColumn) {
+      query = query.leftJoin('suppliers', 'inventory_items.supplier_id', 'suppliers.id');
+    }
+
+    if (hasProductIdColumn) {
+      query = query.leftJoin('products', 'inventory_items.product_id', 'products.id');
+    }
+
+    const selectFields = ['inventory_items.*'];
+
+    if (hasSupplierIdColumn) {
+      selectFields.push('suppliers.name as supplier_name');
+    } else if (hasSupplierColumn) {
+      selectFields.push('inventory_items.supplier as supplier_name');
+    }
+
+    if (hasProductIdColumn) {
+      selectFields.push('products.name as product_name');
+    }
+
+    query = query.select(selectFields).orderBy('inventory_items.name', 'asc');
 
     if (!userRole) {
       return res.status(403).json({ message: 'User role not found' });

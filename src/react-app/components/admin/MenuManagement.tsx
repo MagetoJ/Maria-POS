@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UtensilsCrossed, Plus, Edit3, Trash2 } from 'lucide-react';
+import { UtensilsCrossed, Plus, Edit3, Trash2, Search } from 'lucide-react';
 import { apiClient } from '../../config/api';
 
 // Define interfaces to match backend schema
@@ -42,6 +42,9 @@ export default function MenuManagement() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<Product | Category | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [productForm, setProductForm] = useState({
     category_id: 1,
@@ -95,9 +98,42 @@ export default function MenuManagement() {
     fetchCategories();
   }, []);
 
+  // Debounce search term
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [searchTerm]);
+
+  const getCategoryName = (categoryId: number) => {
+    return categories.find(c => c.id === categoryId)?.name || 'Unknown';
+  };
+
   const filteredProducts = selectedCategory
     ? products.filter(p => p.category_id === selectedCategory)
     : products;
+
+  // Search suggestions
+  const searchSuggestions = (() => {
+    if (!debouncedSearchTerm.trim()) return [];
+
+    const searchLower = debouncedSearchTerm.toLowerCase().trim();
+    return products
+      .filter(p => {
+        const categoryName = getCategoryName(p.category_id).toLowerCase();
+        return (
+          p.name.toLowerCase().includes(searchLower) ||
+          p.description.toLowerCase().includes(searchLower) ||
+          categoryName.includes(searchLower) ||
+          String(p.id).includes(searchLower)
+        );
+      })
+      .slice(0, 8); // Limit to 8 suggestions
+  })();
 
   // --- API Handlers ---
 
@@ -298,13 +334,16 @@ export default function MenuManagement() {
   };
 
   const handleDeleteCategory = async (id: number) => {
-    if (confirm('Are you sure you want to delete this category? All products in this category will need to be reassigned.')) {
+    if (confirm('Are you sure you want to delete this category? All products in this category will be reassigned.')) {
       const response = await apiClient.delete(`/api/categories/${id}`);
 
       if (response.ok) {
-        fetchCategories();
-        fetchProducts();
-        alert('✅ Category deleted successfully!');
+        const result = await response.json();
+        await fetchCategories();
+        await fetchProducts();
+        setSelectedCategory(null);
+        const countMessage = result?.reassignedProductCount ? ` ${result.reassignedProductCount} product(s) moved to Uncategorized.` : '';
+        alert(`✅ Category deleted successfully!${countMessage}`);
       } else {
         const errorText = await response.text();
         alert(`Failed to delete category: ${errorText}`);
@@ -364,8 +403,10 @@ export default function MenuManagement() {
     });
   };
 
-  const getCategoryName = (categoryId: number) => {
-    return categories.find(c => c.id === categoryId)?.name || 'Unknown';
+  const handleSuggestionClick = (product: Product) => {
+    handleEditProduct(product);
+    setSearchTerm('');
+    setShowSuggestions(false);
   };
 
   const profitMargin = (price: number, cost?: number) => {
@@ -483,6 +524,49 @@ export default function MenuManagement() {
         <div className="p-6">
           {activeTab === 'products' && (
             <div className="space-y-4">
+              {/* Search and Filter Controls */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    {showSuggestions && searchSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-10 mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                        {searchSuggestions.map(product => (
+                          <button
+                            type="button"
+                            key={product.id}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleSuggestionClick(product)}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
+                          >
+                            <p className="text-sm font-medium text-gray-900">{product.name}</p>
+                            <p className="text-xs text-gray-500">
+                              ID: {product.id} • {getCategoryName(product.category_id)} • {formatCurrency(product.price)}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      placeholder="Search products to edit..."
+                      value={searchTerm}
+                      onFocus={() => setShowSuggestions(true)}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onBlur={() => {
+                        window.setTimeout(() => {
+                          setShowSuggestions(false);
+                        }, 150);
+                      }}
+                      className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <span>Showing {filteredProducts.length} of {products.length} products</span>
+                </div>
+              </div>
+
               {/* Category Filter */}
               <div className="flex gap-2 flex-wrap">
                 <button

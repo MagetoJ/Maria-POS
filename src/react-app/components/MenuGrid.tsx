@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react';
 import { usePOS, Product, Category } from '../contexts/POSContext';
 import { apiClient, IS_DEVELOPMENT } from '../config/api';
-import { Plus, Clock, Loader2 } from 'lucide-react';
+import { Plus, Clock, Loader2, Wine } from 'lucide-react';
+
+// Extended product interface to support bar items
+interface ExtendedProduct extends Product {
+  is_bar_item?: boolean;
+  current_stock?: number;
+  unit?: string;
+}
 
 // --- Helper Function ---
 const formatCurrency = (amount: number | string): string => {
@@ -18,7 +25,7 @@ export default function MenuGrid() {
   const { addItemToOrder } = usePOS(); // Corrected: usePOS provides 'addToCart'
 
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ExtendedProduct[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,26 +40,38 @@ export default function MenuGrid() {
           console.log('📱 Fetching menu data (products & categories)...');
         }
 
-        const [productsRes, categoriesRes] = await Promise.all([
+        const [productsRes, categoriesRes, barItemsRes] = await Promise.all([
           apiClient.get('/api/products'),
-          apiClient.get('/api/categories')
+          apiClient.get('/api/categories'),
+          apiClient.get('/api/quick-pos/bar-items-as-products')
         ]);
 
-        if (!productsRes.ok || !categoriesRes.ok) {
+        if (!productsRes.ok || !categoriesRes.ok || !barItemsRes.ok) {
           throw new Error('Failed to fetch menu data. Please try again.');
         }
 
         const productsData = await productsRes.json();
         const categoriesData = await categoriesRes.json();
+        const barItemsData = await barItemsRes.json();
+
+        // Mark bar items and combine with regular products
+        const barItemsWithFlag = barItemsData.map((item: any) => ({
+          ...item,
+          is_bar_item: true
+        }));
+
+        const allProducts = [...productsData, ...barItemsWithFlag];
 
         if (IS_DEVELOPMENT) {
-          console.log('✅ Menu data loaded:', { 
-            products: productsData.length, 
-            categories: categoriesData.length 
+          console.log('✅ Menu data loaded:', {
+            products: productsData.length,
+            barItems: barItemsData.length,
+            total: allProducts.length,
+            categories: categoriesData.length
           });
         }
 
-        setProducts(productsData);
+        setProducts(allProducts);
         setCategories(categoriesData);
       } catch (err) {
         if (IS_DEVELOPMENT) {
@@ -125,10 +144,10 @@ export default function MenuGrid() {
             onClick={() => addItemToOrder(product)}
             className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-yellow-400 transition-all group"
           >
-            <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+            <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden relative">
               {product.image_url ? (
-                <img 
-                  src={product.image_url} 
+                <img
+                  src={product.image_url}
                   alt={product.name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -139,12 +158,28 @@ export default function MenuGrid() {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-100 to-yellow-200">
-                  <span className="text-2xl font-bold text-yellow-600">{product.name.charAt(0)}</span>
+                  {product.is_bar_item ? (
+                    <Wine className="w-12 h-12 text-amber-600" />
+                  ) : (
+                    <span className="text-2xl font-bold text-yellow-600">{product.name.charAt(0)}</span>
+                  )}
+                </div>
+              )}
+              {/* Bar icon overlay for bar items */}
+              {product.is_bar_item && (
+                <div className="absolute top-2 right-2 bg-amber-500 text-white rounded-full p-1 shadow-md">
+                  <Wine className="w-4 h-4" />
                 </div>
               )}
             </div>
             <div className="p-4">
               <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 h-10">{product.name}</h3>
+              {product.is_bar_item && product.current_stock !== undefined && (
+                <div className="flex items-center text-xs text-amber-600 mb-1">
+                  <Wine className="w-3 h-3 mr-1" />
+                  {product.current_stock} {product.unit} available
+                </div>
+              )}
               {product.preparation_time && product.preparation_time > 2 && (
                 <div className="flex items-center text-xs text-gray-500 mb-1">
                   <Clock className="w-3 h-3 mr-1" />

@@ -117,7 +117,7 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
   const hasData = barItems.length > 0;
 
   return (
-    <div className="flex-1 p-3 sm:p-4 lg:p-6">
+    <div className="flex-1 p-2 sm:p-3 lg:p-5">
       {/* Search Bar */}
       <div className="mb-4 sm:mb-6">
         <input
@@ -125,7 +125,7 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
           placeholder="Search bar items..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
           disabled={isLoading && !hasData}
         />
       </div>
@@ -179,12 +179,12 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
 
           {hasData && (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
                 {filteredItems.map((item) => (
                   <div
                     key={item.id}
                     className={`
-                      bg-white rounded-xl shadow-sm border-2 overflow-hidden transition-all group
+                      bg-white rounded-lg shadow-sm border overflow-hidden transition-all group
                       ${item.is_available
                         ? 'border-green-200 hover:shadow-lg hover:border-yellow-400 cursor-pointer'
                         : 'border-red-200 opacity-50 cursor-not-allowed'
@@ -199,30 +199,30 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <Wine className="w-12 h-12 text-amber-600" />
+                        <Wine className="w-10 h-10 text-amber-600" />
                       )}
                       {item.current_stock !== undefined && (
-                        <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                        <div className="absolute top-1.5 right-1.5 bg-blue-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
                           {item.current_stock} {item.unit}
                         </div>
                       )}
                       {!item.is_available && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <span className="text-white font-bold text-center">Out of Stock</span>
+                          <span className="text-white font-semibold text-sm text-center">Out of Stock</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="p-3">
-                      <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 text-sm">{item.name}</h3>
-                      <p className="text-xs text-gray-500 mb-3 line-clamp-1">{item.unit}</p>
+                    <div className="p-1.5">
+                      <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 text-[10px] leading-snug">{item.name}</h3>
+                      <p className="text-[9px] text-gray-500 mb-1 line-clamp-1">{item.unit}</p>
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-yellow-600">{formatCurrency(item.price)}</span>
+                        <span className="font-semibold text-yellow-600 text-xs">{formatCurrency(item.price)}</span>
                         <button
                           onClick={() => handleAddItem(item)}
                           disabled={!item.is_available}
                           className={`
-                            p-2 rounded-lg transition-all
+                            p-1 rounded-md transition-all
                             ${item.is_available
                               ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 active:scale-95'
                               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
@@ -230,7 +230,7 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
                           `}
                           title={item.is_available ? 'Add to order' : 'Out of stock'}
                         >
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-3 h-3" />
                         </button>
                       </div>
                     </div>

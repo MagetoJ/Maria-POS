@@ -9,6 +9,8 @@ interface InventoryItem {
   unit: string;
 }
 
+const formatInventoryOption = (item: InventoryItem) => `${item.id} - ${item.name} (${item.unit})`;
+
 interface ProductReturn {
   id: number;
   order_id?: number;
@@ -36,11 +38,13 @@ export default function ProductReturnsManagement() {
   const [formData, setFormData] = useState({
     order_id: '',
     inventory_id: '',
+    inventory_display: '',
     quantity_returned: '',
     reason: 'quality_issue',
     refund_amount: '',
     notes: '',
   });
+  const [isSuggestionOpen, setIsSuggestionOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -74,8 +78,13 @@ export default function ProductReturnsManagement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const inventoryId = parseInt(formData.inventory_id);
+      if (Number.isNaN(inventoryId)) {
+        throw new Error('Please select a valid inventory item');
+      }
+
       const payload: any = {
-        inventory_id: parseInt(formData.inventory_id),
+        inventory_id: inventoryId,
         quantity_returned: parseInt(formData.quantity_returned),
         reason: formData.reason,
         notes: formData.notes || null,
@@ -111,6 +120,7 @@ export default function ProductReturnsManagement() {
     setFormData({
       order_id: '',
       inventory_id: '',
+      inventory_display: '',
       quantity_returned: '',
       reason: 'quality_issue',
       refund_amount: '',
@@ -120,9 +130,11 @@ export default function ProductReturnsManagement() {
 
   const handleEdit = (ret: ProductReturn) => {
     setEditingId(ret.id);
+    const matchedItem = inventoryItems.find((item) => item.id === ret.inventory_id);
     setFormData({
       order_id: ret.order_id?.toString() || '',
       inventory_id: ret.inventory_id?.toString() || '',
+      inventory_display: matchedItem ? formatInventoryOption(matchedItem) : '',
       quantity_returned: ret.quantity_returned.toString(),
       reason: ret.reason,
       refund_amount: ret.refund_amount.toString(),
@@ -145,12 +157,58 @@ export default function ProductReturnsManagement() {
     }
   };
 
+  const handleInventorySelect = (item: InventoryItem) => {
+    setFormData((prev) => {
+      const quantity = parseInt(prev.quantity_returned || '0');
+      const refund = Number.isNaN(quantity) || quantity <= 0 ? '' : (item.current_stock * quantity).toString();
+      return {
+        ...prev,
+        inventory_id: item.id.toString(),
+        inventory_display: formatInventoryOption(item),
+        refund_amount: refund,
+      };
+    });
+    setIsSuggestionOpen(false);
+  };
+
+  const handleInventoryLookup = (value: string) => {
+    const normalizedValue = value.trim().toLowerCase();
+    const matchByFormatted = inventoryItems.find((inv) => formatInventoryOption(inv).toLowerCase() === normalizedValue);
+    const matchByName = inventoryItems.find((inv) => inv.name.toLowerCase() === normalizedValue);
+    const matchById = inventoryItems.find((inv) => String(inv.id) === normalizedValue);
+    const matchedItem = matchByFormatted || matchByName || matchById || null;
+    if (matchedItem) {
+      handleInventorySelect(matchedItem);
+    } else {
+      setIsSuggestionOpen(true);
+      setFormData((prev) => ({
+        ...prev,
+        inventory_display: value,
+        inventory_id: '',
+        refund_amount: '',
+      }));
+    }
+  };
+
   const totalReturnValue = returns.reduce((sum, ret) => sum + ret.refund_amount, 0);
 
   const reasonCounts = returns.reduce((acc, ret) => {
     acc[ret.reason] = (acc[ret.reason] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
+
+  const selectedInventory = inventoryItems.find((item) => item.id === parseInt(formData.inventory_id));
+  const inventoryQuery = formData.inventory_display.trim().toLowerCase();
+  const selectedDisplay = selectedInventory ? formatInventoryOption(selectedInventory).toLowerCase() : '';
+  const inventorySuggestions = inventoryQuery.length === 0
+    ? []
+    : inventoryItems
+        .filter((item) => {
+          const option = formatInventoryOption(item).toLowerCase();
+          return option.includes(inventoryQuery) || item.name.toLowerCase().includes(inventoryQuery);
+        })
+        .slice(0, 8);
+  const showInventorySuggestions = isSuggestionOpen && inventorySuggestions.length > 0 && inventoryQuery !== selectedDisplay;
 
   if (isLoading) {
     return (
@@ -230,28 +288,43 @@ export default function ProductReturnsManagement() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Inventory Item *</label>
-                <select
-                  value={formData.inventory_id}
-                  onChange={(e) => {
-                    const item = inventoryItems.find((i) => i.id === parseInt(e.target.value));
-                    setFormData({
-                      ...formData,
-                      inventory_id: e.target.value,
-                      refund_amount: item
-                        ? (item.current_stock * parseInt(formData.quantity_returned || 1)).toString()
-                        : '',
-                    });
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
-                  required
-                >
-                  <option value="">Select Inventory Item</option>
-                  {inventoryItems.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} ({item.current_stock} {item.unit})
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  {showInventorySuggestions && (
+                    <div className="mb-1 w-full max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                      {inventorySuggestions.map((item) => (
+                        <button
+                          type="button"
+                          key={item.id}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleInventorySelect(item)}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-100"
+                        >
+                          <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                          <p className="text-xs text-gray-500">ID: {item.id} • Stock: {item.current_stock} • Unit: {item.unit}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    value={formData.inventory_display}
+                    onFocus={() => setIsSuggestionOpen(true)}
+                    onChange={(e) => handleInventoryLookup(e.target.value)}
+                    onBlur={() => {
+                      window.setTimeout(() => {
+                        setIsSuggestionOpen(false);
+                      }, 150);
+                    }}
+                    placeholder="Search inventory item"
+                    autoComplete="off"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
+                    required
+                  />
+                </div>
+                {selectedInventory && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Current stock: {selectedInventory.current_stock} {selectedInventory.unit}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Order ID (Optional)</label>
@@ -269,12 +342,13 @@ export default function ProductReturnsManagement() {
                   min="1"
                   value={formData.quantity_returned}
                   onChange={(e) => {
+                    const quantityValue = e.target.value;
                     const item = inventoryItems.find((i) => i.id === parseInt(formData.inventory_id));
-                    setFormData({
-                      ...formData,
-                      quantity_returned: e.target.value,
-                      refund_amount: item ? (item.current_stock * parseInt(e.target.value || 0)).toString() : '',
-                    });
+                    setFormData((prev) => ({
+                      ...prev,
+                      quantity_returned: quantityValue,
+                      refund_amount: item ? (item.current_stock * parseInt(quantityValue || '0')).toString() : '',
+                    }));
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
                   required

@@ -566,70 +566,82 @@ export default function PerformanceDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white rounded-lg p-4">
               <p className="text-sm text-gray-600 mb-2">Completion Rate</p>
-              {parseFloat(myPerformance.orders.completionRate) >= 90 ? (
-                <p className="text-sm text-green-600">
-                  ✅ Excellent! You're maintaining a {myPerformance.orders.completionRate}% completion rate.
-                </p>
-              ) : parseFloat(myPerformance.orders.completionRate) >= 75 ? (
-                <p className="text-sm text-yellow-600">
-                  ⚠️ Good work! Try to reduce cancellations to reach 90%.
-                </p>
-              ) : (
-                <p className="text-sm text-red-600">
-                  ⚠️ Your completion rate is {myPerformance.orders.completionRate}%. Focus on reducing cancellations.
-                </p>
-              )}
+              {(() => {
+                const rate = parseFloat(myPerformance.orders.completionRate) || 0;
+                return rate >= 90 ? (
+                  <p className="text-sm text-green-600">
+                    ✅ Excellent! You're maintaining a {myPerformance.orders.completionRate}% completion rate.
+                  </p>
+                ) : rate >= 75 ? (
+                  <p className="text-sm text-yellow-600">
+                    ⚠️ Good work! Try to reduce cancellations to reach 90%.
+                  </p>
+                ) : (
+                  <p className="text-sm text-red-600">
+                    ⚠️ Your completion rate is {myPerformance.orders.completionRate}%. Focus on reducing cancellations.
+                  </p>
+                );
+              })()}
             </div>
 
             <div className="bg-white rounded-lg p-4">
               <p className="text-sm text-gray-600 mb-2">Customer Satisfaction</p>
-              {parseFloat(myPerformance.service.avgRating) >= 4.5 ? (
-                <p className="text-sm text-green-600">
-                  ⭐ Outstanding! Customers love your service.
-                </p>
-              ) : parseFloat(myPerformance.service.avgRating) >= 3.5 ? (
-                <p className="text-sm text-yellow-600">
-                  👍 Good ratings! Keep improving for 5-star service.
-                </p>
-              ) : (
-                <p className="text-sm text-red-600">
-                  📈 Focus on customer service to improve your ratings.
-                </p>
-              )}
+              {(() => {
+                const rating = parseFloat(myPerformance.service.avgRating) || 0;
+                return rating >= 4.5 ? (
+                  <p className="text-sm text-green-600">
+                    ⭐ Outstanding! Customers love your service.
+                  </p>
+                ) : rating >= 3.5 ? (
+                  <p className="text-sm text-yellow-600">
+                    👍 Good ratings! Keep improving for 5-star service.
+                  </p>
+                ) : (
+                  <p className="text-sm text-red-600">
+                    📈 Focus on customer service to improve your ratings.
+                  </p>
+                );
+              })()}
             </div>
 
             <div className="bg-white rounded-lg p-4">
               <p className="text-sm text-gray-600 mb-2">Punctuality</p>
-              {myPerformance.attendance.punctualityScore >= 95 ? (
-                <p className="text-sm text-green-600">
-                  ⏰ Perfect! You're always on time.
-                </p>
-              ) : myPerformance.attendance.punctualityScore >= 80 ? (
-                <p className="text-sm text-yellow-600">
-                  🕐 Good punctuality. Try to be on time for all shifts.
-                </p>
-              ) : (
-                <p className="text-sm text-red-600">
-                  ⏰ Improve your punctuality for better performance.
-                </p>
-              )}
+              {(() => {
+                const score = myPerformance.attendance.punctualityScore || 0;
+                return score >= 95 ? (
+                  <p className="text-sm text-green-600">
+                    ⏰ Perfect! You're always on time.
+                  </p>
+                ) : score >= 80 ? (
+                  <p className="text-sm text-yellow-600">
+                    🕐 Good punctuality. Try to be on time for all shifts.
+                  </p>
+                ) : (
+                  <p className="text-sm text-red-600">
+                    ⏰ Improve your punctuality for better performance.
+                  </p>
+                );
+              })()}
             </div>
 
             <div className="bg-white rounded-lg p-4">
               <p className="text-sm text-gray-600 mb-2">Service Speed</p>
-              {parseInt(myPerformance.service.avgServiceTime) <= 15 ? (
-                <p className="text-sm text-green-600">
-                  ⚡ Lightning fast! Great service speed.
-                </p>
-              ) : parseInt(myPerformance.service.avgServiceTime) <= 25 ? (
-                <p className="text-sm text-yellow-600">
-                  ⏱️ Good pace. Try to speed up service slightly.
-                </p>
-              ) : (
-                <p className="text-sm text-red-600">
-                  🐌 Focus on reducing service time for better efficiency.
-                </p>
-              )}
+              {(() => {
+                const time = parseInt(myPerformance.service.avgServiceTime) || 30;
+                return time <= 15 ? (
+                  <p className="text-sm text-green-600">
+                    ⚡ Lightning fast! Great service speed.
+                  </p>
+                ) : time <= 25 ? (
+                  <p className="text-sm text-yellow-600">
+                    ⏱️ Good pace. Try to speed up service slightly.
+                  </p>
+                ) : (
+                  <p className="text-sm text-red-600">
+                    🐌 Focus on reducing service time for better efficiency.
+                  </p>
+                );
+              })()}
             </div>
           </div>
         </div>

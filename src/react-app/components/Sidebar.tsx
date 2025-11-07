@@ -128,10 +128,11 @@ export default function Sidebar({
           fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 p-6 transform transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:relative lg:translate-x-0 lg:flex lg:flex-col
+          flex flex-col
         `}
       >
         <div className="flex flex-col h-full">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 flex-shrink-0">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
               <p className="text-sm text-gray-600">Logged in as {user?.name}</p>
@@ -145,10 +146,12 @@ export default function Sidebar({
             </button>
           </div>
 
-          <div className="flex-1 flex flex-col">
-            {renderNavItems()}
-            {children}
-            <div className="mt-auto pt-6 border-t border-gray-200 space-y-1">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto space-y-6">
+              {renderNavItems()}
+              {children}
+            </div>
+            <div className="pt-6 border-t border-gray-200 space-y-1 flex-shrink-0">
               {footerContent ?? defaultFooter}
             </div>
           </div>

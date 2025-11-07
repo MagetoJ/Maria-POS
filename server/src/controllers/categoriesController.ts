@@ -170,23 +170,26 @@ export const deleteCategory = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Category not found' });
     }
 
-    // Check if category is used by products
-    const productsUsingCategory = await db('products')
-      .where('category_id', id)
-      .count('id as count')
-      .first();
+    const reassignedProducts = await db.transaction(async trx => {
+      const updatedProducts = await trx('products')
+        .where('category_id', id)
+        .update({
+          category_id: null,
+          updated_at: trx.fn.now()
+        })
+        .returning('id');
 
-    if (productsUsingCategory && Number(productsUsingCategory.count) > 0) {
-      return res.status(400).json({ 
-        message: 'Cannot delete category as it is used by products. Please update products first.' 
-      });
-    }
+      await trx('categories')
+        .where('id', id)
+        .del();
 
-    await db('categories')
-      .where('id', id)
-      .del();
+      return updatedProducts;
+    });
 
-    res.json({ message: 'Category deleted successfully' });
+    res.json({ 
+      message: 'Category deleted successfully',
+      reassignedProductCount: reassignedProducts.length
+    });
   } catch (error) {
     console.error('Delete category error:', error);
     res.status(500).json({ message: 'Internal server error' });
