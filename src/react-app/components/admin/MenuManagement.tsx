@@ -113,9 +113,32 @@ export default function MenuManagement() {
     return categories.find(c => c.id === categoryId)?.name || 'Unknown';
   };
 
-  const filteredProducts = selectedCategory
-    ? products.filter(p => p.category_id === selectedCategory)
-    : products;
+  const filteredProducts = (() => {
+    let filtered = selectedCategory
+      ? products.filter(p => p.category_id === selectedCategory)
+      : products;
+
+    // Apply search filter if search term is 3+ characters
+    const trimmedSearch = debouncedSearchTerm.trim();
+    if (trimmedSearch.length >= 3) {
+      const searchLower = trimmedSearch.toLowerCase();
+      filtered = filtered.filter(p => {
+        // FIX: Safer property access to prevent "Cannot read properties of null (reading 'toLowerCase')"
+        const productName = p.name?.toLowerCase() || '';
+        const productDescription = p.description?.toLowerCase() || '';
+        const categoryName = getCategoryName(p.category_id).toLowerCase();
+
+        return (
+          productName.includes(searchLower) ||
+          productDescription.includes(searchLower) ||
+          categoryName.includes(searchLower) ||
+          String(p.id).includes(searchLower)
+        );
+      });
+    }
+
+    return filtered;
+  })();
 
   // Search suggestions
   const searchSuggestions = (() => {

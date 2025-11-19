@@ -111,9 +111,34 @@ export default function InventoryManagement() {
     { value: 'minibar', label: 'Minibar', color: 'bg-orange-100 text-orange-800' }
   ];
 
-  const filteredInventory = selectedType === 'all'
-    ? inventory.filter(item => canManageType(item.inventory_type))
-    : inventory.filter(item => item.inventory_type === selectedType && canManageType(item.inventory_type));
+  const filteredInventory = (() => {
+    let filtered = selectedType === 'all'
+      ? inventory.filter(item => canManageType(item.inventory_type))
+      : inventory.filter(item => item.inventory_type === selectedType && canManageType(item.inventory_type));
+
+    // Apply search filter if search term is 3+ characters
+    const trimmedSearch = debouncedSearchTerm.trim();
+    if (trimmedSearch.length >= 3) {
+      const searchLower = trimmedSearch.toLowerCase();
+      filtered = filtered.filter(item => {
+        // FIX: Safer property access to prevent "Cannot read properties of null (reading 'toLowerCase')"
+        const itemName = item.name?.toLowerCase() || '';
+        const itemSupplier = item.supplier?.toLowerCase() || '';
+        const itemType = item.inventory_type?.toLowerCase() || '';
+        const itemUnit = item.unit?.toLowerCase() || '';
+
+        return (
+          itemName.includes(searchLower) ||
+          itemSupplier.includes(searchLower) ||
+          itemType.includes(searchLower) ||
+          itemUnit.includes(searchLower) ||
+          String(item.id).includes(searchLower)
+        );
+      });
+    }
+
+    return filtered;
+  })();
 
   // Search suggestions
   const searchSuggestions = (() => {
@@ -467,7 +492,11 @@ export default function InventoryManagement() {
 
       {/* Inventory Table */}
       {!loading && (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <>
+          <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+            <span>Showing {filteredInventory.length} of {inventory.length} inventory items</span>
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
@@ -572,7 +601,8 @@ export default function InventoryManagement() {
               </tbody>
             </table>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Add/Edit Modal */}
