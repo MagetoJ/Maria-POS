@@ -124,10 +124,14 @@ export default function MenuManagement() {
     const searchLower = debouncedSearchTerm.toLowerCase().trim();
     return products
       .filter(p => {
+        // FIX: Safer property access to prevent "Cannot read properties of null (reading 'toLowerCase')"
+        const productName = p.name?.toLowerCase() || '';
+        const productDescription = p.description?.toLowerCase() || '';
         const categoryName = getCategoryName(p.category_id).toLowerCase();
+
         return (
-          p.name.toLowerCase().includes(searchLower) ||
-          p.description.toLowerCase().includes(searchLower) ||
+          productName.includes(searchLower) ||
+          productDescription.includes(searchLower) ||
           categoryName.includes(searchLower) ||
           String(p.id).includes(searchLower)
         );
@@ -551,13 +555,20 @@ export default function MenuManagement() {
                       placeholder="Search products to edit..."
                       value={searchTerm}
                       onFocus={() => setShowSuggestions(true)}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onChange={(e) => {
+                        e.preventDefault(); // Prevent any default browser behavior
+                        setSearchTerm(e.target.value);
+                      }}
                       onBlur={() => {
                         window.setTimeout(() => {
                           setShowSuggestions(false);
                         }, 150);
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.preventDefault(); // Prevent form submission on Enter
+                      }}
                       className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                      autoComplete="off"
                     />
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   </div>

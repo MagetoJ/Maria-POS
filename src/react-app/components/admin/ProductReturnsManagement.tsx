@@ -174,7 +174,7 @@ export default function ProductReturnsManagement() {
   const handleInventoryLookup = (value: string) => {
     const normalizedValue = value.trim().toLowerCase();
     const matchByFormatted = inventoryItems.find((inv) => formatInventoryOption(inv).toLowerCase() === normalizedValue);
-    const matchByName = inventoryItems.find((inv) => inv.name.toLowerCase() === normalizedValue);
+    const matchByName = inventoryItems.find((inv) => (inv.name?.toLowerCase() || '') === normalizedValue);
     const matchById = inventoryItems.find((inv) => String(inv.id) === normalizedValue);
     const matchedItem = matchByFormatted || matchByName || matchById || null;
     if (matchedItem) {
@@ -205,7 +205,8 @@ export default function ProductReturnsManagement() {
     : inventoryItems
         .filter((item) => {
           const option = formatInventoryOption(item).toLowerCase();
-          return option.includes(inventoryQuery) || item.name.toLowerCase().includes(inventoryQuery);
+          const itemName = item.name?.toLowerCase() || '';
+          return option.includes(inventoryQuery) || itemName.includes(inventoryQuery);
         })
         .slice(0, 8);
   const showInventorySuggestions = isSuggestionOpen && inventorySuggestions.length > 0 && inventoryQuery !== selectedDisplay;
@@ -308,7 +309,13 @@ export default function ProductReturnsManagement() {
                   <input
                     value={formData.inventory_display}
                     onFocus={() => setIsSuggestionOpen(true)}
-                    onChange={(e) => handleInventoryLookup(e.target.value)}
+                    onChange={(e) => {
+                      e.preventDefault(); // Prevent any default browser behavior
+                      handleInventoryLookup(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.preventDefault(); // Prevent form submission on Enter
+                    }}
                     onBlur={() => {
                       window.setTimeout(() => {
                         setIsSuggestionOpen(false);

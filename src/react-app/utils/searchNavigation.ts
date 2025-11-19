@@ -132,7 +132,17 @@ export const navigateToSearchResult = (
       case 'purchase_order':
         // Purchase orders are typically managed by admin/manager
         if (userRole === 'admin' || userRole === 'manager') {
-          navigate('/admin#purchase-orders');
+          // Navigate to admin dashboard first, then use a custom event to set the tab
+          // This avoids potential issues with hash-based navigation in production
+          navigate('/admin');
+
+          // Use a timeout to ensure navigation completes before setting the tab
+          setTimeout(() => {
+            const event = new CustomEvent('adminSearchNavigate', {
+              detail: { tab: 'purchase-orders' }
+            });
+            window.dispatchEvent(event);
+          }, 100);
         } else {
           console.warn('Purchase order management requires admin access');
         }

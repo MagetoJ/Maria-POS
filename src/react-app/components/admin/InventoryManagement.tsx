@@ -122,11 +122,17 @@ export default function InventoryManagement() {
     const searchLower = debouncedSearchTerm.toLowerCase().trim();
     return inventory
       .filter(item => {
+        // FIX: Safer property access to prevent "Cannot read properties of null (reading 'toLowerCase')"
+        const itemName = item.name?.toLowerCase() || '';
+        const itemSupplier = item.supplier?.toLowerCase() || '';
+        const itemType = item.inventory_type?.toLowerCase() || '';
+        const itemUnit = item.unit?.toLowerCase() || '';
+
         return (
-          item.name.toLowerCase().includes(searchLower) ||
-          item.supplier.toLowerCase().includes(searchLower) ||
-          item.inventory_type.toLowerCase().includes(searchLower) ||
-          item.unit.toLowerCase().includes(searchLower) ||
+          itemName.includes(searchLower) ||
+          itemSupplier.includes(searchLower) ||
+          itemType.includes(searchLower) ||
+          itemUnit.includes(searchLower) ||
           String(item.id).includes(searchLower)
         );
       })

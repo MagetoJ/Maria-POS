@@ -141,7 +141,7 @@ export default function PurchaseOrdersManagement() {
   const handleItemLookup = (index: number, value: string) => {
     const normalizedValue = value.trim().toLowerCase();
     const matchByFormatted = inventoryItems.find(inv => formatInventoryOption(inv).toLowerCase() === normalizedValue);
-    const matchByName = inventoryItems.find(inv => inv.name.toLowerCase() === normalizedValue);
+    const matchByName = inventoryItems.find(inv => (inv.name?.toLowerCase() || '') === normalizedValue);
     const matchById = inventoryItems.find(inv => String(inv.id) === normalizedValue);
     const matchedItem = matchByFormatted || matchByName || matchById || null;
     if (matchedItem) {
@@ -344,8 +344,15 @@ export default function PurchaseOrdersManagement() {
               type="text"
               placeholder="Search by PO#, Supplier, or Item..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                e.preventDefault(); // Prevent any default browser behavior
+                setSearchTerm(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.preventDefault(); // Prevent form submission on Enter
+              }}
               className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              autoComplete="off"
             />
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           </div>
@@ -489,7 +496,8 @@ export default function PurchaseOrdersManagement() {
                       : inventoryItems
                           .filter(inv => {
                             const option = formatInventoryOption(inv).toLowerCase();
-                            return option.includes(query) || inv.name.toLowerCase().includes(query);
+                            const itemName = inv.name?.toLowerCase() || '';
+                            return option.includes(query) || itemName.includes(query);
                           })
                           .slice(0, 8);
                     const showSuggestions = activeSuggestionIndex === index && suggestions.length > 0 && query !== selectedDisplay;
