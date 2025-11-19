@@ -28,7 +28,7 @@ import {
   Package,
   Settings,
   FileText,
-  Menu,
+  Utensils,
   Bed,
   AlertTriangle,
   DollarSign,
@@ -148,6 +148,19 @@ export default function AdminDashboard() {
     }
   }, [location.hash]);
 
+  // Handle custom search navigation events
+  useEffect(() => {
+    const handleAdminSearchNavigate = (event: CustomEvent) => {
+      const { tab } = event.detail;
+      if (tab && tab !== activeTab) {
+        setActiveTab(tab);
+      }
+    };
+
+    window.addEventListener('adminSearchNavigate', handleAdminSearchNavigate as EventListener);
+    return () => window.removeEventListener('adminSearchNavigate', handleAdminSearchNavigate as EventListener);
+  }, [activeTab]);
+
   // Clear hash after navigation to prevent issues with back button
   useEffect(() => {
     if (location.hash && activeTab !== 'overview') {
@@ -253,7 +266,7 @@ export default function AdminDashboard() {
     { id: 'shifts', label: 'Shift Management', icon: Clock },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'inventory', label: 'Inventory', icon: Package },
-    { id: 'menu', label: 'Menu Management', icon: Menu },
+    { id: 'menu', label: 'Menu Management', icon: Utensils },
     { id: 'rooms', label: 'Room Management', icon: Bed },
     { id: 'suppliers', label: 'Suppliers', icon: Truck },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
@@ -599,7 +612,7 @@ export default function AdminDashboard() {
 
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 bg-yellow-100 rounded-lg">
-                <Menu className="w-6 h-6 text-yellow-600" />
+                <Utensils className="w-6 h-6 text-yellow-600" />
               </div>
               <h3 className="text-sm font-medium text-gray-900">Menu</h3>
               <p className="text-xs text-gray-500">Search dishes</p>
@@ -697,7 +710,7 @@ export default function AdminDashboard() {
                 className="text-gray-500 hover:text-gray-600"
                 aria-label="Open sidebar"
               >
-                <Menu className="w-6 h-6" />
+                <Utensils className="w-6 h-6" />
               </button>
             </div>
           </div>

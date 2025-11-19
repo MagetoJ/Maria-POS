@@ -69,8 +69,17 @@ export const navigateToSearchResult = (
             break;
         }
       } else {
-        // Navigate to admin dashboard with URL hash to indicate the desired tab
-        navigate(`/admin#${getTabForType(type)}`);
+        // Navigate to admin dashboard first, then use a custom event to set the tab
+        // This avoids potential issues with hash-based navigation in production
+        navigate('/admin');
+
+        // Use a timeout to ensure navigation completes before setting the tab
+        setTimeout(() => {
+          const event = new CustomEvent('adminSearchNavigate', {
+            detail: { tab: getTabForType(type) }
+          });
+          window.dispatchEvent(event);
+        }, 100);
       }
     }
   } else {

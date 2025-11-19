@@ -8,18 +8,20 @@ export const getStaff = async (req: Request, res: Response) => {
     // Try to select all columns including email, fall back if email column doesn't exist
     try {
       const staff = await db('staff')
+        .where({ is_active: true })
         .select('id', 'employee_id', 'username', 'name', 'role', 'email', 'is_active', 'created_at')
         .orderBy('name', 'asc');
-      
+
       res.json(staff);
     } catch (columnErr: any) {
       // If email column doesn't exist, query without it
       if (columnErr.message?.includes('email') && columnErr.message?.includes('does not exist')) {
         console.warn('Email column not found in staff table, querying without email');
         const staff = await db('staff')
+          .where({ is_active: true })
           .select('id', 'employee_id', 'username', 'name', 'role', 'is_active', 'created_at')
           .orderBy('name', 'asc');
-        
+
         res.json(staff);
       } else {
         throw columnErr;
@@ -27,7 +29,7 @@ export const getStaff = async (req: Request, res: Response) => {
     }
   } catch (err) {
     console.error('Error fetching staff:', err);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error fetching staff',
       error: process.env.NODE_ENV === 'development' ? (err as Error).message : undefined
     });

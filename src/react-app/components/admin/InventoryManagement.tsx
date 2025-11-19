@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Package, Plus, Edit3, Trash2, AlertTriangle, Search } from 'lucide-react';
 import { API_URL } from '../../config/api';
-import { useAuth } from '../../contexts/AuthContext'; 
+import { useAuth } from '../../contexts/AuthContext';
+import SearchComponent from '../SearchComponent'; 
 
 interface InventoryItem {
   id: number;
@@ -372,40 +373,29 @@ export default function InventoryManagement() {
 
       {/* Search */}
       <div className="bg-white rounded-lg p-4 border border-gray-200">
-        <div className="relative">
-          {showSuggestions && searchSuggestions.length > 0 && (
-            <div className="absolute top-full left-0 right-0 z-10 mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
-              {searchSuggestions.map(item => (
-                <button
-                  type="button"
-                  key={item.id}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => handleSuggestionClick(item)}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
-                >
-                  <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-500">
-                    ID: {item.id} • {item.supplier} • Stock: {item.current_stock} {item.unit} • {item.inventory_type}
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
-          <input
-            type="text"
-            placeholder="Search inventory items to edit..."
-            value={searchTerm}
-            onFocus={() => setShowSuggestions(true)}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onBlur={() => {
-              window.setTimeout(() => {
-                setShowSuggestions(false);
-              }, 150);
-            }}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg pl-10 focus:ring-2 focus:ring-blue-500"
-          />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-        </div>
+        <SearchComponent
+          onSearch={(query) => setSearchTerm(query)}
+          placeholder="Search inventory items to edit..."
+          initialValue={searchTerm}
+        />
+        {showSuggestions && searchSuggestions.length > 0 && (
+          <div className="absolute top-full left-0 right-0 z-10 mt-1 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+            {searchSuggestions.map(item => (
+              <button
+                type="button"
+                key={item.id}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleSuggestionClick(item)}
+                className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
+              >
+                <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                <p className="text-xs text-gray-500">
+                  ID: {item.id} • {item.supplier} • Stock: {item.current_stock} {item.unit} • {item.inventory_type}
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Filters */}

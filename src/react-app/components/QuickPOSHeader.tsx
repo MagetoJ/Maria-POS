@@ -1,110 +1,72 @@
-import { LogOut, Clock, Search, Utensils } from 'lucide-react';
-import { useState } from 'react';
-import SearchComponent from './SearchComponent';
+import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { LogOut, Wine, ShoppingBag, History } from 'lucide-react';
 
 interface QuickPOSHeaderProps {
-  onBackToLogin?: () => void;
+  onLogout: () => void;
+  toggleBarMode: () => void;
+  isBarMode: boolean;
+  setShowRecentOrders: (show: boolean) => void;
 }
 
-export default function QuickPOSHeader({ onBackToLogin }: QuickPOSHeaderProps) {
-  const [showSearch, setShowSearch] = useState(false);
-
-  const handleSearchSelect = (result: any, type: string) => {
-    console.log('Quick POS search result:', result, 'Type:', type);
-    setShowSearch(false);
-    
-    // Emit a custom event that the POS component can listen to
-    const event = new CustomEvent('posSearchSelect', {
-      detail: { result, type, userRole: 'waiter' }
-    });
-    window.dispatchEvent(event);
-  };
-
-  const handleAddToOrder = (product: any) => {
-    console.log('Quick POS adding product to order:', product);
-    setShowSearch(false);
-    
-    // Emit a custom event to add the product to order
-    const event = new CustomEvent('posAddToOrder', {
-      detail: { product }
-    });
-    window.dispatchEvent(event);
-  };
-
-  const handleSearchClose = () => {
-    setShowSearch(false);
-  };
+const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = ({
+  onLogout,
+  toggleBarMode,
+  isBarMode,
+  setShowRecentOrders
+}) => {
+  const { user } = useAuth();
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
-      <div className="space-y-3">
-        {/* Main Header Row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-lg flex items-center justify-center">
-                <Utensils className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">Maria Havens Quick POS</h1>
-                <p className="text-xs sm:text-sm text-gray-500">No Login Required - PIN Authentication</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
-              <Clock className="w-4 h-4" />
-              {new Date().toLocaleTimeString('en-KE', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: true 
-              })}
-            </div>
-            
-            <div className="flex items-center gap-2 sm:gap-3 bg-yellow-50 rounded-lg px-2 py-1 sm:px-4 sm:py-2 border border-yellow-200">
-              <div className="text-xs sm:text-sm min-w-0">
-                <div className="font-medium text-yellow-900">Quick Access Mode</div>
-                <div className="text-yellow-700 hidden sm:block">Select waiter at checkout</div>
-              </div>
-            </div>
-
-            {onBackToLogin && (
-              <button
-                onClick={onBackToLogin}
-                className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-red-600 transition-colors p-1 sm:p-2 rounded-lg hover:bg-red-50"
-                title="Back to Login"
-              >
-                <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline text-sm">Exit</span>
-              </button>
-            )}
-          </div>
+    <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex justify-between items-center">
+      <div className="flex items-center space-x-3">
+        <div className="bg-indigo-100 p-2 rounded-full">
+          <ShoppingBag className="h-6 w-6 text-indigo-600" />
         </div>
-
-        {/* Search Bar Row - Always Visible */}
-        <div className="flex items-center gap-2">
-          {showSearch ? (
-            <div className="flex-1">
-              <SearchComponent
-                onSelectResult={handleSearchSelect}
-                onClose={handleSearchClose}
-                placeholder="Search products, staff, inventory..."
-                autoFocus={true}
-                onAddToOrder={handleAddToOrder}
-              />
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowSearch(true)}
-              className="flex-1 flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-gray-600 hover:text-gray-800 transition-colors border border-gray-200"
-            >
-              <Search className="w-4 h-4 flex-shrink-0" />
-              <span className="text-sm truncate">Search products, staff, inventory...</span>
-            </button>
-          )}
+        <div>
+          <h1 className="text-lg font-bold text-gray-900">Quick POS</h1>
+          <p className="text-xs text-gray-500">
+            {user ? `${user.name} (${user.role})` : 'Guest User'}
+          </p>
         </div>
       </div>
-    </header>
+
+      <div className="flex items-center space-x-2 sm:space-x-4">
+        {/* Recent Orders Button */}
+        <button
+          onClick={() => setShowRecentOrders(true)}
+          className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+          title="Recent Orders"
+        >
+          <History className="h-6 w-6" />
+        </button>
+
+        {/* Bar Mode Toggle - Always Visible */}
+        <button
+          onClick={toggleBarMode}
+          className={`p-2 rounded-full transition-colors ${
+            isBarMode
+              ? 'bg-purple-100 text-purple-700'
+              : 'text-gray-600 hover:text-purple-600 hover:bg-purple-50'
+          }`}
+          title={isBarMode ? "Switch to Kitchen Menu" : "Switch to Bar Menu"}
+        >
+          <Wine className="h-6 w-6" />
+        </button>
+
+        <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>
+
+        <button
+          onClick={onLogout}
+          className="flex items-center text-gray-600 hover:text-red-600 transition-colors"
+          title="Logout"
+        >
+          <LogOut className="h-5 w-5" />
+          <span className="ml-2 hidden sm:inline text-sm font-medium">Logout</span>
+        </button>
+      </div>
+    </div>
   );
-}
+};
+
+export default QuickPOSHeader;
