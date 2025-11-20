@@ -11,11 +11,13 @@ import ReceptionistDashboard from './pages/ReceptionistDashboard'; // <-- Import
 
 import PWAUpdateNotification from './components/PWAUpdateNotification';
 
+const SKIP_LOGIN = import.meta.env.VITE_SKIP_LOGIN === 'true';
+
 // This component remains the same, protecting sensitive routes
 const ProtectedRoute = ({ children, allowedRoles }: { children: JSX.Element, allowedRoles?: string[] }) => {
   const { user, isAuthenticated } = useAuth();
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !SKIP_LOGIN) {
     return <Navigate to="/login" replace />;
   }
 
@@ -90,10 +92,10 @@ function App() {
         <Route
           path="/"
           element={
-              <Home />
+              <Navigate to="/pos" replace />
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/pos" replace />} />
       </Routes>
     </>
   );

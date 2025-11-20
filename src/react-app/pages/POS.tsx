@@ -37,6 +37,9 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   // State to manage order panel visibility on mobile
   const [isOrderPanelVisible, setOrderPanelVisible] = useState(false);
+  // State for quick POS header
+  const [isBarMode, setIsBarMode] = useState(false);
+  const [showRecentOrders, setShowRecentOrders] = useState(false);
 
   const canAccessRooms = user?.role === 'receptionist' || user?.role === 'manager' || user?.role === 'admin' || isQuickAccess;
   const canAccessDelivery = user?.role === 'delivery' || user?.role === 'manager' || user?.role === 'admin' || isQuickAccess;
@@ -107,7 +110,14 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 font-sans">
-      {isQuickAccess ? <QuickPOSHeader onBackToLogin={onBackToLogin} /> : <Header />}
+      {isQuickAccess ? (
+        <QuickPOSHeader 
+          onLogout={onBackToLogin || (() => {})}
+          toggleBarMode={() => setIsBarMode(!isBarMode)}
+          isBarMode={isBarMode}
+          setShowRecentOrders={setShowRecentOrders}
+        />
+      ) : <Header />}
 
       <div className="flex-1 flex overflow-hidden">
         {/* Main Content Area */}

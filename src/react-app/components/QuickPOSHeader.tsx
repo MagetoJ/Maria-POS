@@ -49,18 +49,14 @@ const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = ({
   useEffect(() => {
     const performSearch = async () => {
       const trimmedSearch = debouncedSearchTerm.trim();
-      if (trimmedSearch.length >= 3) {
+      if (trimmedSearch.length >= 2) {
         setIsSearching(true);
         setShowSearchResults(true);
         try {
-          const response = await apiClient.get(`/api/search?q=${encodeURIComponent(trimmedSearch)}&limit=10`);
+          const response = await apiClient.get(`/api/quick-pos/search?q=${encodeURIComponent(trimmedSearch)}&limit=10`);
           if (response.ok) {
             const data = await response.json();
-            const results = data.results || [];
-            const filteredResults = results.filter((r: SearchResult) => 
-              r.type === 'menu' || r.type === 'inventory'
-            );
-            setSearchResults(filteredResults);
+            setSearchResults(data.results || []);
           } else {
             setSearchResults([]);
           }
@@ -182,7 +178,7 @@ const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = ({
                   <div className="text-xs text-gray-500 mt-1">{result.description}</div>
                 </button>
               ))
-            ) : debouncedSearchTerm.trim().length >= 3 ? (
+            ) : debouncedSearchTerm.trim().length >= 2 ? (
               <div className="px-4 py-3 text-center text-gray-500">
                 No items found
               </div>
