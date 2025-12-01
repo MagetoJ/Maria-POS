@@ -53,7 +53,7 @@ const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = ({
         setIsSearching(true);
         setShowSearchResults(true);
         try {
-          const response = await apiClient.get(`/api/quick-pos/search?q=${encodeURIComponent(trimmedSearch)}&limit=10`);
+          const response = await apiClient.get(`/api/quick-pos/search?q=${encodeURIComponent(trimmedSearch)}&limit=20`);
           if (response.ok) {
             const data = await response.json();
             setSearchResults(data.results || []);

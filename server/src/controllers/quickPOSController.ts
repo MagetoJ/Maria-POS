@@ -15,6 +15,7 @@ export const searchProductsAndInventory = async (req: Request, res: Response) =>
 
     const searchTerm = `%${q.toLowerCase()}%`;
     const limitNum = Math.min(parseInt(limit as string) || 10, 50);
+    const queryLimit = limitNum * 2;
     const results: any[] = [];
 
     // Search Products (Menu Items)
@@ -22,7 +23,8 @@ export const searchProductsAndInventory = async (req: Request, res: Response) =>
       .leftJoin('categories', 'products.category_id', 'categories.id')
       .whereRaw('LOWER(products.name) LIKE ?', [searchTerm])
       .orWhereRaw('LOWER(products.description) LIKE ?', [searchTerm])
-      .limit(limitNum)
+      .where('products.is_active', true)
+      .limit(queryLimit)
       .select(
         'products.id',
         'products.name',
@@ -52,7 +54,7 @@ export const searchProductsAndInventory = async (req: Request, res: Response) =>
     const inventoryItems = await db('inventory_items')
       .whereRaw('LOWER(name) LIKE ?', [searchTerm])
       .orWhereRaw('LOWER(description) LIKE ?', [searchTerm])
-      .limit(limitNum)
+      .limit(queryLimit)
       .select('id', 'name', 'description', 'unit', 'current_stock', 'cost_per_unit', 'supplier', 'inventory_type');
 
     for (const item of inventoryItems) {
@@ -82,7 +84,7 @@ export const searchProductsAndInventory = async (req: Request, res: Response) =>
     });
 
     res.json({
-      results: results.slice(0, limitNum),
+      results: results.slice(0, limitNum * 2),
       query: q,
       total: results.length
     });
