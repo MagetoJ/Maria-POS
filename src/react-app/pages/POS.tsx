@@ -7,6 +7,7 @@ import { navigateToSearchResult } from '../utils/searchNavigation';
 import QuickPOSHeader from '../components/QuickPOSHeader';
 import OrderPanel from '../components/OrderPanel';
 import MenuGrid from '../components/MenuGrid';
+import SalesDashboard from './SalesDashboard';
 import RoomView from '../components/RoomView';
 import DeliveryManagement from '../components/DeliveryManagement';
 import DashboardView from '../components/PerfomanceDashboardView';
@@ -18,10 +19,11 @@ import {
   Settings,
   BarChart3,
   LayoutGrid,
-  ShoppingCart, // <-- Import ShoppingCart icon
-  X, // <-- Import X icon
-  Wine, // <-- Import Wine icon for bar sales
+  ShoppingCart,
+  X,
+  Wine,
   Menu,
+  Search,
 } from 'lucide-react';
 
 interface POSProps {
@@ -33,7 +35,7 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
   const { user } = useAuth();
   const { addItemToOrder } = usePOS();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'bar_sales' | 'quick_bar_sales'>(isQuickAccess ? 'quick_bar_sales' : 'menu');
+  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'bar_sales' | 'quick_bar_sales' | 'sales_dashboard'>(isQuickAccess ? 'quick_bar_sales' : 'menu');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   // State to manage order panel visibility on mobile
   const [isOrderPanelVisible, setOrderPanelVisible] = useState(false);
@@ -103,6 +105,8 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
         return <BarSales />;
       case 'quick_bar_sales':
         return <QuickBarSalesPanel isQuickAccess={isQuickAccess} />;
+      case 'sales_dashboard':
+        return <SalesDashboard />;
       default:
         return <MenuGrid />;
     }
@@ -161,6 +165,11 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
               {/* Always show Menu button */}
               <button onClick={() => setActiveView('menu')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'menu' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Menu">
                 <Menu className="w-5 h-5" />
+              </button>
+              
+              {/* Sales Dashboard - integrated search & mode switching */}
+              <button onClick={() => setActiveView('sales_dashboard')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'sales_dashboard' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Sales Dashboard">
+                <Search className="w-5 h-5" />
               </button>
               
               {/* Show Bar Sales button - always available in Quick POS, role-based for regular users */}

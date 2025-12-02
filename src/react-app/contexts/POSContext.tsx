@@ -10,6 +10,8 @@ export interface Product {
   is_available: boolean;
   image_url?: string;
   preparation_time: number;
+  source?: 'kitchen' | 'bar';
+  current_stock?: number;
 }
 
 export interface Category {
@@ -37,12 +39,13 @@ export interface Room {
 }
 
 export interface OrderItem {
-  id: number; // Temporary client-side ID
+  id: number;
   product_id: number;
   name: string;
   quantity: number;
   price: number;
   notes?: string;
+  source?: 'kitchen' | 'bar';
 }
 
 export interface Order {
@@ -78,21 +81,22 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: product.name,
       quantity,
       price: product.price,
+      source: product.source || 'kitchen',
     };
 
     if (!currentOrder) {
       const newOrder: Order = {
         id: `temp-${Date.now()}`,
-        order_type: orderType, // Use the passed order type
+        order_type: orderType,
         items: [newItem],
       };
       setCurrentOrder(newOrder);
     } else {
-      const existingItem = currentOrder.items.find(item => item.product_id === product.id);
+      const existingItem = currentOrder.items.find(item => item.product_id === product.id && item.source === product.source);
       let updatedItems;
       if (existingItem) {
         updatedItems = currentOrder.items.map(item =>
-          item.product_id === product.id
+          item.product_id === product.id && item.source === product.source
             ? { ...item, quantity: item.quantity + quantity }
             : item
         );

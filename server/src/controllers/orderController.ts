@@ -333,3 +333,103 @@ export const validatePin = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Server error during PIN validation' });
   }
 };
+
+// Create unified order (handles both kitchen and bar items)
+export const createUnifiedOrder = async (req: Request, res: Response) => {
+  const { items, total_amount, payment_method = 'cash', customer_name, table_id, staff_username, pin, ...orderData } = req.body;
+  
+  if (!items || items.length === 0) {
+    return res.status(400).json({ message: 'Order is empty' });
+  }
+
+  try {
+    let staffId = null;
+    let staffName = 'Quick POS';
+
+    if (staff_username && pin) {
+      const validation = await validateStaffPinForOrder(staff_username, pin);
+      if (!validation.valid || !validation.staffId || !validation.staffName) {
+        return res.status(401).json({ message: 'Invalid username or PIN' });
+      }
+      staffId = validation.staffId;
+      staffName = validation.staffName;
+      console.log('PIN validated for unified order by:', staffName);
+    }
+
+    const result = await db.transaction(async (trx) => {
+      const [order] = await trx('orders').insert({
+        order_number: `ORD-${Date.now()}`,
+        order_type: orderData.order_type || 'dine_in',
+        status: 'pending',
+        staff_id: staffId,
+        table_id,
+        customer_name,
+        total_amount: Number(total_amount),
+        payment_status: 'pending',
+        payment_method: payment_method || 'cash'
+      }).returning('*');
+
+      for (const item of items) {
+        if (item.source === 'bar') {
+          const inventoryItem = await trx('inventory_items')
+            .where({ id: item.product_id })
+            .first();
+
+          if (!inventoryItem || inventoryItem.current_stock < item.quantity) {
+            throw new Error(`Out of stock: ${item.name}`);
+          }
+
+          await trx('inventory_items')
+            .where({ id: item.product_id })
+            .decrement('current_stock', item.quantity);
+
+          await trx('order_items').insert({
+            order_id: order.id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            unit_price: Number(item.price),
+            total_price: Number(item.price) * item.quantity,
+            notes: '[BAR_ITEM]'
+          });
+        } else {
+          await trx('order_items').insert({
+            order_id: order.id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            unit_price: Number(item.price),
+            total_price: Number(item.price) * item.quantity,
+            notes: '[KITCHEN]'
+          });
+        }
+      }
+
+      if (payment_method) {
+        await trx('payments').insert({
+          order_id: order.id,
+          payment_method: payment_method,
+          amount: Number(total_amount),
+          status: 'completed'
+        });
+      }
+
+      return order;
+    });
+
+    if (webSocketService) {
+      webSocketService.broadcastToKitchens({ type: 'new_order' });
+    }
+
+    res.status(201).json({ 
+      success: true, 
+      order: result,
+      staff_name: staffName 
+    });
+
+  } catch (error: any) {
+    console.error('Unified order error:', error);
+    res.status(500).json({ 
+      message: error.message || 'Failed to create order',
+      error: error.message 
+    });
+  }
+};

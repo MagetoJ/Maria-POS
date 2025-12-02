@@ -2,10 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
 
 interface SearchComponentProps {
-  onSearch: (query: string) => void;
+  onSearch?: (query: string) => void;
   placeholder?: string;
   initialValue?: string;
   className?: string;
+  onSelectResult?: (result: any, type: string) => void;
+  onClose?: () => void;
+  autoFocus?: boolean;
+  onAddToOrder?: (product: any) => void;
 }
 
 const SearchComponent: React.FC<SearchComponentProps> = ({
@@ -19,7 +23,9 @@ const SearchComponent: React.FC<SearchComponentProps> = ({
   // Debounce: Wait 300ms after typing stops before searching
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      onSearch(query);
+      if (typeof onSearch === 'function') {
+        onSearch(query);
+      }
     }, 300);
     return () => clearTimeout(timeoutId);
   }, [query, onSearch]);
