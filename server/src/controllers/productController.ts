@@ -146,7 +146,7 @@ export const createProduct = async (req: Request, res: Response) => {
 export const updateProduct = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const updateData = { ...req.body, updated_at: new Date() };
+    const { name, category_id, price, description, is_available, cost, preparation_time, image_url } = req.body;
 
     // Check if product exists
     const existingProduct = await db('products').where({ id }).first();
@@ -154,13 +154,27 @@ export const updateProduct = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
+    // Build update data with only safe fields
+    const updateData: any = {
+      updated_at: new Date()
+    };
+
+    if (name !== undefined) updateData.name = name;
+    if (category_id !== undefined) updateData.category_id = category_id;
+    if (price !== undefined) updateData.price = price;
+    if (description !== undefined) updateData.description = description;
+    if (is_available !== undefined) updateData.is_available = is_available;
+    if (image_url !== undefined) updateData.image_url = image_url;
+    if (cost !== undefined) updateData.cost = cost;
+    if (preparation_time !== undefined) updateData.preparation_time = preparation_time;
+
     // If updating name/category_id, check for duplicates
-   if (updateData.name || updateData.category_id) { // <-- FIX
-      const name = updateData.name || existingProduct.name;
-      const category_id = updateData.category_id || existingProduct.category_id; // <-- FIX
+    if (updateData.name || updateData.category_id) {
+      const checkName = updateData.name || existingProduct.name;
+      const checkCategoryId = updateData.category_id || existingProduct.category_id;
       
       const duplicateProduct = await db('products')
-        .where({ name, category_id, is_active: true }) // <-- FIX
+        .where({ name: checkName, category_id: checkCategoryId, is_active: true })
         .whereNot({ id })
         .first();
 

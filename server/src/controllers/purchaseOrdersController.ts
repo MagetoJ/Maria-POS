@@ -206,7 +206,8 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
       0
     );
 
-    const [hasOrderNumberColumn, hasSupplierColumn, hasItemIdColumn, hasInventoryItemIdColumn, hasQuantityColumn, hasQuantityOrderedColumn, hasUnitPriceColumn, hasUnitCostColumn, hasTotalPriceColumn, hasReceivedQuantityColumn, hasQuantityReceivedColumn] = await Promise.all([
+    const [hasPoNumberColumn, hasOrderNumberColumn, hasSupplierColumn, hasItemIdColumn, hasInventoryItemIdColumn, hasQuantityColumn, hasQuantityOrderedColumn, hasUnitPriceColumn, hasUnitCostColumn, hasTotalPriceColumn, hasReceivedQuantityColumn, hasQuantityReceivedColumn] = await Promise.all([
+      db.schema.hasColumn('purchase_orders', 'po_number'),
       db.schema.hasColumn('purchase_orders', 'order_number'),
       db.schema.hasColumn('purchase_orders', 'supplier'),
       db.schema.hasColumn('purchase_order_items', 'item_id'),
@@ -221,7 +222,6 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
     ]);
 
     const insertData: Record<string, unknown> = {
-      po_number,
       supplier_id,
       order_date,
       expected_delivery_date: expected_delivery_date || null,
@@ -229,6 +229,10 @@ export const createPurchaseOrder = async (req: Request, res: Response) => {
       notes: notes || null,
       created_by: userId,
     };
+
+    if (hasPoNumberColumn) {
+      insertData.po_number = po_number;
+    }
 
     if (hasOrderNumberColumn) {
       insertData.order_number = po_number;
