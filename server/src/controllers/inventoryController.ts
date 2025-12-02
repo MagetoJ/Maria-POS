@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import db from '../db';
 import fs from 'fs';
-import csv from 'csv-parser';
+import * as XLSX from 'xlsx';
 
 // Get inventory items based on user role
 export const getInventory = async (req: Request, res: Response) => {
@@ -221,89 +221,88 @@ export const updateStock = async (req: Request, res: Response) => {
   }
 };
 
-// Upload and process inventory CSV
+// Upload and process inventory (Supports Excel & CSV)
 export const uploadInventory = async (req: Request, res: Response) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded' });
   }
 
-  const filePath = req.file.path;
-  const results: any[] = [];
   const errors: string[] = [];
 
   try {
-    fs.createReadStream(filePath)
-      .pipe(csv())
-      .on('data', (data) => results.push(data))
-      .on('end', async () => {
-        try {
-          await db.transaction(async (trx) => {
-            for (const row of results) {
-              const name = row['Name'] || row['name'];
-              const quantity = parseInt(row['Quantity'] || row['quantity'] || '0');
-              const cost = parseFloat(row['Cost'] || row['cost'] || '0');
-              const unit = row['Unit'] || row['unit'];
-              const supplier = row['Supplier'] || row['supplier'];
-              const type = row['Type'] || row['type'] || 'kitchen';
+    const workbook = XLSX.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-              if (!name) continue;
+    const getValue = (key: string) => {
+      const foundKey = Object.keys(jsonData[0] || {}).find(k => k.trim().toLowerCase() === key.toLowerCase());
+      return foundKey ? jsonData[0][foundKey] : undefined;
+    };
 
-              const existingItem = await trx('inventory_items')
-                .whereRaw('LOWER(name) = ?', [name.toLowerCase()])
-                .first();
+    await db.transaction(async (trx) => {
+      for (const row of jsonData) {
+        const getRowValue = (key: string) => {
+          const foundKey = Object.keys(row).find(k => k.trim().toLowerCase() === key.toLowerCase());
+          return foundKey ? row[foundKey] : undefined;
+        };
 
-              if (existingItem) {
-                const newStock = existingItem.current_stock + quantity;
-                await trx('inventory_items')
-                  .where({ id: existingItem.id })
-                  .update({
-                    current_stock: newStock,
-                    cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
-                    updated_at: new Date()
-                  });
-              } else {
-                if (!unit || !supplier) {
-                  errors.push(`Skipped "${name}": Missing Unit or Supplier for new item.`);
-                  continue;
-                }
+        const name = getRowValue('Name');
+        const quantity = parseInt(getRowValue('Quantity') || '0');
+        const cost = parseFloat(getRowValue('Cost') || '0');
+        const unit = getRowValue('Unit');
+        const supplier = getRowValue('Supplier');
+        const type = getRowValue('Type') || 'kitchen';
 
-                await trx('inventory_items').insert({
-                  name,
-                  unit,
-                  current_stock: quantity,
-                  minimum_stock: 5,
-                  cost_per_unit: cost,
-                  supplier,
-                  inventory_type: type.toLowerCase(),
-                  is_active: true,
-                  created_at: new Date(),
-                  updated_at: new Date()
-                });
-              }
-            }
+        if (!name) continue;
+
+        const existingItem = await trx('inventory_items')
+          .whereRaw('LOWER(name) = ?', [name.toLowerCase()])
+          .first();
+
+        if (existingItem) {
+          const newStock = existingItem.current_stock + quantity;
+          await trx('inventory_items')
+            .where({ id: existingItem.id })
+            .update({
+              current_stock: newStock,
+              cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
+              updated_at: new Date()
+            });
+        } else {
+          if (!unit || !supplier) {
+            errors.push(`Skipped "${name}": Missing Unit or Supplier for new item.`);
+            continue;
+          }
+
+          await trx('inventory_items').insert({
+            name,
+            unit,
+            current_stock: quantity,
+            minimum_stock: 5,
+            cost_per_unit: cost,
+            supplier,
+            inventory_type: type.toLowerCase(),
+            is_active: true,
+            created_at: new Date(),
+            updated_at: new Date()
           });
-
-          fs.unlinkSync(filePath);
-
-          res.json({
-            message: 'Inventory processed successfully',
-            processed_count: results.length,
-            errors: errors.length > 0 ? errors : undefined
-          });
-
-        } catch (dbError) {
-          console.error('Database transaction error:', dbError);
-          res.status(500).json({ message: 'Database error during processing' });
         }
-      })
-      .on('error', (error) => {
-        console.error('CSV parsing error:', error);
-        res.status(400).json({ message: 'Error parsing CSV file' });
-      });
+      }
+    });
+
+    fs.unlinkSync(req.file.path);
+
+    res.json({
+      message: 'Inventory processed successfully',
+      processed_count: jsonData.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
 
   } catch (err) {
     console.error('File processing error:', err);
-    res.status(500).json({ message: 'Error processing file' });
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ message: 'Error processing file', error: (err as Error).message });
   }
 };
 

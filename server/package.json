@@ -37,7 +37,8 @@
     "pg": "^8.16.3",
     "sqlite3": "^5.1.7",
     "typescript": "^5.9.3",
-    "ws": "^8.14.2"
+    "ws": "^8.14.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

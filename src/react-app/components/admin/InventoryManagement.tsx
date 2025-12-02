@@ -408,7 +408,7 @@ export default function InventoryManagement() {
               type="file"
               ref={fileInputRef}
               onChange={handleFileUpload}
-              accept=".csv"
+              accept=".csv, .xlsx, .xls"
               className="hidden"
             />
             <button
@@ -417,7 +417,7 @@ export default function InventoryManagement() {
               disabled={loading}
             >
               <Upload className="w-5 h-5" />
-              Import CSV
+              Import CSV / Excel
             </button>
             <button
               onClick={() => { setEditingItem(null); resetForm(); setShowAddModal(true); }}

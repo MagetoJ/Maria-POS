@@ -6,10 +6,20 @@ import { authenticateToken, authorizeRoles } from '../middleware/auth';
 const upload = multer({
   dest: 'uploads/',
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.includes('csv') || file.mimetype.includes('spreadsheet') || file.originalname.endsWith('.csv')) {
+    const allowedTypes = [
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/octet-stream'
+    ];
+
+    if (allowedTypes.includes(file.mimetype) ||
+        file.originalname.endsWith('.csv') ||
+        file.originalname.endsWith('.xlsx') ||
+        file.originalname.endsWith('.xls')) {
       cb(null, true);
     } else {
-      cb(new Error('Only CSV files are allowed'));
+      cb(new Error('Only CSV and Excel files are allowed'));
     }
   }
 });
