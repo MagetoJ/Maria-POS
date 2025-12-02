@@ -273,15 +273,14 @@ export const getSalesReport = async (req: Request, res: Response) => {
 // Get inventory report
 export const getInventoryReport = async (req: Request, res: Response) => {
   try {
-    // Get low stock items
     const lowStockItems = await db('inventory_items')
       .whereRaw('current_stock <= minimum_stock')
       .select('*')
       .orderBy('current_stock', 'asc');
 
-    // Fetch ALL inventory items for Export
-    const allInventoryItems = await db('inventory_items')
-      .leftJoin('suppliers', 'inventory_items.supplier_id', 'suppliers.id')
+    const hasSupplierId = await db.schema.hasColumn('inventory_items', 'supplier_id');
+
+    let allItemsQuery = db('inventory_items')
       .select(
         'inventory_items.id',
         'inventory_items.name',
@@ -290,13 +289,21 @@ export const getInventoryReport = async (req: Request, res: Response) => {
         'inventory_items.minimum_stock',
         'inventory_items.unit',
         'inventory_items.cost_per_unit',
-        db.raw('(inventory_items.current_stock * inventory_items.cost_per_unit) as total_value'),
-        'suppliers.name as supplier_name'
-      )
+        db.raw('(inventory_items.current_stock * inventory_items.cost_per_unit) as total_value')
+      );
+
+    if (hasSupplierId) {
+      allItemsQuery = allItemsQuery
+        .leftJoin('suppliers', 'inventory_items.supplier_id', 'suppliers.id')
+        .select('suppliers.name as supplier_name');
+    } else {
+      allItemsQuery = allItemsQuery.select('inventory_items.supplier as supplier_name');
+    }
+
+    const allInventoryItems = await allItemsQuery
       .orderBy('inventory_items.inventory_type', 'asc')
       .orderBy('inventory_items.name', 'asc');
 
-    // Get inventory summary
     const inventorySummary = await db('inventory_items')
       .select(
         'inventory_type',
@@ -305,12 +312,10 @@ export const getInventoryReport = async (req: Request, res: Response) => {
       )
       .groupBy('inventory_type');
 
-    // Calculate total inventory value
     const totalValue = await db('inventory_items')
       .select(db.raw('SUM(current_stock * cost_per_unit) as total'))
       .first();
 
-    // Transform data to match frontend expectations
     const transformedInventoryData = {
       lowStockItems: lowStockItems.map(item => ({
         id: item.id,
