@@ -235,62 +235,88 @@ export const uploadInventory = async (req: Request, res: Response) => {
     const worksheet = workbook.Sheets[sheetName];
     const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
 
+    const existingItemsRaw = await db('inventory_items').select('id', 'name', 'current_stock', 'cost_per_unit');
+    const existingItemsMap = new Map();
+    existingItemsRaw.forEach(item => {
+      existingItemsMap.set(item.name.toLowerCase().trim(), item);
+    });
+
+    const itemsToInsert: any[] = [];
+    const itemsToUpdate: any[] = [];
+
+    for (const row of jsonData) {
+      const getRowValue = (key: string) => {
+        const foundKey = Object.keys(row).find(k => k.trim().toLowerCase() === key.toLowerCase());
+        return foundKey ? row[foundKey] : undefined;
+      };
+
+      const name = getRowValue('Item Name') || getRowValue('Name');
+      const quantity = parseInt(getRowValue('Current Stock') || getRowValue('Quantity') || '0');
+      const cost = parseFloat(getRowValue('Cost Per Unit (KES)') || getRowValue('Cost') || '0');
+      const unit = getRowValue('Unit');
+      const supplier = getRowValue('Supplier');
+      const type = getRowValue('Type') || 'kitchen';
+
+      if (!name) continue;
+
+      const normalizedName = name.toLowerCase().trim();
+      const existingItem = existingItemsMap.get(normalizedName);
+
+      if (existingItem) {
+        itemsToUpdate.push({
+          id: existingItem.id,
+          current_stock: existingItem.current_stock + quantity,
+          cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
+          updated_at: new Date()
+        });
+      } else {
+        if (!unit || !supplier) {
+          errors.push(`Skipped "${name}": New items need a Unit and Supplier.`);
+          continue;
+        }
+
+        itemsToInsert.push({
+          name,
+          unit,
+          current_stock: quantity,
+          minimum_stock: 5,
+          cost_per_unit: cost,
+          supplier,
+          inventory_type: type.toLowerCase(),
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+      }
+    }
+
     await db.transaction(async (trx) => {
-      for (const row of jsonData) {
-        const getRowValue = (key: string) => {
-          const foundKey = Object.keys(row).find(k => k.trim().toLowerCase() === key.toLowerCase());
-          return foundKey ? row[foundKey] : undefined;
-        };
+      if (itemsToInsert.length > 0) {
+        await trx('inventory_items').insert(itemsToInsert);
+      }
 
-        const name = getRowValue('Item Name') || getRowValue('Name');
-        const quantity = parseInt(getRowValue('Current Stock') || getRowValue('Quantity') || '0');
-        const cost = parseFloat(getRowValue('Cost Per Unit (KES)') || getRowValue('Cost') || '0');
-        const unit = getRowValue('Unit');
-        const supplier = getRowValue('Supplier');
-        const type = getRowValue('Type') || 'kitchen';
-
-        if (!name) continue;
-
-        const existingItem = await trx('inventory_items')
-          .whereRaw('LOWER(name) = ?', [name.toLowerCase()])
-          .first();
-
-        if (existingItem) {
-          const newStock = existingItem.current_stock + quantity;
-          await trx('inventory_items')
-            .where({ id: existingItem.id })
-            .update({
-              current_stock: newStock,
-              cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
-              updated_at: new Date()
-            });
-        } else {
-          if (!unit || !supplier) {
-            errors.push(`Skipped "${name}": Missing Unit or Supplier for new item.`);
-            continue;
-          }
-
-          await trx('inventory_items').insert({
-            name,
-            unit,
-            current_stock: quantity,
-            minimum_stock: 5,
-            cost_per_unit: cost,
-            supplier,
-            inventory_type: type.toLowerCase(),
-            is_active: true,
-            created_at: new Date(),
-            updated_at: new Date()
-          });
+      if (itemsToUpdate.length > 0) {
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < itemsToUpdate.length; i += CHUNK_SIZE) {
+          const chunk = itemsToUpdate.slice(i, i + CHUNK_SIZE);
+          await Promise.all(chunk.map(item =>
+            trx('inventory_items')
+              .where({ id: item.id })
+              .update({
+                current_stock: item.current_stock,
+                cost_per_unit: item.cost_per_unit,
+                updated_at: item.updated_at
+              })
+          ));
         }
       }
     });
 
-    fs.unlinkSync(req.file.path);
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
     res.json({
       message: 'Inventory processed successfully',
-      processed_count: jsonData.length,
+      processed_count: itemsToInsert.length + itemsToUpdate.length,
       errors: errors.length > 0 ? errors : undefined
     });
 
