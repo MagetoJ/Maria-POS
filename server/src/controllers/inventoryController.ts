@@ -235,11 +235,6 @@ export const uploadInventory = async (req: Request, res: Response) => {
     const worksheet = workbook.Sheets[sheetName];
     const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-    const getValue = (key: string) => {
-      const foundKey = Object.keys(jsonData[0] || {}).find(k => k.trim().toLowerCase() === key.toLowerCase());
-      return foundKey ? jsonData[0][foundKey] : undefined;
-    };
-
     await db.transaction(async (trx) => {
       for (const row of jsonData) {
         const getRowValue = (key: string) => {
@@ -247,9 +242,9 @@ export const uploadInventory = async (req: Request, res: Response) => {
           return foundKey ? row[foundKey] : undefined;
         };
 
-        const name = getRowValue('Name');
-        const quantity = parseInt(getRowValue('Quantity') || '0');
-        const cost = parseFloat(getRowValue('Cost') || '0');
+        const name = getRowValue('Item Name') || getRowValue('Name');
+        const quantity = parseInt(getRowValue('Current Stock') || getRowValue('Quantity') || '0');
+        const cost = parseFloat(getRowValue('Cost Per Unit (KES)') || getRowValue('Cost') || '0');
         const unit = getRowValue('Unit');
         const supplier = getRowValue('Supplier');
         const type = getRowValue('Type') || 'kitchen';
