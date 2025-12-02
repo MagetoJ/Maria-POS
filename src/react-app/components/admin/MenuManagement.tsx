@@ -262,11 +262,11 @@ export default function MenuManagement() {
     setEditingItem(product);
     setProductForm({
       category_id: product.category_id,
-      name: product.name,
-      description: product.description,
+      name: product.name || '',
+      description: product.description || '',
       price: product.price,
       cost: product.cost || 0,
-      preparation_time: product.preparation_time,
+      preparation_time: product.preparation_time || 0,
       image_url: product.image_url || ''
     });
     setImagePreview(product.image_url || '');
@@ -297,8 +297,8 @@ export default function MenuManagement() {
       
       const finalProductData = {
         category_id: parseInt(String(productForm.category_id)),
-        name: productForm.name.trim(),
-        description: productForm.description.trim(),
+        name: (productForm.name || '').trim(),
+        description: (productForm.description || '').trim(),
         price: parseFloat(String(productForm.price)),
         cost: parseFloat(String(productForm.cost)) || 0,
         preparation_time: parseInt(String(productForm.preparation_time)) || 0,

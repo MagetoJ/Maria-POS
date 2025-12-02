@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import db from '../db';
+import fs from 'fs';
+import csv from 'csv-parser';
 
 // Get inventory items based on user role
 export const getInventory = async (req: Request, res: Response) => {
@@ -216,6 +218,92 @@ export const updateStock = async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Inventory stock update error:', err);
     res.status(500).json({ message: 'Error updating inventory stock' });
+  }
+};
+
+// Upload and process inventory CSV
+export const uploadInventory = async (req: Request, res: Response) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+
+  const filePath = req.file.path;
+  const results: any[] = [];
+  const errors: string[] = [];
+
+  try {
+    fs.createReadStream(filePath)
+      .pipe(csv())
+      .on('data', (data) => results.push(data))
+      .on('end', async () => {
+        try {
+          await db.transaction(async (trx) => {
+            for (const row of results) {
+              const name = row['Name'] || row['name'];
+              const quantity = parseInt(row['Quantity'] || row['quantity'] || '0');
+              const cost = parseFloat(row['Cost'] || row['cost'] || '0');
+              const unit = row['Unit'] || row['unit'];
+              const supplier = row['Supplier'] || row['supplier'];
+              const type = row['Type'] || row['type'] || 'kitchen';
+
+              if (!name) continue;
+
+              const existingItem = await trx('inventory_items')
+                .whereRaw('LOWER(name) = ?', [name.toLowerCase()])
+                .first();
+
+              if (existingItem) {
+                const newStock = existingItem.current_stock + quantity;
+                await trx('inventory_items')
+                  .where({ id: existingItem.id })
+                  .update({
+                    current_stock: newStock,
+                    cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
+                    updated_at: new Date()
+                  });
+              } else {
+                if (!unit || !supplier) {
+                  errors.push(`Skipped "${name}": Missing Unit or Supplier for new item.`);
+                  continue;
+                }
+
+                await trx('inventory_items').insert({
+                  name,
+                  unit,
+                  current_stock: quantity,
+                  minimum_stock: 5,
+                  cost_per_unit: cost,
+                  supplier,
+                  inventory_type: type.toLowerCase(),
+                  is_active: true,
+                  created_at: new Date(),
+                  updated_at: new Date()
+                });
+              }
+            }
+          });
+
+          fs.unlinkSync(filePath);
+
+          res.json({
+            message: 'Inventory processed successfully',
+            processed_count: results.length,
+            errors: errors.length > 0 ? errors : undefined
+          });
+
+        } catch (dbError) {
+          console.error('Database transaction error:', dbError);
+          res.status(500).json({ message: 'Database error during processing' });
+        }
+      })
+      .on('error', (error) => {
+        console.error('CSV parsing error:', error);
+        res.status(400).json({ message: 'Error parsing CSV file' });
+      });
+
+  } catch (err) {
+    console.error('File processing error:', err);
+    res.status(500).json({ message: 'Error processing file' });
   }
 };
 

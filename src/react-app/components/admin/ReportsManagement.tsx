@@ -4,6 +4,7 @@ import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, B
 import { apiClient, fetchReceiptsByDate } from '../../config/api';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import * as XLSX from 'xlsx';
 // --- ADDED: Import ReceiptModal ---
 import ReceiptModal from '../receptionist/ReceiptModal';
 // --- CORRECTED: Use 'any' for now as 'Order' is not exported from shared/types ---
@@ -47,8 +48,20 @@ interface SalesReportData {
 }
 
 interface InventoryReportData {
-    lowStockItems: { id: number; name: string; current_stock: number; minimum_stock: number }[];
-    totalValue: number;
+    lowStockItems: { id: number; name: string; current_stock: number; minimum_stock: number }[];
+    allItems?: {
+      id: number;
+      name: string;
+      inventory_type: string;
+      current_stock: number;
+      minimum_stock: number;
+      unit: string;
+      cost_per_unit: number;
+      total_value: number;
+      supplier_name?: string;
+    }[];
+    summary?: { inventory_type: string; item_count: number; total_value: number }[];
+    totalValue: number;
 }
 
 interface StaffReportData {
@@ -224,22 +237,84 @@ export default function ReportsManagement() {
     { id: 'rooms', label: 'Room Revenue', icon: Bed }
   ];
 
-  const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
-    try {
-      if (format === 'pdf') {
-        const reportElement = document.getElementById('report-content');
-        if (!reportElement) {
-          alert('Report content not found');
-          return;
-        }
-        const canvas = await html2canvas(reportElement, { scale: 2, useCORS: true, allowTaint: true });
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4'); // Use A4 page size
-        const imgWidth = 210; // A4 width in mm
-        const pageHeight = 297; // A4 height in mm
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        let heightLeft = imgHeight;
-        let position = 0;
+  const exportToExcel = (data: any, reportName: string) => {
+    let sheetData: any[] = [];
+    let fileName = `${reportName}_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    if (selectedReport === 'inventory') {
+      const inventoryData = (data as InventoryReportData).allItems || [];
+
+      sheetData = inventoryData.map(item => ({
+        'Item Name': item.name,
+        'Type': item.inventory_type.toUpperCase(),
+        'Current Stock': item.current_stock,
+        'Unit': item.unit,
+        'Cost Per Unit (KES)': item.cost_per_unit,
+        'Total Value (KES)': item.total_value,
+        'Supplier': item.supplier_name || 'N/A',
+        'Status': item.current_stock <= item.minimum_stock ? 'LOW STOCK' : 'OK'
+      }));
+
+    } else if (selectedReport === 'sales') {
+      sheetData = (data.salesByDay || []).map((item: any) => ({
+        'Date': new Date(item.date).toLocaleDateString(),
+        'Total Sales (KES)': item.total
+      }));
+
+    } else if (selectedReport === 'staff') {
+      sheetData = (data || []).map((item: any) => ({
+        'Staff Name': item.name,
+        'Role': item.role,
+        'Total Orders': item.orders,
+        'Revenue Generated (KES)': item.revenue,
+        'Avg Order Value (KES)': item.avgOrderValue
+      }));
+
+    } else if (selectedReport === 'overview') {
+      sheetData = [
+        { Metric: 'Total Revenue', Value: data.sales?.monthly },
+        { Metric: 'Total Orders', Value: data.orders?.total },
+        { Metric: 'Avg Order Value', Value: data.orders?.averageValue },
+      ];
+
+    } else if (selectedReport === 'rooms') {
+      sheetData = (data.roomStatusCounts || []).map((item: any) => ({
+        'Room Status': item.status,
+        'Count': item.count
+      }));
+    }
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(sheetData);
+
+    const wscols = Object.keys(sheetData[0] || {}).map(k => ({ wch: 20 }));
+    ws['!cols'] = wscols;
+
+    XLSX.utils.book_append_sheet(wb, ws, "Report Data");
+    XLSX.writeFile(wb, fileName);
+  };
+
+  const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
+    try {
+      if (!reportData) {
+        alert('No data to export. Please generate a report first.');
+        return;
+      }
+
+      if (format === 'pdf') {
+        const reportElement = document.getElementById('report-content');
+        if (!reportElement) {
+          alert('Report content not found');
+          return;
+        }
+        const canvas = await html2canvas(reportElement, { scale: 2, useCORS: true, allowTaint: true });
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4'); // Use A4 page size
+        const imgWidth = 210; // A4 width in mm
+        const pageHeight = 297; // A4 height in mm
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        let position = 0;
 
         // Add padding/margins if needed
         const marginLeft = 10;
@@ -247,26 +322,31 @@ export default function ReportsManagement() {
         const effectiveWidth = imgWidth - (marginLeft * 2);
         const effectiveHeight = (canvas.height * effectiveWidth) / canvas.width;
 
-        pdf.addImage(imgData, 'PNG', marginLeft, marginTop, effectiveWidth, effectiveHeight);
-        heightLeft -= pageHeight;
+        pdf.addImage(imgData, 'PNG', marginLeft, marginTop, effectiveWidth, effectiveHeight);
+        heightLeft -= pageHeight;
 
-        while (heightLeft >= 0) {
-          position = heightLeft - effectiveHeight; // Correct position calculation
-          pdf.addPage();
-          pdf.addImage(imgData, 'PNG', marginLeft, marginTop - (imgHeight - heightLeft), effectiveWidth, effectiveHeight); // Adjust y position
-          heightLeft -= pageHeight;
-        }
-        const fileName = `${selectedReport}_report_${new Date().toISOString().split('T')[0]}.pdf`;
-        pdf.save(fileName);
-        alert('PDF export successful!');
-      } else {
-        alert(`Exporting ${selectedReport} report as ${format.toUpperCase()}... (Not yet implemented)`);
-      }
-    } catch (error) {
-      console.error('Export error:', error);
-      alert('Error exporting report. Please try again.');
-    }
-  };
+        while (heightLeft >= 0) {
+          position = heightLeft - effectiveHeight; // Correct position calculation
+          pdf.addPage();
+          pdf.addImage(imgData, 'PNG', marginLeft, marginTop - (imgHeight - heightLeft), effectiveWidth, effectiveHeight); // Adjust y position
+          heightLeft -= pageHeight;
+        }
+        const fileName = `${selectedReport}_report_${new Date().toISOString().split('T')[0]}.pdf`;
+        pdf.save(fileName);
+        alert('PDF export successful!');
+
+      } else if (format === 'excel') {
+        exportToExcel(reportData, selectedReport);
+        alert('Excel export successful!');
+
+      } else {
+        alert(`Exporting ${selectedReport} report as ${format.toUpperCase()}... (Not yet implemented)`);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Error exporting report. Please try again.');
+    }
+  };
   
   // --- Rendering functions for standard reports (renderOverviewReport, etc.) ---
   // --- Assume these exist as in your provided code ---
@@ -548,17 +628,25 @@ export default function ReportsManagement() {
           <h2 className="text-2xl font-bold text-gray-900">Reports & Analytics</h2>
           <p className="text-gray-600">Generate and export comprehensive business reports</p>
         </div>
-        {/* Only show PDF export for standard reports */}
+        {/* Only show export buttons for standard reports */}
         {selectedReport !== 'receiptAudit' && reportData && ( // Only show if data exists
           <div className="flex gap-2">
-                <button
-                  onClick={() => handleExport('pdf')}
-                  disabled={isLoading} // Disable while loading
-                  className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm disabled:opacity-50" // Smaller text
-                >
-                  <Download className="w-4 h-4" />
-                  PDF
-                </button>
+                <button
+                  onClick={() => handleExport('excel')}
+                  disabled={isLoading}
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
+                >
+                  <FileText className="w-4 h-4" />
+                  Excel
+                </button>
+                <button
+                  onClick={() => handleExport('pdf')}
+                  disabled={isLoading}
+                  className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4" />
+                  PDF
+                </button>
           </div>
         )}
       </div>

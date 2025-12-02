@@ -279,6 +279,23 @@ export const getInventoryReport = async (req: Request, res: Response) => {
       .select('*')
       .orderBy('current_stock', 'asc');
 
+    // Fetch ALL inventory items for Export
+    const allInventoryItems = await db('inventory_items')
+      .leftJoin('suppliers', 'inventory_items.supplier_id', 'suppliers.id')
+      .select(
+        'inventory_items.id',
+        'inventory_items.name',
+        'inventory_items.inventory_type',
+        'inventory_items.current_stock',
+        'inventory_items.minimum_stock',
+        'inventory_items.unit',
+        'inventory_items.cost_per_unit',
+        db.raw('(inventory_items.current_stock * inventory_items.cost_per_unit) as total_value'),
+        'suppliers.name as supplier_name'
+      )
+      .orderBy('inventory_items.inventory_type', 'asc')
+      .orderBy('inventory_items.name', 'asc');
+
     // Get inventory summary
     const inventorySummary = await db('inventory_items')
       .select(
@@ -287,22 +304,6 @@ export const getInventoryReport = async (req: Request, res: Response) => {
         db.raw('SUM(current_stock * cost_per_unit) as total_value')
       )
       .groupBy('inventory_type');
-
-    // Get recent stock movements (if stock_movements table exists)
-    let recentMovements: any[] = [];
-    try {
-      recentMovements = await db('stock_movements')
-        .join('inventory_items', 'stock_movements.item_id', 'inventory_items.id')
-        .select(
-          'inventory_items.name',
-          'stock_movements.*'
-        )
-        .orderBy('stock_movements.created_at', 'desc')
-        .limit(20);
-    } catch (e) {
-      // Table might not exist yet
-      console.warn('Stock movements table not found');
-    }
 
     // Calculate total inventory value
     const totalValue = await db('inventory_items')
@@ -317,6 +318,8 @@ export const getInventoryReport = async (req: Request, res: Response) => {
         current_stock: item.current_stock,
         minimum_stock: item.minimum_stock
       })),
+      allItems: allInventoryItems,
+      summary: inventorySummary,
       totalValue: parseFloat(totalValue?.total) || 0
     };
 

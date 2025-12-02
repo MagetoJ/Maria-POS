@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Package, Plus, Edit3, Trash2, AlertTriangle, Search } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Package, Plus, Edit3, Trash2, AlertTriangle, Search, Upload } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { useAuth } from '../../contexts/AuthContext';
 import SearchComponent from '../SearchComponent'; 
@@ -19,6 +19,7 @@ interface InventoryItem {
 
 export default function InventoryManagement() {
   const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -348,6 +349,47 @@ export default function InventoryManagement() {
     return typeConfig?.color || 'bg-gray-100 text-gray-800';
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem('pos_token');
+      const response = await fetch(`${API_URL}/api/inventory/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Upload failed');
+      }
+
+      alert(`✅ Import Successful! Processed ${result.processed_count} items.`);
+      if (result.errors && result.errors.length > 0) {
+        console.warn('Import warnings:', result.errors);
+        alert('Some items were skipped. Check console for details.');
+      }
+
+      await fetchInventory();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const formatCurrency = (amount: number): string => {
     return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
@@ -361,14 +403,31 @@ export default function InventoryManagement() {
           <p className="text-gray-600">Track stock levels and manage suppliers</p>
         </div>
         {canAddItems && (
-          <button
-            onClick={() => { setEditingItem(null); resetForm(); setShowAddModal(true); }}
-            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"
-            disabled={loading}
-          >
-            <Plus className="w-5 h-5" />
-            Add Item
-          </button>
+          <div className="flex gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".csv"
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              disabled={loading}
+            >
+              <Upload className="w-5 h-5" />
+              Import CSV
+            </button>
+            <button
+              onClick={() => { setEditingItem(null); resetForm(); setShowAddModal(true); }}
+              className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"
+              disabled={loading}
+            >
+              <Plus className="w-5 h-5" />
+              Add Item
+            </button>
+          </div>
         )}
       </div>
 
