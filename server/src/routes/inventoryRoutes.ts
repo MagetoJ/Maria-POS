@@ -19,16 +19,18 @@ const upload = multer({
       'text/csv',
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/octet-stream'
+      'application/octet-stream',
+      'application/pdf'
     ];
 
     if (allowedTypes.includes(file.mimetype) ||
         file.originalname.endsWith('.csv') ||
         file.originalname.endsWith('.xlsx') ||
-        file.originalname.endsWith('.xls')) {
+        file.originalname.endsWith('.xls') ||
+        file.originalname.endsWith('.pdf')) {
       cb(null, true);
     } else {
-      cb(new Error('Only CSV and Excel files are allowed'));
+      cb(new Error('Only CSV, Excel, and PDF files are allowed'));
     }
   }
 });

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, Plus, Edit3, Trash2, AlertTriangle, Search } from 'lucide-react';
+import { Package, Plus, Edit3, Trash2, AlertTriangle, Search, Upload } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { useAuth } from '../../contexts/AuthContext';
 import SearchComponent from '../SearchComponent'; 
@@ -438,7 +438,55 @@ export default function InventoryManagement() {
     return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
+    const validExtensions = ['.csv', '.xlsx', '.xls', '.pdf'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+
+    if (!validExtensions.includes(fileExtension)) {
+      setError('Invalid file type. Please upload CSV, Excel, or PDF.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem('pos_token');
+      const response = await fetch(`${API_URL}/api/inventory/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Upload failed');
+      }
+
+      let msg = `Import Successful!\nAdded: ${data.inserted}\nUpdated: ${data.updated}`;
+      if (data.errors && data.errors.length > 0) {
+        msg += `\n\nWarnings:\n${data.errors.slice(0, 3).join('\n')}...`;
+      }
+      alert(msg);
+
+      await fetchInventory();
+    } catch (err) {
+      console.error('Upload error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to upload file');
+    } finally {
+      setLoading(false);
+      event.target.value = '';
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -450,6 +498,23 @@ export default function InventoryManagement() {
         </div>
         {canAddItems && (
           <div className="flex gap-2">
+            <div className="relative">
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls,.pdf"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="inventory-file-input"
+                disabled={loading}
+              />
+              <label
+                htmlFor="inventory-file-input"
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer"
+              >
+                <Upload className="w-5 h-5" />
+                Import
+              </label>
+            </div>
             <button
               onClick={() => { setEditingItem(null); resetForm(); setShowAddModal(true); }}
               className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import db from '../db';
 import fs from 'fs';
 import * as XLSX from 'xlsx';
+const pdf = require('pdf-parse');
 
 // Get inventory items based on user role
 export const getInventory = async (req: Request, res: Response) => {
@@ -215,7 +216,7 @@ export const updateStock = async (req: Request, res: Response) => {
   }
 };
 
-// ROBUST: Upload and process inventory (Supports Excel & CSV with flexible parsing)
+// ROBUST: Upload and process inventory (Supports Excel, CSV & PDF with flexible parsing)
 export const uploadInventory = async (req: Request, res: Response) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded' });
@@ -225,10 +226,50 @@ export const uploadInventory = async (req: Request, res: Response) => {
 
   try {
     console.log('📦 Starting inventory upload, file:', req.file.originalname);
-    const workbook = XLSX.readFile(req.file.path);
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+    let jsonData: any[] = [];
+
+    if (req.file.mimetype === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf')) {
+      console.log('📄 Processing PDF file...');
+      const dataBuffer = fs.readFileSync(req.file.path);
+      const pdfData = await pdf(dataBuffer);
+      const text = pdfData.text;
+      
+      const lines = text.split(/\r\n|\n/);
+      
+      jsonData = lines.map((line: string) => {
+        if (!line.trim() || line.toLowerCase().includes('item name') || line.toLowerCase().includes('page')) return null;
+
+        const parts = line.trim().split(/[\t\s]{2,}|,|\t/);
+        
+        if (parts.length >= 2) {
+           const possibleCost = parseFloat(parts[parts.length - 1].replace(/,/g, ''));
+           const possibleQty = parseFloat(parts[parts.length - 2].replace(/,/g, ''));
+           
+           const cost = isNaN(possibleCost) ? 0 : possibleCost;
+           const qty = isNaN(possibleQty) ? 0 : possibleQty;
+           
+           const nameParts = parts.slice(0, parts.length - 2);
+           const name = nameParts.join(' ').trim();
+
+           if (name) {
+             return {
+               'Item Name': name,
+               'Current Stock': qty,
+               'Cost per Unit (KES)': cost
+             };
+           }
+        }
+        return null;
+      }).filter((item: any) => item !== null);
+      
+      console.log(`📄 Extracted ${jsonData.length} items from PDF`);
+    } else {
+      console.log('📊 Processing Spreadsheet (Excel/CSV)...');
+      const workbook = XLSX.readFile(req.file.path);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      jsonData = XLSX.utils.sheet_to_json(worksheet);
+    }
 
     console.log('📊 Parsed rows:', jsonData.length);
     if (jsonData.length === 0) {
@@ -306,6 +347,7 @@ export const uploadInventory = async (req: Request, res: Response) => {
             id: existingItem.id,
             current_stock: existingItem.current_stock + quantity,
             cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
+            is_active: true,
             updated_at: new Date()
           });
         } else {
@@ -349,6 +391,7 @@ export const uploadInventory = async (req: Request, res: Response) => {
             .update({
               current_stock: item.current_stock,
               cost_per_unit: item.cost_per_unit,
+              is_active: true,
               updated_at: item.updated_at
             });
           console.log(`✅ Updated item ${item.id}:`, updateResult);
