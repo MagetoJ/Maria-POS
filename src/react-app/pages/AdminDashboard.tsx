@@ -20,7 +20,7 @@ import PerfomanceDashboard from '../components/PerfomanceDashboardView';
 import PersonalSalesReport from '../components/PersonalSalesReport';
 import SearchComponent from '../components/SearchComponent';
 import { navigateToSearchResult } from '../utils/searchNavigation';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 import {
   BarChart3,
@@ -124,6 +124,7 @@ export default function AdminDashboard() {
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [allInventory, setAllInventory] = useState<any[]>([]);
   
   // Chart data state
   const [revenueData] = useState([
@@ -206,6 +207,20 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchAllInventory = async () => {
+    try {
+      envLog.dev('📦 Fetching all inventory items...');
+      const response = await apiClient.get('/api/inventory');
+      if (response.ok) {
+        const data = await response.json();
+        setAllInventory(data);
+        envLog.dev('✅ Inventory items loaded:', data.length);
+      }
+    } catch (error) {
+      envLog.error('❌ Error fetching inventory items:', error);
+    }
+  };
+
   useEffect(() => {
       const fetchOverviewData = async () => {
           if (activeTab === 'overview') {
@@ -230,10 +245,11 @@ export default function AdminDashboard() {
                   
                   setOverviewData(data);
 
-                  // Also fetch active users and low stock items for the overview
+                  // Also fetch active users, low stock items, and inventory for the overview
                   await Promise.all([
                     fetchActiveUsers(),
-                    fetchLowStockItems()
+                    fetchLowStockItems(),
+                    fetchAllInventory()
                   ]);
               } catch (error: any) {
                   if (IS_DEVELOPMENT) {
@@ -276,6 +292,65 @@ export default function AdminDashboard() {
     { id: 'sales-reports', label: 'Sales Reports', icon: DollarSign },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
+
+  const INVENTORY_COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1'];
+
+  const getStockByTypeData = () => {
+    const typeMap: { [key: string]: number } = {};
+    allInventory.forEach(item => {
+      typeMap[item.inventory_type] = (typeMap[item.inventory_type] || 0) + item.current_stock;
+    });
+    return Object.entries(typeMap).map(([type, stock]) => ({
+      name: type.charAt(0).toUpperCase() + type.slice(1),
+      stock: stock,
+      value: stock
+    }));
+  };
+
+  const getStockHealthData = () => {
+    const statusMap = {
+      'Optimal': 0,
+      'Low Stock': 0,
+      'Out of Stock': 0
+    };
+    allInventory.forEach(item => {
+      if (item.current_stock === 0) {
+        statusMap['Out of Stock']++;
+      } else if (item.current_stock <= item.minimum_stock) {
+        statusMap['Low Stock']++;
+      } else {
+        statusMap['Optimal']++;
+      }
+    });
+    return Object.entries(statusMap).map(([status, count]) => ({
+      name: status,
+      value: count
+    }));
+  };
+
+  const getValueDistributionData = () => {
+    const typeMap: { [key: string]: number } = {};
+    allInventory.forEach(item => {
+      const itemValue = item.current_stock * item.cost_per_unit;
+      typeMap[item.inventory_type] = (typeMap[item.inventory_type] || 0) + itemValue;
+    });
+    return Object.entries(typeMap).map(([type, value]) => ({
+      name: type.charAt(0).toUpperCase() + type.slice(1),
+      value: Math.round(value),
+      displayValue: formatCurrency(value)
+    }));
+  };
+
+  const getTopItemsData = () => {
+    return allInventory
+      .sort((a, b) => (b.current_stock * b.cost_per_unit) - (a.current_stock * a.cost_per_unit))
+      .slice(0, 8)
+      .map(item => ({
+        name: item.name.length > 15 ? item.name.substring(0, 15) + '...' : item.name,
+        value: Math.round(item.current_stock * item.cost_per_unit),
+        stock: item.current_stock
+      }));
+  };
 
   const sidebarStatusCard = (
     <div className="mt-8 p-4 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
@@ -424,6 +499,123 @@ export default function AdminDashboard() {
               </div>
             )}
         </div>
+
+        {/* Inventory Overview Charts */}
+        {allInventory.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Stock by Type Bar Chart */}
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 className="w-5 h-5 text-blue-600" />
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Stock Levels by Type</h3>
+              </div>
+              {getStockByTypeData().length > 0 ? (
+                <div className="w-full h-64 lg:h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={getStockByTypeData()}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
+                      <YAxis stroke="#6b7280" fontSize={12} />
+                      <Tooltip formatter={(value) => value.toLocaleString()} contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
+                      <Bar dataKey="stock" fill="#3b82f6" name="Stock Units" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-gray-500">No inventory data</div>
+              )}
+            </div>
+
+            {/* Stock Health Pie Chart */}
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Stock Health</h3>
+              </div>
+              {getStockHealthData().some(d => d.value > 0) ? (
+                <div className="w-full h-64 lg:h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={getStockHealthData()}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, value }) => `${name}: ${value}`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {getStockHealthData().map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={INVENTORY_COLORS[index % INVENTORY_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-gray-500">No inventory data</div>
+              )}
+            </div>
+
+            {/* Inventory Value Distribution */}
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-5 h-5 text-green-600" />
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Value Distribution</h3>
+              </div>
+              {getValueDistributionData().length > 0 ? (
+                <div className="w-full h-64 lg:h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={getValueDistributionData()}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, value }) => `${name}: KES ${value.toLocaleString()}`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {getValueDistributionData().map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={INVENTORY_COLORS[index % INVENTORY_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => `KES ${value.toLocaleString()}`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-gray-500">No inventory data</div>
+              )}
+            </div>
+
+            {/* Top Items by Value */}
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <Package className="w-5 h-5 text-purple-600" />
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Top Items by Value</h3>
+              </div>
+              {getTopItemsData().length > 0 ? (
+                <div className="w-full h-64 lg:h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={getTopItemsData()} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis type="number" stroke="#6b7280" fontSize={12} />
+                      <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} stroke="#6b7280" />
+                      <Tooltip formatter={(value) => `KES ${value.toLocaleString()}`} contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
+                      <Bar dataKey="value" fill="#8b5cf6" name="Value (KES)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-gray-500">No inventory data</div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Recent Activity & Quick Actions */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

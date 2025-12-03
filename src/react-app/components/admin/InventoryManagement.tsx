@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
-import { Package, Plus, Edit3, Trash2, AlertTriangle, Search, Upload, BarChart3, TrendingUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Package, Plus, Edit3, Trash2, AlertTriangle, Search } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { useAuth } from '../../contexts/AuthContext';
-import SearchComponent from '../SearchComponent';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'; 
+import SearchComponent from '../SearchComponent'; 
 
 interface InventoryItem {
   id: number;
@@ -20,7 +19,6 @@ interface InventoryItem {
 
 export default function InventoryManagement() {
   const { user } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -440,71 +438,7 @@ export default function InventoryManagement() {
     return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
 
-  const getStockByTypeData = () => {
-    const typeMap: { [key: string]: number } = {};
-    inventory.forEach(item => {
-      if (canManageType(item.inventory_type)) {
-        typeMap[item.inventory_type] = (typeMap[item.inventory_type] || 0) + item.current_stock;
-      }
-    });
-    return Object.entries(typeMap).map(([type, stock]) => ({
-      name: type.charAt(0).toUpperCase() + type.slice(1),
-      stock: stock,
-      value: stock
-    }));
-  };
 
-  const getStockHealthData = () => {
-    const statusMap = {
-      'Optimal': 0,
-      'Low Stock': 0,
-      'Out of Stock': 0
-    };
-    inventory.forEach(item => {
-      if (canManageType(item.inventory_type)) {
-        if (item.current_stock === 0) {
-          statusMap['Out of Stock']++;
-        } else if (item.current_stock <= item.minimum_stock) {
-          statusMap['Low Stock']++;
-        } else {
-          statusMap['Optimal']++;
-        }
-      }
-    });
-    return Object.entries(statusMap).map(([status, count]) => ({
-      name: status,
-      value: count
-    }));
-  };
-
-  const getValueDistributionData = () => {
-    const typeMap: { [key: string]: number } = {};
-    inventory.forEach(item => {
-      if (canManageType(item.inventory_type)) {
-        const itemValue = item.current_stock * item.cost_per_unit;
-        typeMap[item.inventory_type] = (typeMap[item.inventory_type] || 0) + itemValue;
-      }
-    });
-    return Object.entries(typeMap).map(([type, value]) => ({
-      name: type.charAt(0).toUpperCase() + type.slice(1),
-      value: Math.round(value),
-      displayValue: formatCurrency(value)
-    }));
-  };
-
-  const getTopItemsData = () => {
-    return inventory
-      .filter(item => canManageType(item.inventory_type))
-      .sort((a, b) => (b.current_stock * b.cost_per_unit) - (a.current_stock * a.cost_per_unit))
-      .slice(0, 8)
-      .map(item => ({
-        name: item.name.length > 15 ? item.name.substring(0, 15) + '...' : item.name,
-        value: Math.round(item.current_stock * item.cost_per_unit),
-        stock: item.current_stock
-      }));
-  };
-
-  const COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1'];
 
   return (
     <div className="space-y-6">
