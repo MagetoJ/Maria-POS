@@ -20,7 +20,7 @@ export const getInventory = async (req: Request, res: Response) => {
       db.schema.hasColumn('inventory_items', 'product_id')
     ]);
 
-    let query = db('inventory_items');
+    let query = db('inventory_items').whereNot('is_active', false);
 
     if (hasSupplierIdColumn) {
       query = query.leftJoin('suppliers', 'inventory_items.supplier_id', 'suppliers.id');
@@ -64,7 +64,7 @@ export const getInventory = async (req: Request, res: Response) => {
     }
 
     if (low_stock === 'true') {
-      query = query.whereRaw('inventory_items.current_stock <= inventory_items.low_stock_threshold');
+      query = query.whereRaw('inventory_items.current_stock <= inventory_items.minimum_stock');
     }
 
     // Add search logic
@@ -119,9 +119,9 @@ export const createInventoryItem = async (req: Request, res: Response) => {
       .insert({
         name,
         unit,
-        current_stock: current_stock || 0,
-        minimum_stock: minimum_stock || 0,
-        cost_per_unit: cost_per_unit || 0,
+        current_stock: Number(current_stock) || 0,
+        minimum_stock: Number(minimum_stock) || 0,
+        cost_per_unit: Number(cost_per_unit) || 0,
         supplier,
         inventory_type,
         is_active: true,
@@ -251,8 +251,13 @@ export const uploadInventory = async (req: Request, res: Response) => {
       };
 
       const name = getRowValue('Item Name') || getRowValue('Name');
-      const quantity = parseInt(getRowValue('Current Stock') || getRowValue('Quantity') || '0');
-      const cost = parseFloat(getRowValue('Cost Per Unit (KES)') || getRowValue('Cost') || '0');
+      
+      const rawQty = getRowValue('Current Stock') || getRowValue('Quantity');
+      const quantity = parseInt(String(rawQty || '0')) || 0;
+
+      const rawCost = getRowValue('Cost Per Unit (KES)') || getRowValue('Cost');
+      const cost = parseFloat(String(rawCost || '0')) || 0;
+
       const unit = getRowValue('Unit');
       const supplier = getRowValue('Supplier');
       const type = getRowValue('Type') || 'kitchen';
@@ -265,7 +270,7 @@ export const uploadInventory = async (req: Request, res: Response) => {
       if (existingItem) {
         itemsToUpdate.push({
           id: existingItem.id,
-          current_stock: quantity,
+          current_stock: existingItem.current_stock + quantity,
           cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
           updated_at: new Date()
         });
@@ -348,13 +353,20 @@ export const deleteInventoryItem = async (req: Request, res: Response) => {
       });
     }
 
-    await db('inventory_items').where({ id }).del();
+    await db('inventory_items')
+      .where({ id })
+      .update({
+        is_active: false,
+        updated_at: new Date()
+      });
+      
     res.json({ message: 'Inventory item deleted successfully' });
 
   } catch (err) {
     console.error('Error deleting inventory item:', err);
     res.status(500).json({ 
-      message: 'Error deleting inventory item' 
+      message: 'Error deleting inventory item',
+      error: (err as Error).message
     });
   }
 };

@@ -30,8 +30,8 @@ router.get('/:id', productController.getProductById);
   
 router.use(authenticateToken); 
   
-router.get('/data/export', authorizeRoles('admin', 'manager'), productController.exportProducts); 
-router.post('/data/upload', authorizeRoles('admin', 'manager'), upload.single('file'), productController.uploadProducts); 
+router.get('/export', authorizeRoles('admin', 'manager'), productController.exportProducts); 
+router.post('/upload', authorizeRoles('admin', 'manager'), upload.single('file'), productController.uploadProducts); 
   
 router.post('/', authorizeRoles('admin', 'manager'), productController.createProduct); 
 router.put('/:id', authorizeRoles('admin', 'manager'), productController.updateProduct); 
