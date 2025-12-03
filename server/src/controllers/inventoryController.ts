@@ -345,7 +345,7 @@ export const uploadInventory = async (req: Request, res: Response) => {
         if (existingItem) {
           itemsToUpdate.push({
             id: existingItem.id,
-            current_stock: existingItem.current_stock + quantity,
+            current_stock: quantity,
             cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
             is_active: true,
             updated_at: new Date()
@@ -355,7 +355,7 @@ export const uploadInventory = async (req: Request, res: Response) => {
             name,
             unit,
             current_stock: quantity,
-            minimum_stock: 5,
+            minimum_stock: 0,
             cost_per_unit: cost,
             supplier,
             inventory_type: type,
@@ -405,7 +405,7 @@ export const uploadInventory = async (req: Request, res: Response) => {
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
     res.json({
-      message: 'Inventory imported successfully',
+      message: 'Inventory imported successfully (Stock Replaced)',
       processed_count: itemsToInsert.length + itemsToUpdate.length,
       inserted: itemsToInsert.length,
       updated: itemsToUpdate.length,

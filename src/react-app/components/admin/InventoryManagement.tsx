@@ -432,7 +432,42 @@ export default function InventoryManagement() {
     }
   };
 
+  const handleBulkMinStockUpdate = async () => {
+    const valueStr = prompt(`Enter the new Minimum Stock level for the ${selectedInventoryIds.length} selected items:`);
+    if (valueStr === null) return;
 
+    const newMinStock = parseInt(valueStr);
+    
+    if (isNaN(newMinStock) || newMinStock < 0) {
+      alert('Please enter a valid non-negative number.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('pos_token');
+      await Promise.all(selectedInventoryIds.map(id => {
+        return fetch(`${API_URL}/api/inventory/${id}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+          },
+          body: JSON.stringify({ minimum_stock: newMinStock })
+        });
+      }));
+
+      await fetchInventory();
+      setSelectedInventoryIds([]);
+      alert('Minimum stock levels updated successfully');
+    } catch (err) {
+      setError('Failed to update minimum stock for some items');
+      console.error('Bulk min stock update error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatCurrency = (amount: number): string => {
     return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -652,6 +687,12 @@ export default function InventoryManagement() {
         <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-center justify-between">
           <span className="text-yellow-800 font-medium">{selectedInventoryIds.length} items selected</span>
           <div className="flex gap-2">
+            <button
+              onClick={handleBulkMinStockUpdate}
+              className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+            >
+              Set Min Stock
+            </button>
             <button
               onClick={() => handleBulkStatusUpdate(true)}
               className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
