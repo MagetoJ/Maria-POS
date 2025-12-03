@@ -278,43 +278,36 @@ export const exportProducts = async (req: Request, res: Response) => {
       .select(
         'products.name as Name',
         'categories.name as Category',
-        'products.description as Description',
         'products.price as Price',
         'products.cost as Cost',
+        'products.description as Description',
         'products.preparation_time as PrepTime',
-        'products.is_available as Available',
-        'products.is_active as Active'
+        'products.is_active as Active',
+        'products.is_available as Available'
       )
-      .where('products.is_active', true)
       .orderBy('categories.name', 'asc')
       .orderBy('products.name', 'asc');
 
-    const workbook = XLSX.utils.book_new();
+    if (products.length === 0) {
+      return res.status(404).json({ message: 'No products found to export' });
+    }
+
     const worksheet = XLSX.utils.json_to_sheet(products);
-
-    const colWidths = [
-      { wch: 30 },
-      { wch: 20 },
-      { wch: 40 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 15 },
-      { wch: 10 },
-      { wch: 10 }
-    ];
-    worksheet['!cols'] = colWidths;
-
+    const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
 
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
-    res.setHeader('Content-Disposition', 'attachment; filename="Products_Export.xlsx"');
+    res.setHeader('Content-Disposition', 'attachment; filename=products.xlsx');
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buffer);
 
   } catch (err) {
-    console.error('Error exporting products:', err);
-    res.status(500).json({ message: 'Error exporting products' });
+    console.error('Export Error:', err);
+    res.status(500).json({ 
+      message: 'Failed to generate export file', 
+      error: (err as Error).message 
+    });
   }
 }; 
   
@@ -331,81 +324,74 @@ export const uploadProducts = async (req: Request, res: Response) => {
     const worksheet = workbook.Sheets[sheetName];
     const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
 
+    if (jsonData.length === 0) {
+      throw new Error('The uploaded file is empty or has no readable data.');
+    }
+
     const categories = await db('categories').select('id', 'name');
     const categoryMap = new Map(categories.map(c => [c.name.toLowerCase().trim(), c.id]));
 
-    const existingProducts = await db('products').select('id', 'name', 'category_id');
-    const productMap = new Map(existingProducts.map(p => [`${p.name.toLowerCase().trim()}-${p.category_id}`, p.id]));
+    const existingProducts = await db('products').select('id', 'name');
+    const existingProductMap = new Map(existingProducts.map(p => [p.name.toLowerCase().trim(), p.id]));
 
     const itemsToInsert: any[] = [];
     const itemsToUpdate: any[] = [];
-    const newCategoriesToInsert = new Set<string>();
 
     for (const row of jsonData) {
-      const catName = (row['Category'] || row['category'])?.toString().trim();
-      if (catName && !categoryMap.has(catName.toLowerCase())) {
-        newCategoriesToInsert.add(catName);
-      }
-    }
+      const getVal = (key: string) => {
+        const foundKey = Object.keys(row).find(k => k.trim().toLowerCase() === key.toLowerCase());
+        return foundKey ? row[foundKey] : undefined;
+      };
 
-    if (newCategoriesToInsert.size > 0) {
-      for (const catName of newCategoriesToInsert) {
-        const [newCat] = await db('categories')
-          .insert({ name: catName, description: 'Imported', is_active: true, display_order: 99 })
-          .returning(['id', 'name']);
-        categoryMap.set(newCat.name.toLowerCase(), newCat.id);
-      }
-    }
+      const name = getVal('Name') || getVal('Product Name') || getVal('Item Name');
+      const categoryName = getVal('Category');
+      const price = parseFloat(getVal('Price') || '0');
+      const cost = parseFloat(getVal('Cost') || '0');
+      
+      if (!name) continue;
 
-    for (const row of jsonData) {
-      const name = row['Name'] || row['Product Name'] || row['name'];
-      const categoryName = row['Category'] || row['category'];
-      if (!name || !categoryName) continue;
-
-      const catId = categoryMap.get(categoryName.toString().toLowerCase().trim());
-      if (!catId) {
-        errors.push(`Skipped "${name}": Category error`);
-        continue;
+      let categoryId = 1;
+      if (categoryName && categoryMap.has(categoryName.toLowerCase().trim())) {
+        categoryId = categoryMap.get(categoryName.toLowerCase().trim())!;
       }
 
-      const price = parseFloat(row['Price'] || row['price'] || '0');
-      const cost = parseFloat(row['Cost'] || row['cost'] || '0');
-      const prepTime = parseInt(row['PrepTime'] || row['Prep Time'] || row['preparation_time'] || '0');
-      const desc = row['Description'] || row['description'] || '';
-      const productKey = `${name.toLowerCase().trim()}-${catId}`;
-      const existingId = productMap.get(productKey);
+      const normalizedName = name.toLowerCase().trim();
+      const existingId = existingProductMap.get(normalizedName);
 
       if (existingId) {
         itemsToUpdate.push({
           id: existingId,
-          price,
-          cost,
-          description: desc,
-          preparation_time: prepTime,
+          price: price || undefined,
+          cost: cost || undefined,
+          category_id: categoryId,
           updated_at: new Date()
         });
       } else {
         itemsToInsert.push({
           name,
-          category_id: catId,
-          price,
-          cost,
-          description: desc,
-          preparation_time: prepTime,
-          is_available: true,
+          category_id: categoryId,
+          price: price,
+          cost: cost,
+          description: getVal('Description') || '',
+          preparation_time: parseInt(getVal('PrepTime') || '0'),
           is_active: true,
-          created_at: new Date(),
-          updated_at: new Date()
+          is_available: true
         });
       }
     }
 
+    if (itemsToInsert.length === 0 && itemsToUpdate.length === 0) {
+      throw new Error('No valid products found. Check your column headers (Name, Price, Category).');
+    }
+
     await db.transaction(async (trx) => {
       if (itemsToInsert.length > 0) await trx('products').insert(itemsToInsert);
-      if (itemsToUpdate.length > 0) {
-        for (const item of itemsToUpdate) {
-          const { id, ...updateFields } = item;
-          await trx('products').where({ id }).update(updateFields);
+      
+      for (const item of itemsToUpdate) {
+        const { id, ...rest } = item;
+        const updatePayload = Object.fromEntries(Object.entries(rest).filter(([_, v]) => v !== undefined));
+        if (Object.keys(updatePayload).length > 0) {
+          await trx('products').where({ id }).update(updatePayload);
         }
       }
     });
@@ -413,14 +399,12 @@ export const uploadProducts = async (req: Request, res: Response) => {
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
     res.json({
-      message: 'Products processed successfully',
-      processed_count: itemsToInsert.length + itemsToUpdate.length,
-      errors: errors.length > 0 ? errors : undefined
+      message: 'Products imported successfully',
+      processed: itemsToInsert.length + itemsToUpdate.length
     });
 
   } catch (err) {
-    console.error('File processing error:', err);
     if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ message: 'Error processing file', error: (err as Error).message });
+    res.status(500).json({ message: 'Import failed', error: (err as Error).message });
   }
 }; 

@@ -235,6 +235,10 @@ export const uploadInventory = async (req: Request, res: Response) => {
     const worksheet = workbook.Sheets[sheetName];
     const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
 
+    if (jsonData.length === 0) {
+      throw new Error("File appears to be empty.");
+    }
+
     const existingItemsRaw = await db('inventory_items').select('id', 'name', 'current_stock', 'cost_per_unit');
     const existingItemsMap = new Map();
     existingItemsRaw.forEach(item => {
@@ -244,23 +248,22 @@ export const uploadInventory = async (req: Request, res: Response) => {
     const itemsToInsert: any[] = [];
     const itemsToUpdate: any[] = [];
 
+    const findValue = (row: any, ...possibleHeaders: string[]) => {
+      const rowKeys = Object.keys(row).map(k => k.toLowerCase().trim());
+      for (const header of possibleHeaders) {
+        const foundKey = Object.keys(row).find(k => k.toLowerCase().trim() === header.toLowerCase());
+        if (foundKey) return row[foundKey];
+      }
+      return undefined;
+    };
+
     for (const row of jsonData) {
-      const getRowValue = (key: string) => {
-        const foundKey = Object.keys(row).find(k => k.trim().toLowerCase() === key.toLowerCase());
-        return foundKey ? row[foundKey] : undefined;
-      };
-
-      const name = getRowValue('Item Name') || getRowValue('Name');
-      
-      const rawQty = getRowValue('Current Stock') || getRowValue('Quantity');
-      const quantity = parseInt(String(rawQty || '0')) || 0;
-
-      const rawCost = getRowValue('Cost Per Unit (KES)') || getRowValue('Cost');
-      const cost = parseFloat(String(rawCost || '0')) || 0;
-
-      const unit = getRowValue('Unit');
-      const supplier = getRowValue('Supplier');
-      const type = getRowValue('Type') || 'kitchen';
+      const name = findValue(row, 'Item Name', 'Name', 'Product', 'Item');
+      const quantity = parseInt(findValue(row, 'Current Stock', 'Stock', 'Quantity', 'Qty') || '0');
+      const cost = parseFloat(findValue(row, 'Cost Per Unit (KES)', 'Cost', 'Price', 'Buying Price') || '0');
+      const unit = findValue(row, 'Unit', 'Measurement');
+      const supplier = findValue(row, 'Supplier', 'Vendor');
+      const type = findValue(row, 'Type', 'Category') || 'kitchen';
 
       if (!name) continue;
 
@@ -276,7 +279,7 @@ export const uploadInventory = async (req: Request, res: Response) => {
         });
       } else {
         if (!unit || !supplier) {
-          errors.push(`Skipped "${name}": New items need a Unit and Supplier.`);
+          errors.push(`Skipped "${name}": Missing Unit or Supplier.`);
           continue;
         }
 
@@ -295,24 +298,24 @@ export const uploadInventory = async (req: Request, res: Response) => {
       }
     }
 
+    if (itemsToInsert.length === 0 && itemsToUpdate.length === 0) {
+      throw new Error(`No valid items found. Please check your column headers. Expected: "Item Name", "Stock", "Unit", "Supplier"`);
+    }
+
     await db.transaction(async (trx) => {
       if (itemsToInsert.length > 0) {
         await trx('inventory_items').insert(itemsToInsert);
       }
 
       if (itemsToUpdate.length > 0) {
-        const CHUNK_SIZE = 50;
-        for (let i = 0; i < itemsToUpdate.length; i += CHUNK_SIZE) {
-          const chunk = itemsToUpdate.slice(i, i + CHUNK_SIZE);
-          await Promise.all(chunk.map(item =>
-            trx('inventory_items')
+        for (const item of itemsToUpdate) {
+            await trx('inventory_items')
               .where({ id: item.id })
               .update({
                 current_stock: item.current_stock,
                 cost_per_unit: item.cost_per_unit,
                 updated_at: item.updated_at
-              })
-          ));
+              });
         }
       }
     });
