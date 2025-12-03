@@ -1,10 +1,19 @@
 import { Router } from 'express';
 import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
 import * as inventoryController from '../controllers/inventoryController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
+const uploadDir = path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log('📂 Created missing uploads directory at:', uploadDir);
+}
+
 const upload = multer({
   dest: 'uploads/',
+  limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
       'text/csv',
@@ -36,6 +45,14 @@ router.get('/', inventoryController.getInventory);
 router.post('/upload',
   authorizeRoles('admin', 'manager'),
   upload.single('file'),
+  (err: any, req: any, res: any, next: any) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ message: `Upload error: ${err.message}` });
+    } else if (err) {
+      return res.status(400).json({ message: err.message || 'File upload failed' });
+    }
+    next();
+  },
   inventoryController.uploadInventory
 );
 

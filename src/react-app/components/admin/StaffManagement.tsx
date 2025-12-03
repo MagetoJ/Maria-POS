@@ -19,6 +19,7 @@ export default function StaffManagement() {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [formData, setFormData] = useState({
     employee_id: '',
     username: '',
@@ -185,6 +186,39 @@ export default function StaffManagement() {
     });
   };
 
+  const toggleSelection = (id: number) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === staff.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(staff.map(s => s.id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} staff members?`)) return;
+
+    setIsLoading(true);
+    try {
+      await Promise.all(selectedIds.map(id => apiClient.delete(`/api/staff/${id}`)));
+      
+      setStaff(staff.filter(s => !selectedIds.includes(s.id)));
+      setSelectedIds([]);
+      alert('Selected staff members deleted successfully');
+    } catch (err) {
+      console.error('Bulk delete failed:', err);
+      setError('Failed to delete some staff members');
+      fetchStaff();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleAddNew = () => {
     setEditingStaff(null);
     resetForm();
@@ -227,12 +261,34 @@ export default function StaffManagement() {
         </div>
       )}
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-center justify-between">
+          <span className="text-yellow-800 font-medium">{selectedIds.length} items selected</span>
+          <button
+            onClick={handleBulkDelete}
+            className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-sm"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete Selected
+          </button>
+        </div>
+      )}
+
       {/* Staff Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left">
+                  <input 
+                    type="checkbox" 
+                    checked={staff.length > 0 && selectedIds.length === staff.length}
+                    onChange={toggleSelectAll}
+                    className="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Employee ID
                 </th>
@@ -257,6 +313,14 @@ export default function StaffManagement() {
               {Array.isArray(staff) && staff.length > 0 ? (
                 staff.map((member) => (
                   <tr key={member.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedIds.includes(member.id)}
+                        onChange={() => toggleSelection(member.id)}
+                        className="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {member.employee_id || '-'}
                     </td>
@@ -302,7 +366,7 @@ export default function StaffManagement() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     No staff members found. Click "Add Staff" to get started.
                   </td>
                 </tr>

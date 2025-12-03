@@ -29,6 +29,7 @@ export default function InventoryManagement() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedInventoryIds, setSelectedInventoryIds] = useState<number[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     unit: '',
@@ -349,6 +350,76 @@ export default function InventoryManagement() {
     return typeConfig?.color || 'bg-gray-100 text-gray-800';
   };
 
+  const toggleInventorySelection = (id: number) => {
+    setSelectedInventoryIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllInventory = () => {
+    const allFilteredIds = filteredInventory.map(item => item.id);
+    const allSelected = allFilteredIds.every(id => selectedInventoryIds.includes(id));
+
+    if (allSelected) {
+      setSelectedInventoryIds(prev => prev.filter(id => !allFilteredIds.includes(id)));
+    } else {
+      const newSelection = new Set([...selectedInventoryIds, ...allFilteredIds]);
+      setSelectedInventoryIds(Array.from(newSelection));
+    }
+  };
+
+  const handleBulkDeleteInventory = async () => {
+    if (!confirm(`Are you sure you want to delete ${selectedInventoryIds.length} inventory items?`)) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('pos_token');
+      await Promise.all(selectedInventoryIds.map(id => 
+        fetch(`${API_URL}/api/inventory/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ));
+      await fetchInventory();
+      setSelectedInventoryIds([]);
+      alert('Items deleted successfully');
+    } catch (err) {
+      setError('Failed to delete some items');
+      console.error('Bulk delete error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkStatusUpdate = async (isActive: boolean) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('pos_token');
+      await Promise.all(selectedInventoryIds.map(id => {
+        const item = inventory.find(i => i.id === id);
+        if (!item) return Promise.resolve();
+        return fetch(`${API_URL}/api/inventory/${id}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+          },
+          body: JSON.stringify({ ...item, is_active: isActive })
+        });
+      }));
+      await fetchInventory();
+      setSelectedInventoryIds([]);
+      alert('Items updated successfully');
+    } catch (err) {
+      setError('Failed to update items');
+      console.error('Bulk update error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -549,6 +620,33 @@ export default function InventoryManagement() {
         </div>
       )}
 
+      {/* Bulk Actions Bar */}
+      {selectedInventoryIds.length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-center justify-between">
+          <span className="text-yellow-800 font-medium">{selectedInventoryIds.length} items selected</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleBulkStatusUpdate(true)}
+              className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+            >
+              Mark Active
+            </button>
+            <button
+              onClick={() => handleBulkStatusUpdate(false)}
+              className="px-3 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
+            >
+              Mark Inactive
+            </button>
+            <button
+              onClick={handleBulkDeleteInventory}
+              className="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 text-sm flex items-center gap-1"
+            >
+              <Trash2 className="w-4 h-4" /> Delete
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Inventory Table */}
       {!loading && (
         <>
@@ -560,6 +658,14 @@ export default function InventoryManagement() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-6 py-3 text-left">
+                    <input 
+                      type="checkbox"
+                      checked={filteredInventory.length > 0 && filteredInventory.every(item => selectedInventoryIds.includes(item.id))}
+                      onChange={toggleSelectAllInventory}
+                      className="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
@@ -572,6 +678,14 @@ export default function InventoryManagement() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredInventory.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <input 
+                        type="checkbox"
+                        checked={selectedInventoryIds.includes(item.id)}
+                        onChange={() => toggleInventorySelection(item.id)}
+                        className="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-blue-600 rounded-lg flex items-center justify-center">

@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import db from '../db';
+import fs from 'fs';
+import * as XLSX from 'xlsx';
 
 export const getPublicProducts = async (req: Request, res: Response) => {
   try {
@@ -268,3 +270,157 @@ export const toggleProductAvailability = async (req: Request, res: Response) => 
     res.status(500).json({ message: 'Error toggling product availability' });
   }
 };
+
+export const exportProducts = async (req: Request, res: Response) => {
+  try {
+    const products = await db('products')
+      .leftJoin('categories', 'products.category_id', 'categories.id')
+      .select(
+        'products.name as Name',
+        'categories.name as Category',
+        'products.description as Description',
+        'products.price as Price',
+        'products.cost as Cost',
+        'products.preparation_time as PrepTime',
+        'products.is_available as Available',
+        'products.is_active as Active'
+      )
+      .where('products.is_active', true)
+      .orderBy('categories.name', 'asc')
+      .orderBy('products.name', 'asc');
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(products);
+
+    const colWidths = [
+      { wch: 30 },
+      { wch: 20 },
+      { wch: 40 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 15 },
+      { wch: 10 },
+      { wch: 10 }
+    ];
+    worksheet['!cols'] = colWidths;
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename="Products_Export.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+
+  } catch (err) {
+    console.error('Error exporting products:', err);
+    res.status(500).json({ message: 'Error exporting products' });
+  }
+}; 
+  
+export const uploadProducts = async (req: Request, res: Response) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+
+  const errors: string[] = [];
+
+  try {
+    const workbook = XLSX.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+    const categories = await db('categories').select('id', 'name');
+    const categoryMap = new Map(categories.map(c => [c.name.toLowerCase().trim(), c.id]));
+
+    const existingProducts = await db('products').select('id', 'name', 'category_id');
+    const productMap = new Map(existingProducts.map(p => [`${p.name.toLowerCase().trim()}-${p.category_id}`, p.id]));
+
+    const itemsToInsert: any[] = [];
+    const itemsToUpdate: any[] = [];
+    const newCategoriesToInsert = new Set<string>();
+
+    for (const row of jsonData) {
+      const catName = (row['Category'] || row['category'])?.toString().trim();
+      if (catName && !categoryMap.has(catName.toLowerCase())) {
+        newCategoriesToInsert.add(catName);
+      }
+    }
+
+    if (newCategoriesToInsert.size > 0) {
+      for (const catName of newCategoriesToInsert) {
+        const [newCat] = await db('categories')
+          .insert({ name: catName, description: 'Imported', is_active: true, display_order: 99 })
+          .returning(['id', 'name']);
+        categoryMap.set(newCat.name.toLowerCase(), newCat.id);
+      }
+    }
+
+    for (const row of jsonData) {
+      const name = row['Name'] || row['Product Name'] || row['name'];
+      const categoryName = row['Category'] || row['category'];
+      if (!name || !categoryName) continue;
+
+      const catId = categoryMap.get(categoryName.toString().toLowerCase().trim());
+      if (!catId) {
+        errors.push(`Skipped "${name}": Category error`);
+        continue;
+      }
+
+      const price = parseFloat(row['Price'] || row['price'] || '0');
+      const cost = parseFloat(row['Cost'] || row['cost'] || '0');
+      const prepTime = parseInt(row['PrepTime'] || row['Prep Time'] || row['preparation_time'] || '0');
+      const desc = row['Description'] || row['description'] || '';
+      const productKey = `${name.toLowerCase().trim()}-${catId}`;
+      const existingId = productMap.get(productKey);
+
+      if (existingId) {
+        itemsToUpdate.push({
+          id: existingId,
+          price,
+          cost,
+          description: desc,
+          preparation_time: prepTime,
+          updated_at: new Date()
+        });
+      } else {
+        itemsToInsert.push({
+          name,
+          category_id: catId,
+          price,
+          cost,
+          description: desc,
+          preparation_time: prepTime,
+          is_available: true,
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+      }
+    }
+
+    await db.transaction(async (trx) => {
+      if (itemsToInsert.length > 0) await trx('products').insert(itemsToInsert);
+      if (itemsToUpdate.length > 0) {
+        for (const item of itemsToUpdate) {
+          const { id, ...updateFields } = item;
+          await trx('products').where({ id }).update(updateFields);
+        }
+      }
+    });
+
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+
+    res.json({
+      message: 'Products processed successfully',
+      processed_count: itemsToInsert.length + itemsToUpdate.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (err) {
+    console.error('File processing error:', err);
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ message: 'Error processing file', error: (err as Error).message });
+  }
+}; 

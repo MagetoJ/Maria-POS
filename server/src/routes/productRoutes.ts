@@ -1,39 +1,41 @@
-import { Router } from 'express';
-import * as productController from '../controllers/productController';
-import { authenticateToken, authorizeRoles } from '../middleware/auth';
-
-const router = Router();
-
-// Public routes (for menu display, etc.)
-router.get('/', productController.getProducts);
-router.get('/categories', productController.getProductCategories);
-router.get('/:id', productController.getProductById);
-
-// Protected routes require authentication and proper roles
-router.use(authenticateToken);
-
-// Create new product (admin and manager only)
-router.post('/', 
-  authorizeRoles('admin', 'manager'), 
-  productController.createProduct
-);
-
-// Update product (admin and manager only)
-router.put('/:id', 
-  authorizeRoles('admin', 'manager'), 
-  productController.updateProduct
-);
-
-// Toggle product availability (admin, manager, kitchen_staff)
-router.patch('/:id/toggle-availability', 
-  authorizeRoles('admin', 'manager', 'kitchen_staff'), 
-  productController.toggleProductAvailability
-);
-
-// Delete product (admin only)
-router.delete('/:id', 
-  authorizeRoles('admin'), 
-  productController.deleteProduct
-);
-
+import { Router } from 'express'; 
+import multer from 'multer'; 
+import fs from 'fs'; 
+import path from 'path'; 
+import * as productController from '../controllers/productController'; 
+import { authenticateToken, authorizeRoles } from '../middleware/auth'; 
+  
+const uploadDir = path.join(__dirname, '../../uploads'); 
+if (!fs.existsSync(uploadDir)) {  
+  fs.mkdirSync(uploadDir, { recursive: true }); 
+} 
+  
+const upload = multer({ 
+  dest: 'uploads/', 
+  fileFilter: (req, file, cb) => { 
+    const allowedTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']; 
+    if (allowedTypes.includes(file.mimetype) || file.originalname.match(/\.(csv|xlsx|xls)$/)) { 
+      cb(null, true); 
+    } else { 
+      cb(new Error('Only CSV and Excel files are allowed')); 
+    } 
+  } 
+}); 
+  
+const router = Router(); 
+  
+router.get('/', productController.getProducts); 
+router.get('/categories', productController.getProductCategories); 
+router.get('/:id', productController.getProductById); 
+  
+router.use(authenticateToken); 
+  
+router.get('/data/export', authorizeRoles('admin', 'manager'), productController.exportProducts); 
+router.post('/data/upload', authorizeRoles('admin', 'manager'), upload.single('file'), productController.uploadProducts); 
+  
+router.post('/', authorizeRoles('admin', 'manager'), productController.createProduct); 
+router.put('/:id', authorizeRoles('admin', 'manager'), productController.updateProduct); 
+router.patch('/:id/toggle-availability', authorizeRoles('admin', 'manager', 'kitchen_staff'), productController.toggleProductAvailability); 
+router.delete('/:id', authorizeRoles('admin'), productController.deleteProduct); 
+  
 export default router;

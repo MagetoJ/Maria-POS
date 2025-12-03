@@ -265,7 +265,7 @@ export const uploadInventory = async (req: Request, res: Response) => {
       if (existingItem) {
         itemsToUpdate.push({
           id: existingItem.id,
-          current_stock: existingItem.current_stock + quantity,
+          current_stock: quantity,
           cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
           updated_at: new Date()
         });

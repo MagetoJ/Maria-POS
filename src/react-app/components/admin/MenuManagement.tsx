@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { UtensilsCrossed, Plus, Edit3, Trash2, Search } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { UtensilsCrossed, Plus, Edit3, Trash2, Search, Upload, Download } from 'lucide-react';
 import { apiClient } from '../../config/api';
 
 // Define interfaces to match backend schema
@@ -36,6 +36,7 @@ const formatCurrency = (amount: number | string): string => {
 };
 
 export default function MenuManagement() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeTab, setActiveTab] = useState<'products' | 'categories'>('products');
@@ -45,6 +46,7 @@ export default function MenuManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
 
   const [productForm, setProductForm] = useState({
     category_id: 1,
@@ -436,6 +438,58 @@ export default function MenuManagement() {
     setShowSuggestions(false);
   };
 
+  const toggleProductSelection = (id: number) => {
+    setSelectedProductIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllProducts = () => {
+    const allFilteredIds = filteredProducts.map(p => p.id);
+    const allSelected = allFilteredIds.every(id => selectedProductIds.includes(id));
+
+    if (allSelected) {
+      setSelectedProductIds(prev => prev.filter(id => !allFilteredIds.includes(id)));
+    } else {
+      const newSelection = new Set([...selectedProductIds, ...allFilteredIds]);
+      setSelectedProductIds(Array.from(newSelection));
+    }
+  };
+
+  const handleBulkDeleteProducts = async () => {
+    if (!confirm(`Are you sure you want to delete ${selectedProductIds.length} products?`)) return;
+
+    setUploading(true);
+    try {
+      await Promise.all(selectedProductIds.map(id => apiClient.delete(`/api/products/${id}`)));
+      await fetchProducts();
+      setSelectedProductIds([]);
+      alert('Products deleted successfully');
+    } catch (error) {
+      alert('Failed to delete some products');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleBulkAvailability = async (status: boolean) => {
+    setUploading(true);
+    try {
+      await Promise.all(selectedProductIds.map(id => {
+        const product = products.find(p => p.id === id);
+        if (!product) return Promise.resolve();
+        return apiClient.put(`/api/products/${id}`, { ...product, is_available: status });
+      }));
+      await fetchProducts();
+      setSelectedProductIds([]);
+      alert('Products updated successfully');
+    } catch (error) {
+      alert('Failed to update products');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const profitMargin = (price: number, cost?: number) => {
     if (!cost || cost === 0 || price === 0) return 0;
     return ((price - cost) / price) * 100;
@@ -477,6 +531,55 @@ export default function MenuManagement() {
     reader.readAsDataURL(file);
   };
 
+  const handleExportProducts = async () => {
+    try {
+      setUploading(true);
+      const response = await apiClient.get('/api/products/export', { responseType: 'blob' });
+      
+      const url = window.URL.createObjectURL(response);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `products_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      alert('✅ Products exported successfully!');
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export products');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleUploadProducts = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setUploading(true);
+      const response = await apiClient.post('/api/products/upload', formData);
+      
+      alert(`✅ Import Successful! Processed ${response.processed_count} items.`);
+      if (response.errors && response.errors.length > 0) {
+        console.warn('Import warnings:', response.errors);
+      }
+      
+      await fetchProducts();
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Failed to upload products');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -485,18 +588,47 @@ export default function MenuManagement() {
           <h2 className="text-2xl font-bold text-gray-900">Menu Management</h2>
           <p className="text-gray-600">Manage products, categories, and pricing</p>
         </div>
-        <button
-          onClick={() => { 
-            setEditingItem(null); 
-            resetProductForm(); 
-            resetCategoryForm(); 
-            setShowAddModal(true); 
-          }}
-          className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Add {activeTab === 'products' ? 'Product' : 'Category'}
-        </button>
+        <div className="flex gap-2">
+          {activeTab === 'products' && (
+            <>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleUploadProducts}
+                accept=".csv, .xlsx, .xls"
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                disabled={uploading}
+              >
+                <Upload className="w-5 h-5" />
+                Import
+              </button>
+              <button
+                onClick={handleExportProducts}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                disabled={uploading}
+              >
+                <Download className="w-5 h-5" />
+                Export
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => { 
+              setEditingItem(null); 
+              resetProductForm(); 
+              resetCategoryForm(); 
+              setShowAddModal(true); 
+            }}
+            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Add {activeTab === 'products' ? 'Product' : 'Category'}
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -628,11 +760,46 @@ export default function MenuManagement() {
                 ))}
               </div>
 
+              {/* Bulk Actions Bar */}
+              {selectedProductIds.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-center justify-between">
+                  <span className="text-yellow-800 font-medium">{selectedProductIds.length} products selected</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleBulkAvailability(true)}
+                      className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                    >
+                      Mark Available
+                    </button>
+                    <button
+                      onClick={() => handleBulkAvailability(false)}
+                      className="px-3 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
+                    >
+                      Mark Unavailable
+                    </button>
+                    <button
+                      onClick={handleBulkDeleteProducts}
+                      className="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 text-sm flex items-center gap-1"
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Products Table */}
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-6 py-3 text-left">
+                        <input 
+                          type="checkbox"
+                          checked={filteredProducts.length > 0 && filteredProducts.every(p => selectedProductIds.includes(p.id))}
+                          onChange={toggleSelectAllProducts}
+                          className="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
+                        />
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pricing</th>
@@ -644,6 +811,14 @@ export default function MenuManagement() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredProducts.map((product) => (
                       <tr key={product.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input 
+                            type="checkbox"
+                            checked={selectedProductIds.includes(product.id)}
+                            onChange={() => toggleProductSelection(product.id)}
+                            className="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
+                          />
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">

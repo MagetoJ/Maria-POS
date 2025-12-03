@@ -403,6 +403,27 @@ app.get('/api/search', async (req, res) => {
   }
 });
 app.use('/api/public/menu', publicMenuRoutes);
+
+// --- Global Error Handler ---
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('🔥 Unhandled Error:', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  if (err.name === 'MulterError') {
+    return res.status(400).json({
+      message: 'File upload error',
+      error: err.message
+    });
+  }
+
+  res.status(500).json({
+    message: 'Internal Server Error',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+  });
+});
+
 // --- Catch-all route to serve frontend ---
 // IMPORTANT: This must be AFTER all API routes
 app.get('*', (req, res) => {
