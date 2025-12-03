@@ -56,7 +56,7 @@ export const getInventory = async (req: Request, res: Response) => {
     } else if (userRole === 'waiter' || userRole === 'quick_pos') {
       query.where('inventory_items.inventory_type', 'bar');
     } else if (!['admin', 'manager'].includes(userRole)) {
-      return res.json([]); // Return empty for other non-privileged roles
+      return res.json([]);
     }
 
     if (inventory_type) {
@@ -67,7 +67,6 @@ export const getInventory = async (req: Request, res: Response) => {
       query = query.whereRaw('inventory_items.current_stock <= inventory_items.minimum_stock');
     }
 
-    // Add search logic
     if (search) {
       const searchTerm = search as string;
       query = query.where('inventory_items.name', 'ilike', `%${searchTerm}%`);
@@ -98,14 +97,12 @@ export const createInventoryItem = async (req: Request, res: Response) => {
       inventory_type
     } = req.body;
 
-    // Validation
     if (!name || !unit || !supplier) {
       return res.status(400).json({ 
         message: 'Name, unit, and supplier are required' 
       });
     }
 
-    // Check user permissions
     const userRole = req.user?.role;
     const allowedTypes = getAllowedInventoryTypes(userRole);
     
@@ -146,13 +143,11 @@ export const updateInventoryItem = async (req: Request, res: Response) => {
     const { id } = req.params;
     const updateData = { ...req.body, updated_at: new Date() };
 
-    // Check if item exists
     const existingItem = await db('inventory_items').where({ id }).first();
     if (!existingItem) {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
 
-    // Check user permissions
     const userRole = req.user?.role;
     const allowedTypes = getAllowedInventoryTypes(userRole);
     
@@ -194,7 +189,6 @@ export const updateStock = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
 
-    // Check permissions
     const isAdminOrManager = ['admin', 'manager'].includes(userRole!);
     const isKitchenStaff = userRole === 'kitchen_staff' && inventoryItem.inventory_type === 'kitchen';
     const isReceptionist = userRole === 'receptionist' && 
@@ -221,7 +215,7 @@ export const updateStock = async (req: Request, res: Response) => {
   }
 };
 
-// Upload and process inventory (Supports Excel & CSV)
+// ROBUST: Upload and process inventory (Supports Excel & CSV with flexible parsing)
 export const uploadInventory = async (req: Request, res: Response) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded' });
@@ -239,7 +233,7 @@ export const uploadInventory = async (req: Request, res: Response) => {
       throw new Error("File appears to be empty.");
     }
 
-    const existingItemsRaw = await db('inventory_items').select('id', 'name', 'current_stock', 'cost_per_unit');
+    const existingItemsRaw = await db('inventory_items').select('id', 'name', 'current_stock', 'cost_per_unit', 'inventory_type');
     const existingItemsMap = new Map();
     existingItemsRaw.forEach(item => {
       existingItemsMap.set(item.name.toLowerCase().trim(), item);
@@ -248,58 +242,90 @@ export const uploadInventory = async (req: Request, res: Response) => {
     const itemsToInsert: any[] = [];
     const itemsToUpdate: any[] = [];
 
-    const findValue = (row: any, ...possibleHeaders: string[]) => {
-      const rowKeys = Object.keys(row).map(k => k.toLowerCase().trim());
+    // Smart value finder - looks for columns with flexible naming
+    const findValue = (row: any, ...possibleHeaders: string[]): string | undefined => {
       for (const header of possibleHeaders) {
-        const foundKey = Object.keys(row).find(k => k.toLowerCase().trim() === header.toLowerCase());
-        if (foundKey) return row[foundKey];
+        const foundKey = Object.keys(row).find(k => 
+          k.toLowerCase().trim() === header.toLowerCase().trim()
+        );
+        if (foundKey && row[foundKey]) {
+          return String(row[foundKey]).trim();
+        }
       }
       return undefined;
     };
 
+    // Robust number parser - handles "4,000", "-", spaces, etc
+    const parseNumber = (value: any): number => {
+      if (!value) return 0;
+      const str = String(value)
+        .trim()
+        .replace(/,/g, '')         // Remove commas
+        .replace(/"/g, '')         // Remove quotes
+        .replace(/\s+/g, '')       // Remove spaces
+        .replace(/-/g, '0');       // Replace dash with 0
+      const num = parseFloat(str);
+      return isNaN(num) ? 0 : Math.max(0, num);
+    };
+
+    let rowCount = 0;
     for (const row of jsonData) {
-      const name = findValue(row, 'Item Name', 'Name', 'Product', 'Item');
-      const quantity = parseInt(findValue(row, 'Current Stock', 'Stock', 'Quantity', 'Qty') || '0');
-      const cost = parseFloat(findValue(row, 'Cost Per Unit (KES)', 'Cost', 'Price', 'Buying Price') || '0');
-      const unit = findValue(row, 'Unit', 'Measurement');
-      const supplier = findValue(row, 'Supplier', 'Vendor');
-      const type = findValue(row, 'Type', 'Category') || 'kitchen';
+      rowCount++;
+      
+      try {
+        // Skip empty rows
+        if (!Object.keys(row).some(k => row[k])) continue;
 
-      if (!name) continue;
-
-      const normalizedName = name.toLowerCase().trim();
-      const existingItem = existingItemsMap.get(normalizedName);
-
-      if (existingItem) {
-        itemsToUpdate.push({
-          id: existingItem.id,
-          current_stock: existingItem.current_stock + quantity,
-          cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
-          updated_at: new Date()
-        });
-      } else {
-        if (!unit || !supplier) {
-          errors.push(`Skipped "${name}": Missing Unit or Supplier.`);
+        const name = findValue(row, 'Item Name', 'Name', 'Product', 'Item');
+        if (!name) {
+          errors.push(`Row ${rowCount}: No item name found`);
           continue;
         }
 
-        itemsToInsert.push({
-          name,
-          unit,
-          current_stock: quantity,
-          minimum_stock: 5,
-          cost_per_unit: cost,
-          supplier,
-          inventory_type: type.toLowerCase(),
-          is_active: true,
-          created_at: new Date(),
-          updated_at: new Date()
-        });
+        const rawQty = findValue(row, 'Current Stock', 'Stock', 'Quantity', 'Qty');
+        const quantity = parseNumber(rawQty);
+
+        const rawCost = findValue(row, 'Cost per Unit (KES)', 'Cost Per Unit (KES)', 'Cost', 'Price', 'Buying Price');
+        const cost = parseNumber(rawCost);
+
+        // Use smart defaults for missing fields
+        const unit = findValue(row, 'Unit', 'Measurement') || 'unit';
+        const supplier = findValue(row, 'Supplier', 'Vendor') || 'Unknown';
+        const typeRaw = findValue(row, 'Type', 'Category', 'inventory_type');
+        const type = typeRaw ? typeRaw.toLowerCase().replace(/\s+/g, '') : 'bar';
+
+        const normalizedName = name.toLowerCase().trim();
+        const existingItem = existingItemsMap.get(normalizedName);
+
+        if (existingItem) {
+          itemsToUpdate.push({
+            id: existingItem.id,
+            current_stock: existingItem.current_stock + quantity,
+            cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
+            updated_at: new Date()
+          });
+        } else {
+          itemsToInsert.push({
+            name,
+            unit,
+            current_stock: quantity,
+            minimum_stock: 5,
+            cost_per_unit: cost,
+            supplier,
+            inventory_type: type,
+            is_active: true,
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+        }
+      } catch (rowErr) {
+        errors.push(`Row ${rowCount}: ${(rowErr as Error).message}`);
+        continue;
       }
     }
 
     if (itemsToInsert.length === 0 && itemsToUpdate.length === 0) {
-      throw new Error(`No valid items found. Please check your column headers. Expected: "Item Name", "Stock", "Unit", "Supplier"`);
+      throw new Error(`No valid items found in file. Please ensure the file has columns: Item Name, Stock, Unit, Supplier, Cost, Type`);
     }
 
     await db.transaction(async (trx) => {
@@ -309,13 +335,13 @@ export const uploadInventory = async (req: Request, res: Response) => {
 
       if (itemsToUpdate.length > 0) {
         for (const item of itemsToUpdate) {
-            await trx('inventory_items')
-              .where({ id: item.id })
-              .update({
-                current_stock: item.current_stock,
-                cost_per_unit: item.cost_per_unit,
-                updated_at: item.updated_at
-              });
+          await trx('inventory_items')
+            .where({ id: item.id })
+            .update({
+              current_stock: item.current_stock,
+              cost_per_unit: item.cost_per_unit,
+              updated_at: item.updated_at
+            });
         }
       }
     });
@@ -323,8 +349,10 @@ export const uploadInventory = async (req: Request, res: Response) => {
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
     res.json({
-      message: 'Inventory processed successfully',
+      message: 'Inventory imported successfully',
       processed_count: itemsToInsert.length + itemsToUpdate.length,
+      inserted: itemsToInsert.length,
+      updated: itemsToUpdate.length,
       errors: errors.length > 0 ? errors : undefined
     });
 
@@ -335,18 +363,16 @@ export const uploadInventory = async (req: Request, res: Response) => {
   }
 };
 
-// Delete inventory item
+// Delete inventory item (SOFT DELETE)
 export const deleteInventoryItem = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Check if item exists
     const existingItem = await db('inventory_items').where({ id }).first();
     if (!existingItem) {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
 
-    // Check user permissions
     const userRole = req.user?.role;
     const allowedTypes = getAllowedInventoryTypes(userRole);
     
@@ -381,12 +407,12 @@ function getAllowedInventoryTypes(role?: string): string[] {
     case 'kitchen_staff':
       return ['kitchen'];
     case 'receptionist':
-      return ['housekeeping', 'minibar']; // Removed 'bar' - receptionist can't update bar items
+      return ['housekeeping', 'minibar'];
     case 'housekeeping':
-      return ['housekeeping', 'minibar']; // Like receptionist but for household items
+      return ['housekeeping', 'minibar'];
     case 'quick_pos':
     case 'waiter':
-      return ['bar']; // Can sell bar items
+      return ['bar'];
     case 'admin':
     case 'manager':
       return ['kitchen', 'bar', 'housekeeping', 'minibar'];
