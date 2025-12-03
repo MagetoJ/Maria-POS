@@ -42,17 +42,19 @@ router.use(authenticateToken);
 router.get('/', inventoryController.getInventory);
 
 // Upload CSV for bulk inventory update
+const handleUploadError = (err: any, req: any, res: any, next: any) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ message: `Upload error: ${err.message}` });
+  } else if (err) {
+    return res.status(400).json({ message: err.message || 'File upload failed' });
+  }
+  next();
+};
+
 router.post('/upload',
-  authorizeRoles('admin', 'manager'),
+  authorizeRoles('admin', 'manager', 'kitchen_staff', 'receptionist'),
   upload.single('file'),
-  (err: any, req: any, res: any, next: any) => {
-    if (err instanceof multer.MulterError) {
-      return res.status(400).json({ message: `Upload error: ${err.message}` });
-    } else if (err) {
-      return res.status(400).json({ message: err.message || 'File upload failed' });
-    }
-    next();
-  },
+  handleUploadError,
   inventoryController.uploadInventory
 );
 

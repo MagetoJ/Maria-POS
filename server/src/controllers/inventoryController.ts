@@ -20,7 +20,7 @@ export const getInventory = async (req: Request, res: Response) => {
       db.schema.hasColumn('inventory_items', 'product_id')
     ]);
 
-    let query = db('inventory_items').whereNot('is_active', false);
+    let query = db('inventory_items').where('is_active', true);
 
     if (hasSupplierIdColumn) {
       query = query.leftJoin('suppliers', 'inventory_items.supplier_id', 'suppliers.id');
@@ -224,11 +224,13 @@ export const uploadInventory = async (req: Request, res: Response) => {
   const errors: string[] = [];
 
   try {
+    console.log('📦 Starting inventory upload, file:', req.file.originalname);
     const workbook = XLSX.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
 
+    console.log('📊 Parsed rows:', jsonData.length);
     if (jsonData.length === 0) {
       throw new Error("File appears to be empty.");
     }
@@ -290,9 +292,11 @@ export const uploadInventory = async (req: Request, res: Response) => {
 
         // Use smart defaults for missing fields
         const unit = findValue(row, 'Unit', 'Measurement') || 'unit';
-        const supplier = findValue(row, 'Supplier', 'Vendor') || 'Unknown';
+        const supplier = findValue(row, 'Supplier', 'Vendor', 'supplier_name') || 'Unknown';
         const typeRaw = findValue(row, 'Type', 'Category', 'inventory_type');
-        const type = typeRaw ? typeRaw.toLowerCase().replace(/\s+/g, '') : 'bar';
+        const typeNormalized = typeRaw ? typeRaw.toLowerCase().trim() : 'bar';
+        const validTypes = ['kitchen', 'bar', 'housekeeping', 'minibar'];
+        const type = validTypes.includes(typeNormalized) ? typeNormalized : 'bar';
 
         const normalizedName = name.toLowerCase().trim();
         const existingItem = existingItemsMap.get(normalizedName);
@@ -328,23 +332,32 @@ export const uploadInventory = async (req: Request, res: Response) => {
       throw new Error(`No valid items found in file. Please ensure the file has columns: Item Name, Stock, Unit, Supplier, Cost, Type`);
     }
 
+    console.log('📥 Items to insert:', itemsToInsert.length);
+    console.log('📤 Items to update:', itemsToUpdate.length);
+    console.log('🔍 Sample insert item:', itemsToInsert[0]);
+
     await db.transaction(async (trx) => {
       if (itemsToInsert.length > 0) {
-        await trx('inventory_items').insert(itemsToInsert);
+        const insertResult = await trx('inventory_items').insert(itemsToInsert);
+        console.log('✅ Inserted items result:', insertResult);
       }
 
       if (itemsToUpdate.length > 0) {
         for (const item of itemsToUpdate) {
-          await trx('inventory_items')
+          const updateResult = await trx('inventory_items')
             .where({ id: item.id })
             .update({
               current_stock: item.current_stock,
               cost_per_unit: item.cost_per_unit,
               updated_at: item.updated_at
             });
+          console.log(`✅ Updated item ${item.id}:`, updateResult);
         }
       }
     });
+
+    const verifyCount = await db('inventory_items').count('* as count').first();
+    console.log('🔢 Total items in DB after upload:', verifyCount);
 
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 

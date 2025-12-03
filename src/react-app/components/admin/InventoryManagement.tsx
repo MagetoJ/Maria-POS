@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Package, Plus, Edit3, Trash2, AlertTriangle, Search, Upload } from 'lucide-react';
+import { Package, Plus, Edit3, Trash2, AlertTriangle, Search, Upload, BarChart3, TrendingUp } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { useAuth } from '../../contexts/AuthContext';
-import SearchComponent from '../SearchComponent'; 
+import SearchComponent from '../SearchComponent';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'; 
 
 interface InventoryItem {
   id: number;
@@ -71,6 +72,12 @@ export default function InventoryManagement() {
   }, [searchTerm]);
 
   useEffect(() => {
+    if (user) {
+      fetchInventory();
+    }
+  }, []);
+
+  useEffect(() => {
     fetchInventory();
   }, [selectedType]);
 
@@ -86,17 +93,24 @@ export default function InventoryManagement() {
         params.append('inventory_type', selectedType);
       }
 
-      const response = await fetch(`${API_URL}/api/inventory?${params.toString()}`, {
+      const url = `${API_URL}/api/inventory?${params.toString()}`;
+      console.log('📡 Fetching inventory from:', url);
+      
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
+      console.log('📥 Response status:', response.status);
+
       if (!response.ok) {
         const errData = await response.json().catch(() => ({ message: 'Failed to fetch inventory' }));
-        setError(errData.message || 'Failed to fetch inventory');
+        console.error('API error:', errData);
+        setError(`API Error (${response.status}): ${errData.message || 'Failed to fetch inventory'}`);
         return;
       }
 
       const data = await response.json();
+      console.log('✅ Fetched items:', data.length);
       setInventory(data);
     } catch (err) {
       setError('Network error. Please check your connection.');
@@ -420,50 +434,77 @@ export default function InventoryManagement() {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const token = localStorage.getItem('pos_token');
-      const response = await fetch(`${API_URL}/api/inventory/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Upload failed');
-      }
-
-      alert(`✅ Import Successful! Processed ${result.processed_count} items.`);
-      if (result.errors && result.errors.length > 0) {
-        console.warn('Import warnings:', result.errors);
-        alert('Some items were skipped. Check console for details.');
-      }
-
-      await fetchInventory();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
 
   const formatCurrency = (amount: number): string => {
     return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
+
+  const getStockByTypeData = () => {
+    const typeMap: { [key: string]: number } = {};
+    inventory.forEach(item => {
+      if (canManageType(item.inventory_type)) {
+        typeMap[item.inventory_type] = (typeMap[item.inventory_type] || 0) + item.current_stock;
+      }
+    });
+    return Object.entries(typeMap).map(([type, stock]) => ({
+      name: type.charAt(0).toUpperCase() + type.slice(1),
+      stock: stock,
+      value: stock
+    }));
+  };
+
+  const getStockHealthData = () => {
+    const statusMap = {
+      'Optimal': 0,
+      'Low Stock': 0,
+      'Out of Stock': 0
+    };
+    inventory.forEach(item => {
+      if (canManageType(item.inventory_type)) {
+        if (item.current_stock === 0) {
+          statusMap['Out of Stock']++;
+        } else if (item.current_stock <= item.minimum_stock) {
+          statusMap['Low Stock']++;
+        } else {
+          statusMap['Optimal']++;
+        }
+      }
+    });
+    return Object.entries(statusMap).map(([status, count]) => ({
+      name: status,
+      value: count
+    }));
+  };
+
+  const getValueDistributionData = () => {
+    const typeMap: { [key: string]: number } = {};
+    inventory.forEach(item => {
+      if (canManageType(item.inventory_type)) {
+        const itemValue = item.current_stock * item.cost_per_unit;
+        typeMap[item.inventory_type] = (typeMap[item.inventory_type] || 0) + itemValue;
+      }
+    });
+    return Object.entries(typeMap).map(([type, value]) => ({
+      name: type.charAt(0).toUpperCase() + type.slice(1),
+      value: Math.round(value),
+      displayValue: formatCurrency(value)
+    }));
+  };
+
+  const getTopItemsData = () => {
+    return inventory
+      .filter(item => canManageType(item.inventory_type))
+      .sort((a, b) => (b.current_stock * b.cost_per_unit) - (a.current_stock * a.cost_per_unit))
+      .slice(0, 8)
+      .map(item => ({
+        name: item.name.length > 15 ? item.name.substring(0, 15) + '...' : item.name,
+        value: Math.round(item.current_stock * item.cost_per_unit),
+        stock: item.current_stock
+      }));
+  };
+
+  const COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1'];
 
   return (
     <div className="space-y-6">
@@ -475,21 +516,6 @@ export default function InventoryManagement() {
         </div>
         {canAddItems && (
           <div className="flex gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              accept=".csv, .xlsx, .xls"
-              className="hidden"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              disabled={loading}
-            >
-              <Upload className="w-5 h-5" />
-              Import CSV / Excel
-            </button>
             <button
               onClick={() => { setEditingItem(null); resetForm(); setShowAddModal(true); }}
               className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-lg font-medium transition-colors"
@@ -531,6 +557,8 @@ export default function InventoryManagement() {
           <div className="text-sm text-gray-600">Kitchen Items</div>
         </div>
       </div>
+
+
 
       {/* Search */}
       <div className="bg-white rounded-lg p-4 border border-gray-200">

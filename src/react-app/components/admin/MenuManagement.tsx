@@ -534,9 +534,10 @@ export default function MenuManagement() {
   const handleExportProducts = async () => {
     try {
       setUploading(true);
-      const response = await apiClient.get('/api/products/export', { responseType: 'blob' });
+      const response = await apiClient.get('/api/products/export', { responseType: 'arraybuffer' });
       
-      const url = window.URL.createObjectURL(response);
+      const blob = new Blob([response], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `products_${new Date().toISOString().split('T')[0]}.xlsx`;
