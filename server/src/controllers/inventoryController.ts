@@ -94,6 +94,7 @@ export const createInventoryItem = async (req: Request, res: Response) => {
       current_stock,
       minimum_stock,
       cost_per_unit,
+      buying_price,
       supplier,
       inventory_type
     } = req.body;
@@ -120,6 +121,7 @@ export const createInventoryItem = async (req: Request, res: Response) => {
         current_stock: Number(current_stock) || 0,
         minimum_stock: Number(minimum_stock) || 0,
         cost_per_unit: Number(cost_per_unit) || 0,
+        buying_price: Number(buying_price) || 0,
         supplier,
         inventory_type,
         is_active: true,
@@ -328,8 +330,11 @@ export const uploadInventory = async (req: Request, res: Response) => {
         const rawQty = findValue(row, 'Current Stock', 'Stock', 'Quantity', 'Qty');
         const quantity = parseNumber(rawQty);
 
-        const rawCost = findValue(row, 'Cost per Unit (KES)', 'Cost Per Unit (KES)', 'Cost', 'Price', 'Buying Price');
-        const cost = parseNumber(rawCost);
+        const rawSelling = findValue(row, 'Selling Price', 'Cost per Unit (KES)', 'Cost Per Unit (KES)', 'Cost', 'Price', 'SRP');
+        const sellingPrice = parseNumber(rawSelling);
+
+        const rawBuying = findValue(row, 'Buying Price', 'Cost', 'Purchase Price', 'Buying Cost', 'Unit Cost');
+        const buyingPrice = parseNumber(rawBuying);
 
         // Use smart defaults for missing fields
         const unit = findValue(row, 'Unit', 'Measurement') || 'unit';
@@ -346,7 +351,8 @@ export const uploadInventory = async (req: Request, res: Response) => {
           itemsToUpdate.push({
             id: existingItem.id,
             current_stock: quantity,
-            cost_per_unit: cost > 0 ? cost : existingItem.cost_per_unit,
+            cost_per_unit: sellingPrice > 0 ? sellingPrice : existingItem.cost_per_unit,
+            buying_price: buyingPrice > 0 ? buyingPrice : existingItem.buying_price,
             is_active: true,
             updated_at: new Date()
           });
@@ -356,7 +362,8 @@ export const uploadInventory = async (req: Request, res: Response) => {
             unit,
             current_stock: quantity,
             minimum_stock: 0,
-            cost_per_unit: cost,
+            cost_per_unit: sellingPrice,
+            buying_price: buyingPrice,
             supplier,
             inventory_type: type,
             is_active: true,
@@ -391,6 +398,7 @@ export const uploadInventory = async (req: Request, res: Response) => {
             .update({
               current_stock: item.current_stock,
               cost_per_unit: item.cost_per_unit,
+              buying_price: item.buying_price,
               is_active: true,
               updated_at: item.updated_at
             });

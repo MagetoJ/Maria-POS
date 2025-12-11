@@ -48,55 +48,60 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
       <head>
         <title>Receipt - ${receiptData.orderNumber}</title>
         <style>
-          body { font-family: 'Segoe UI', 'Arial', sans-serif; width: 360px; margin: 0; padding: 10px; font-size: 12px; }
-          .receipt { text-align: center; }
+          body { font-family: 'Arial Black', 'Arial', sans-serif; width: 360px; margin: 0; padding: 10px; font-size: 12px; font-weight: 900; }
+          .receipt { text-align: center; font-weight: 900; }
           .logo {
             max-width: 360px;
             height: auto;
             margin: 0 auto 20px;
             display: block;
-            border: 2px solid #000;
+            border: 3px solid #000;
             border-radius: 8px;
             padding: 10px;
             background: #f8f8f8;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           }
-          .header { font-size: 16px; font-weight: bold; margin-bottom: 8px; }
-          .subheader { font-size: 12px; margin-bottom: 10px; }
-          .divider { border-top: 1px dashed #000; margin: 8px 0; }
-          .order-info { text-align: left; margin: 8px 0; font-size: 11px; }
+          .header { font-size: 18px; font-weight: 900; margin-bottom: 8px; letter-spacing: 1px; }
+          .subheader { font-size: 14px; margin-bottom: 10px; font-weight: 900; }
+          .divider { border-top: 2px dashed #000; margin: 8px 0; }
+          .order-info { text-align: left; margin: 8px 0; font-size: 12px; font-weight: 900; }
           .items { text-align: left; }
           .item-row { 
             display: flex; 
             justify-content: space-between; 
             margin: 3px 0;
-            font-size: 11px;
+            font-size: 12px;
+            font-weight: 900;
           }
-          .item-name { flex: 1; }
-          .item-qty { width: 30px; text-align: center; }
-          .item-price { width: 60px; text-align: right; }
-          .totals { margin-top: 8px; font-weight: bold; font-size: 12px; }
+          .item-name { flex: 1; font-weight: 900; }
+          .item-qty { width: 30px; text-align: center; font-weight: 900; }
+          .item-price { width: 60px; text-align: right; font-weight: 900; }
+          .totals { margin-top: 8px; font-weight: 900; font-size: 13px; }
           .total-row { 
             display: flex; 
             justify-content: space-between; 
-            margin: 3px 0; 
+            margin: 3px 0;
+            font-weight: 900;
           }
           .grand-total { 
-            font-size: 14px; 
-            border-top: 1px solid #000; 
+            font-size: 16px; 
+            border-top: 2px solid #000; 
             padding-top: 5px;
             margin-top: 5px;
+            font-weight: 900;
           }
           .footer { 
             margin-top: 15px; 
-            font-size: 10px; 
+            font-size: 11px; 
             text-align: center;
-            font-style: italic;
+            font-weight: 900;
+            letter-spacing: 0.5px;
           }
           .payment-info {
             margin: 8px 0;
-            font-size: 11px;
+            font-size: 12px;
             text-align: left;
+            font-weight: 900;
           }
         </style>
       </head>
@@ -213,69 +218,69 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
 
         {/* Receipt Preview */}
         <div className="flex-1 p-4 overflow-y-auto">
-          <div className="bg-gray-50 p-4 rounded-lg font-sans text-xs text-center">
+          <div className="bg-gray-50 p-4 rounded-lg font-black text-xs text-center">
             {/* Logo */}
             <div className="mb-4">
-              <img src="/logo.PNG" alt="Restaurant Logo" className="h-96 mx-auto object-contain border-2 border-black rounded-lg p-3 bg-gray-50 shadow-md" />
+              <img src="/logo.PNG" alt="Restaurant Logo" className="h-96 mx-auto object-contain border-4 border-black rounded-lg p-3 bg-gray-50 shadow-md" />
             </div>
             
             {/* Header */}
-            <div className="font-bold text-sm mb-1">MARIA HAVENS</div>
-            <div className="text-xs mb-2">Restaurant & Hotel</div>
-            <div className="text-xs mb-3">{getReceiptTitle(receiptData.orderType)}</div>
-            <div className="border-t border-dashed border-gray-400 my-2"></div>
+            <div className="font-black text-lg mb-1 tracking-wider">MARIA HAVENS</div>
+            <div className="text-sm mb-2 font-black">Restaurant & Hotel</div>
+            <div className="text-sm mb-3 font-black">{getReceiptTitle(receiptData.orderType)}</div>
+            <div className="border-t-2 border-dashed border-gray-400 my-2"></div>
             
             {/* Order Info */}
-            <div className="text-left text-xs space-y-1 mb-3">
-              <div><span className="font-semibold">Receipt:</span> {receiptData.orderNumber}</div>
-              <div><span className="font-semibold">Date:</span> {new Date(receiptData.createdAt).toLocaleString('en-KE')}</div>
-              <div><span className="font-semibold">Served by:</span> {receiptData.staffName}</div>
+            <div className="text-left text-sm space-y-1 mb-3 font-black">
+              <div><span className="font-black">Receipt:</span> {receiptData.orderNumber}</div>
+              <div><span className="font-black">Date:</span> {new Date(receiptData.createdAt).toLocaleString('en-KE')}</div>
+              <div><span className="font-black">Served by:</span> {receiptData.staffName}</div>
               {receiptData.customerName && (
-                <div><span className="font-semibold">Customer:</span> {receiptData.customerName}</div>
+                <div><span className="font-black">Customer:</span> {receiptData.customerName}</div>
               )}
-              <div><span className="font-semibold">Payment:</span> {receiptData.paymentMethod.toUpperCase()}</div>
+              <div><span className="font-black">Payment:</span> {receiptData.paymentMethod.toUpperCase()}</div>
             </div>
             
-            <div className="border-t border-dashed border-gray-400 my-2"></div>
+            <div className="border-t-2 border-dashed border-gray-400 my-2"></div>
             
             {/* Items */}
-            <div className="text-left space-y-1 mb-3">
+            <div className="text-left space-y-1 mb-3 font-black">
               {receiptData.items.map((item, index) => (
                 <div key={index}>
-                  <div className="flex justify-between">
-                    <span>{item.name}</span>
-                    <span>{item.quantity}x</span>
-                    <span>{formatCurrency(item.totalPrice)}</span>
+                  <div className="flex justify-between font-black">
+                    <span className="font-black">{item.name}</span>
+                    <span className="font-black">{item.quantity}x</span>
+                    <span className="font-black">{formatCurrency(item.totalPrice)}</span>
                   </div>
-                  <div className="text-gray-500 text-xs ml-2">
+                  <div className="text-gray-700 text-sm ml-2 font-black">
                     @ {formatCurrency(item.unitPrice)} each
                   </div>
                 </div>
               ))}
             </div>
             
-            <div className="border-t border-dashed border-gray-400 my-2"></div>
+            <div className="border-t-2 border-dashed border-gray-400 my-2"></div>
             
             {/* Totals */}
-            <div className="text-left space-y-1">
-              <div className="flex justify-between">
-                <span>Subtotal:</span>
-                <span>{formatCurrency(receiptData.subtotal)}</span>
+            <div className="text-left space-y-1 font-black">
+              <div className="flex justify-between font-black">
+                <span className="font-black">Subtotal:</span>
+                <span className="font-black">{formatCurrency(receiptData.subtotal)}</span>
               </div>
 
-              <div className="border-t border-gray-400 pt-1 mt-1">
-                <div className="flex justify-between font-bold text-sm">
-                  <span>TOTAL:</span>
-                  <span>{formatCurrency(receiptData.total)}</span>
+              <div className="border-t-2 border-gray-400 pt-1 mt-1">
+                <div className="flex justify-between font-black text-lg">
+                  <span className="font-black">TOTAL:</span>
+                  <span className="font-black">{formatCurrency(receiptData.total)}</span>
                 </div>
               </div>
             </div>
             
-            <div className="border-t border-dashed border-gray-400 my-2"></div>
+            <div className="border-t-2 border-dashed border-gray-400 my-2"></div>
             
-            <div className="text-xs italic mt-3">
-              <div>Thank you for your visit!</div>
-              <div>Please come again</div>
+            <div className="text-sm font-black mt-3 tracking-wide">
+              <div className="font-black">Thank you for your visit!</div>
+              <div className="font-black">Please come again</div>
             </div>
           </div>
         </div>

@@ -11,6 +11,7 @@ interface InventoryItem {
   current_stock: number;
   minimum_stock: number;
   cost_per_unit: number;
+  buying_price?: number;
   supplier: string;
   inventory_type: 'kitchen' | 'bar' | 'housekeeping' | 'minibar';
   is_active: boolean;
@@ -35,6 +36,7 @@ export default function InventoryManagement() {
     current_stock: 0,
     minimum_stock: 0,
     cost_per_unit: 0,
+    buying_price: 0,
     supplier: '',
     inventory_type: 'kitchen' as 'kitchen' | 'bar' | 'housekeeping' | 'minibar'
   });
@@ -189,6 +191,7 @@ export default function InventoryManagement() {
       current_stock: item.current_stock,
       minimum_stock: item.minimum_stock,
       cost_per_unit: item.cost_per_unit,
+      buying_price: item.buying_price ?? 0,
       supplier: item.supplier,
       inventory_type: item.inventory_type
     });
@@ -241,6 +244,7 @@ export default function InventoryManagement() {
       current_stock: item.current_stock ?? 0,
       minimum_stock: item.minimum_stock ?? 0,
       cost_per_unit: item.cost_per_unit ?? 0,
+      buying_price: item.buying_price ?? 0,
       supplier: item.supplier || '',
       inventory_type: item.inventory_type || 'kitchen'
     });
@@ -345,6 +349,7 @@ export default function InventoryManagement() {
       current_stock: 0,
       minimum_stock: 0,
       cost_per_unit: 0,
+      buying_price: 0,
       supplier: '',
       inventory_type: 'kitchen'
     });
@@ -360,6 +365,11 @@ export default function InventoryManagement() {
   const getTypeColor = (type: string) => {
     const typeConfig = inventoryTypes.find(t => t.value === type);
     return typeConfig?.color || 'bg-gray-100 text-gray-800';
+  };
+
+  const calculateMargin = (selling: number, buying: number) => {
+    if (!selling || selling === 0) return 0;
+    return ((selling - buying) / selling) * 100;
   };
 
   const toggleInventorySelection = (id: number) => {
@@ -737,7 +747,7 @@ export default function InventoryManagement() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pricing & Margin</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -800,9 +810,22 @@ export default function InventoryManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div>{formatCurrency(item.cost_per_unit)}</div>
-                      <div className="text-xs text-gray-500">
-                        Total: {formatCurrency(item.current_stock * item.cost_per_unit)}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between w-40">
+                          <span className="text-gray-500 text-xs">Buy:</span>
+                          <span className="font-medium">{formatCurrency(item.buying_price || 0)}</span>
+                        </div>
+                        <div className="flex justify-between w-40">
+                          <span className="text-gray-500 text-xs">Sell:</span>
+                          <span className="font-medium text-blue-600">{formatCurrency(item.cost_per_unit)}</span>
+                        </div>
+                        {item.cost_per_unit > 0 && (
+                          <div className={`text-xs font-bold text-right w-40 ${
+                            calculateMargin(item.cost_per_unit, item.buying_price || 0) > 30 ? 'text-green-600' : 'text-orange-500'
+                          }`}>
+                            Margin: {calculateMargin(item.cost_per_unit, item.buying_price || 0).toFixed(1)}%
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -932,19 +955,40 @@ export default function InventoryManagement() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cost per Unit (KES)</label>
-                <input
-                  type="number"
-                  value={formData.cost_per_unit}
-                  onChange={(e) => setFormData(prev => ({ ...prev, cost_per_unit: parseFloat(e.target.value) || 0 }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                  min="0"
-                  step="0.01"
-                  required
-                  disabled={loading}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Buying Price (Cost)</label>
+                  <input
+                    type="number"
+                    value={formData.buying_price}
+                    onChange={(e) => setFormData(prev => ({ ...prev, buying_price: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    min="0"
+                    step="0.01"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price</label>
+                  <input
+                    type="number"
+                    value={formData.cost_per_unit}
+                    onChange={(e) => setFormData(prev => ({ ...prev, cost_per_unit: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    min="0"
+                    step="0.01"
+                    required
+                    disabled={loading}
+                  />
+                </div>
               </div>
+
+              {formData.cost_per_unit > 0 && (
+                <div className="mt-2 text-sm text-right text-gray-600">
+                  Expected Margin: <span className="font-bold">{calculateMargin(formData.cost_per_unit, formData.buying_price).toFixed(1)}%</span>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Supplier *</label>

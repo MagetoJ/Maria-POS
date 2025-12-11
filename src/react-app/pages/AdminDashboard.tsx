@@ -352,6 +352,49 @@ export default function AdminDashboard() {
       }));
   };
 
+  const getProfitMarginData = () => {
+    return allInventory
+      .filter(item => item.buying_price && item.cost_per_unit && item.cost_per_unit > 0)
+      .map(item => {
+        const margin = ((item.cost_per_unit - item.buying_price) / item.cost_per_unit) * 100;
+        return {
+          name: item.name.length > 12 ? item.name.substring(0, 12) + '...' : item.name,
+          margin: Math.round(margin * 10) / 10,
+          buyPrice: item.buying_price,
+          sellPrice: item.cost_per_unit
+        };
+      })
+      .sort((a, b) => b.margin - a.margin)
+      .slice(0, 10);
+  };
+
+  const getSalesTrackingData = () => {
+    const typeMap: { [key: string]: { quantity: number; revenue: number } } = {};
+    allInventory.forEach(item => {
+      if (!typeMap[item.inventory_type]) {
+        typeMap[item.inventory_type] = { quantity: 0, revenue: 0 };
+      }
+      typeMap[item.inventory_type].quantity += item.current_stock;
+      typeMap[item.inventory_type].revenue += item.current_stock * item.cost_per_unit;
+    });
+    return Object.entries(typeMap).map(([type, data]) => ({
+      name: type.charAt(0).toUpperCase() + type.slice(1),
+      quantity: data.quantity,
+      revenue: Math.round(data.revenue)
+    }));
+  };
+
+  const getMarginTrendData = () => {
+    const margins = getProfitMarginData();
+    const avgMargin = margins.length > 0 ? 
+      Math.round((margins.reduce((sum, item) => sum + item.margin, 0) / margins.length) * 10) / 10 
+      : 0;
+    return {
+      average: avgMargin,
+      items: margins
+    };
+  };
+
   const sidebarStatusCard = (
     <div className="mt-8 p-4 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
       <div className="flex items-center gap-2 mb-2">
@@ -612,6 +655,122 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="h-64 flex items-center justify-center text-gray-500">No inventory data</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Profit Margin & Sales Tracking Charts */}
+        {getProfitMarginData().length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Profit Margins Bar Chart */}
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="w-5 h-5 text-green-600" />
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Top 10 Profit Margins</h3>
+              </div>
+              <div className="w-full h-64 lg:h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={getProfitMarginData()}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="name" stroke="#6b7280" fontSize={10} />
+                    <YAxis stroke="#6b7280" fontSize={12} label={{ value: 'Margin %', angle: -90, position: 'insideLeft' }} />
+                    <Tooltip 
+                      formatter={(value) => `${value}%`} 
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    />
+                    <Bar dataKey="margin" fill="#10b981" name="Profit Margin %" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-4 p-3 bg-green-50 rounded-lg">
+                <p className="text-sm text-green-900">
+                  <span className="font-semibold">Average Margin:</span> {getMarginTrendData().average}%
+                </p>
+              </div>
+            </div>
+
+            {/* Sales Tracking by Category */}
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <DollarSign className="w-5 h-5 text-blue-600" />
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Sales Tracking by Category</h3>
+              </div>
+              <div className="w-full h-64 lg:h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={getSalesTrackingData()}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
+                    <YAxis stroke="#6b7280" fontSize={12} />
+                    <Tooltip 
+                      formatter={(value) => value.toLocaleString()} 
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    />
+                    <Legend />
+                    <Bar dataKey="quantity" fill="#3b82f6" name="Units" />
+                    <Bar dataKey="revenue" fill="#fbbf24" name="Revenue (KES)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Price Comparison Chart */}
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 className="w-5 h-5 text-purple-600" />
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Buying vs Selling Price (Top 8)</h3>
+              </div>
+              <div className="w-full h-64 lg:h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={getProfitMarginData().slice(0, 8)}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="name" stroke="#6b7280" fontSize={10} />
+                    <YAxis stroke="#6b7280" fontSize={12} label={{ value: 'Price (KES)', angle: -90, position: 'insideLeft' }} />
+                    <Tooltip 
+                      formatter={(value) => `KES ${value.toLocaleString()}`} 
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    />
+                    <Legend />
+                    <Bar dataKey="buyPrice" fill="#ef4444" name="Buying Price" />
+                    <Bar dataKey="sellPrice" fill="#10b981" name="Selling Price" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Margin Distribution Pie Chart */}
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <Package className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Margin Distribution</h3>
+              </div>
+              {getProfitMarginData().length > 0 ? (
+                <div className="w-full h-64 lg:h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={getProfitMarginData().slice(0, 6).map(item => ({
+                          name: item.name,
+                          value: Math.round(item.margin)
+                        }))}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, value }) => `${name}: ${value}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {getProfitMarginData().slice(0, 6).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={INVENTORY_COLORS[index % INVENTORY_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => `${value}%`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-gray-500">No margin data available</div>
               )}
             </div>
           </div>
