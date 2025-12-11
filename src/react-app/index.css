@@ -96,10 +96,10 @@ input, textarea, select {
   font-size: 16px; /* Prevents zoom on iOS */
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar - Main content */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -107,12 +107,31 @@ input, textarea, select {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
+  background: #d1d5db;
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #9ca3af;
+}
+
+/* Sidebar scrollbar - distinct styling */
+aside ::-webkit-scrollbar {
+  width: 6px;
+}
+
+aside ::-webkit-scrollbar-track {
+  background: #f8f8f8;
+  border-radius: 3px;
+}
+
+aside ::-webkit-scrollbar-thumb {
+  background: #bfdbfe;
+  border-radius: 3px;
+}
+
+aside ::-webkit-scrollbar-thumb:hover {
+  background: #93c5fd;
 }
 
 /* Print styles for receipts */
@@ -128,6 +147,13 @@ input, textarea, select {
   
   .print\:hidden {
     display: none !important;
+  }
+  
+  #receipt-content, #receipt-content * {
+    font-weight: bold !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   
   @page {

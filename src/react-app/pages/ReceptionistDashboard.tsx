@@ -56,7 +56,7 @@ export default function ReceptionistDashboard() {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 p-4 lg:p-6 overflow-y-auto pb-20 sm:pb-4">
+        <main className="flex-1 p-4 lg:p-6 overflow-y-auto pb-20 sm:pb-4 lg:ml-64">
           {renderContent()}
         </main>
       </div>

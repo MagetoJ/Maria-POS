@@ -218,41 +218,41 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
 
         {/* Receipt Preview */}
         <div className="flex-1 p-4 overflow-y-auto">
-          <div className="bg-gray-50 p-4 rounded-lg font-black text-xs text-center">
+          <div className="bg-gray-50 p-4 rounded-lg font-black text-xs text-center text-black">
             {/* Logo */}
             <div className="mb-4">
               <img src="/logo.PNG" alt="Restaurant Logo" className="h-96 mx-auto object-contain border-4 border-black rounded-lg p-3 bg-gray-50 shadow-md" />
             </div>
             
             {/* Header */}
-            <div className="font-black text-lg mb-1 tracking-wider">MARIA HAVENS</div>
-            <div className="text-sm mb-2 font-black">Restaurant & Hotel</div>
-            <div className="text-sm mb-3 font-black">{getReceiptTitle(receiptData.orderType)}</div>
+            <div className="font-black text-lg mb-1 tracking-wider text-black">MARIA HAVENS</div>
+            <div className="text-sm mb-2 font-black text-black">Restaurant & Hotel</div>
+            <div className="text-sm mb-3 font-black text-black">{getReceiptTitle(receiptData.orderType)}</div>
             <div className="border-t-2 border-dashed border-gray-400 my-2"></div>
             
             {/* Order Info */}
-            <div className="text-left text-sm space-y-1 mb-3 font-black">
-              <div><span className="font-black">Receipt:</span> {receiptData.orderNumber}</div>
-              <div><span className="font-black">Date:</span> {new Date(receiptData.createdAt).toLocaleString('en-KE')}</div>
-              <div><span className="font-black">Served by:</span> {receiptData.staffName}</div>
+            <div className="text-left text-sm space-y-1 mb-3 font-black text-black">
+              <div><span className="font-black text-black">Receipt:</span> {receiptData.orderNumber}</div>
+              <div><span className="font-black text-black">Date:</span> {new Date(receiptData.createdAt).toLocaleString('en-KE')}</div>
+              <div><span className="font-black text-black">Served by:</span> {receiptData.staffName}</div>
               {receiptData.customerName && (
-                <div><span className="font-black">Customer:</span> {receiptData.customerName}</div>
+                <div><span className="font-black text-black">Customer:</span> {receiptData.customerName}</div>
               )}
-              <div><span className="font-black">Payment:</span> {receiptData.paymentMethod.toUpperCase()}</div>
+              <div><span className="font-black text-black">Payment:</span> {receiptData.paymentMethod.toUpperCase()}</div>
             </div>
             
             <div className="border-t-2 border-dashed border-gray-400 my-2"></div>
             
             {/* Items */}
-            <div className="text-left space-y-1 mb-3 font-black">
+            <div className="text-left space-y-1 mb-3 font-black text-black">
               {receiptData.items.map((item, index) => (
                 <div key={index}>
-                  <div className="flex justify-between font-black">
-                    <span className="font-black">{item.name}</span>
-                    <span className="font-black">{item.quantity}x</span>
-                    <span className="font-black">{formatCurrency(item.totalPrice)}</span>
+                  <div className="flex justify-between font-black text-black">
+                    <span className="font-black text-black">{item.name}</span>
+                    <span className="font-black text-black">{item.quantity}x</span>
+                    <span className="font-black text-black">{formatCurrency(item.totalPrice)}</span>
                   </div>
-                  <div className="text-gray-700 text-sm ml-2 font-black">
+                  <div className="text-black text-sm ml-2 font-black">
                     @ {formatCurrency(item.unitPrice)} each
                   </div>
                 </div>
@@ -262,25 +262,25 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
             <div className="border-t-2 border-dashed border-gray-400 my-2"></div>
             
             {/* Totals */}
-            <div className="text-left space-y-1 font-black">
-              <div className="flex justify-between font-black">
-                <span className="font-black">Subtotal:</span>
-                <span className="font-black">{formatCurrency(receiptData.subtotal)}</span>
+            <div className="text-left space-y-1 font-black text-black">
+              <div className="flex justify-between font-black text-black">
+                <span className="font-black text-black">Subtotal:</span>
+                <span className="font-black text-black">{formatCurrency(receiptData.subtotal)}</span>
               </div>
 
               <div className="border-t-2 border-gray-400 pt-1 mt-1">
-                <div className="flex justify-between font-black text-lg">
-                  <span className="font-black">TOTAL:</span>
-                  <span className="font-black">{formatCurrency(receiptData.total)}</span>
+                <div className="flex justify-between font-black text-lg text-black">
+                  <span className="font-black text-black">TOTAL:</span>
+                  <span className="font-black text-black">{formatCurrency(receiptData.total)}</span>
                 </div>
               </div>
             </div>
             
             <div className="border-t-2 border-dashed border-gray-400 my-2"></div>
             
-            <div className="text-sm font-black mt-3 tracking-wide">
-              <div className="font-black">Thank you for your visit!</div>
-              <div className="font-black">Please come again</div>
+            <div className="text-sm font-black mt-3 tracking-wide text-black">
+              <div className="font-black text-black">Thank you for your visit!</div>
+              <div className="font-black text-black">Please come again</div>
             </div>
           </div>
         </div>

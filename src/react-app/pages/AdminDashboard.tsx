@@ -1039,7 +1039,7 @@ export default function AdminDashboard() {
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Header />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1">
         <Sidebar
           title="Admin Dashboard"
           navItems={menuItems}
@@ -1052,7 +1052,7 @@ export default function AdminDashboard() {
           {sidebarStatusCard}
         </Sidebar>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
           <div className="lg:hidden sticky top-0 bg-white border-b border-gray-200 z-10">
             <div className="px-4 sm:px-6 h-16 flex items-center justify-between">
               <h1 className="text-xl font-semibold text-gray-900">{activeTabLabel}</h1>

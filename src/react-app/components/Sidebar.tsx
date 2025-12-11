@@ -125,10 +125,9 @@ export default function Sidebar({
 
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 p-6 transform transition-transform duration-300 ease-in-out
+          fixed lg:fixed top-0 left-0 h-screen w-64 bg-white border-r border-gray-200 p-6 transform transition-transform duration-300 ease-in-out overflow-y-auto flex flex-col z-50
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:relative lg:translate-x-0 lg:flex lg:flex-col
-          flex flex-col
+          lg:translate-x-0
         `}
       >
         <div className="flex flex-col h-full">
@@ -147,7 +146,7 @@ export default function Sidebar({
           </div>
 
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto space-y-6">
+            <div className="flex-1 overflow-y-auto space-y-6 pr-2">
               {renderNavItems()}
               {children}
             </div>

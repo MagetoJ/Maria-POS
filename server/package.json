@@ -11,7 +11,9 @@
     "migrate:prod": "cross-env NODE_ENV=production npx knex migrate:latest",
     "seed:dev": "cross-env NODE_ENV=development npx knex seed:run",
     "seed:prod": "cross-env NODE_ENV=production npx knex seed:run",
-    "db:reset:dev": "cross-env NODE_ENV=development npx knex migrate:rollback --all && npx knex migrate:latest && npx knex seed:run"
+    "db:reset:dev": "cross-env NODE_ENV=development npx knex migrate:rollback --all && npx knex migrate:latest && npx knex seed:run",
+    "update:buying-prices": "node update_buying_prices.js",
+    "setup:buying-prices": "node set_and_reduce_buying_prices.js"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
