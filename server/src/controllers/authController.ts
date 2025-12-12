@@ -122,19 +122,27 @@ export const validatePin = async (req: Request, res: Response) => {
 // Request password reset
 export const requestPasswordReset = async (req: Request, res: Response) => {
   try {
-    const { email } = req.body;
+    const { username, email } = req.body;
 
-    if (!email || !isValidEmail(email)) {
-      return res.status(400).json({ message: 'Valid email address is required' });
+    if (!username && !email) {
+      return res.status(400).json({ message: 'Username or email is required' });
     }
 
-    const user = await db('staff')
-      .where({ email, is_active: true })
-      .first();
+    // Find user by username or email
+    let user;
+    if (username) {
+      user = await db('staff')
+        .where({ username, is_active: true })
+        .first();
+    } else if (email && isValidEmail(email)) {
+      user = await db('staff')
+        .where({ email, is_active: true })
+        .first();
+    }
 
-    if (!user) {
-      // Don't reveal if email exists or not for security
-      return res.json({ message: 'If the email exists, a reset code has been sent.' });
+    if (!user || !user.email) {
+      // Don't reveal if user exists or not for security
+      return res.json({ message: 'If the account exists, a reset code has been sent to the registered email.' });
     }
 
     // Generate reset code and expiry (10 minutes from now)
@@ -150,13 +158,16 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
       });
 
     // Send email
-    const emailSent = await sendResetEmail(email, resetCode, user.name);
+    const emailSent = await sendResetEmail(user.email, resetCode, user.name);
 
     if (!emailSent) {
       return res.status(500).json({ message: 'Failed to send reset email. Please try again.' });
     }
 
-    res.json({ message: 'If the email exists, a reset code has been sent.' });
+    res.json({ 
+      message: 'If the account exists, a reset code has been sent to the registered email.',
+      email: user.email 
+    });
 
   } catch (error) {
     console.error('Password reset request error:', error);
@@ -167,14 +178,14 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 // Reset password with code
 export const resetPassword = async (req: Request, res: Response) => {
   try {
-    const { email, resetCode, newPassword } = req.body;
+    const { username, email, resetCode, newPassword } = req.body;
 
-    if (!email || !resetCode || !newPassword) {
-      return res.status(400).json({ message: 'Email, reset code, and new password are required' });
+    if (!resetCode || !newPassword) {
+      return res.status(400).json({ message: 'Reset code and new password are required' });
     }
 
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ message: 'Valid email address is required' });
+    if (!username && !email) {
+      return res.status(400).json({ message: 'Username or email is required' });
     }
 
     const passwordValidation = isValidPassword(newPassword);
@@ -182,15 +193,27 @@ export const resetPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ message: passwordValidation.message });
     }
 
-    // Find user with valid reset code
-    const user = await db('staff')
-      .where({ 
-        email, 
-        reset_code: resetCode,
-        is_active: true 
-      })
-      .where('reset_code_expires', '>', new Date())
-      .first();
+    // Find user with valid reset code by username or email
+    let user;
+    if (username) {
+      user = await db('staff')
+        .where({ 
+          username, 
+          reset_code: resetCode,
+          is_active: true 
+        })
+        .where('reset_code_expires', '>', new Date())
+        .first();
+    } else if (email && isValidEmail(email)) {
+      user = await db('staff')
+        .where({ 
+          email, 
+          reset_code: resetCode,
+          is_active: true 
+        })
+        .where('reset_code_expires', '>', new Date())
+        .first();
+    }
 
     if (!user) {
       return res.status(400).json({ message: 'Invalid or expired reset code' });
@@ -267,6 +290,93 @@ export const logout = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Logout error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Initiate password change for authenticated user
+export const initiatePasswordChange = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    const user = await db('staff').where({ id: userId, is_active: true }).first();
+    if (!user || !user.email) {
+      return res.status(400).json({ message: 'User not found or email not configured.' });
+    }
+
+    const resetCode = generateResetCode();
+    const resetExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+    await db('staff')
+      .where({ id: userId })
+      .update({
+        reset_code: resetCode,
+        reset_code_expires: resetExpiry
+      });
+
+    const emailSent = await sendResetEmail(user.email, resetCode, user.name);
+
+    if (!emailSent) {
+      return res.status(500).json({ message: 'Failed to send verification code.' });
+    }
+
+    res.json({ message: 'Verification code sent to your email.' });
+
+  } catch (error) {
+    console.error('Initiate password change error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Confirm password change for authenticated user
+export const confirmPasswordChange = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    const { code, newPassword } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    if (!code || !newPassword) {
+      return res.status(400).json({ message: 'Verification code and new password are required' });
+    }
+
+    const passwordValidation = isValidPassword(newPassword);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ message: passwordValidation.message });
+    }
+
+    const user = await db('staff')
+      .where({ 
+        id: userId, 
+        reset_code: code 
+      })
+      .where('reset_code_expires', '>', new Date())
+      .first();
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired verification code' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await db('staff')
+      .where({ id: userId })
+      .update({
+        password: hashedPassword,
+        reset_code: null,
+        reset_code_expires: null,
+        updated_at: new Date()
+      });
+
+    res.json({ message: 'Password changed successfully' });
+
+  } catch (error) {
+    console.error('Confirm password change error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };

@@ -96,10 +96,10 @@ export const createStaff = async (req: Request, res: Response) => {
     } = req.body;
 
     // Validation
-    if (!username || !name || !role) {
+    if (!username || !name || !role || !email) {
       console.log('❌ Validation failed: missing required fields');
       return res.status(400).json({ 
-        message: 'Username, name, and role are required' 
+        message: 'Username, name, role, and email are required' 
       });
     }
 

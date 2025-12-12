@@ -82,10 +82,12 @@ export default function StaffManagement() {
         payload.employee_id = formData.employee_id.trim();
       }
 
-      // Only include email if provided
-      if (formData.email.trim()) {
-        payload.email = formData.email.trim();
+      // Email is required
+      const emailTrimmed = formData.email.trim();
+      if (!emailTrimmed) {
+        throw new Error('Email is required');
       }
+      payload.email = emailTrimmed;
 
       // Only include PIN if provided
       if (formData.pin.trim()) {
@@ -424,13 +426,14 @@ export default function StaffManagement() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email <span className="text-gray-400">(optional)</span>
+                  Email <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                  required
                 />
               </div>
 

@@ -1,8 +1,9 @@
-import { useAuth } from '../contexts/AuthContext'; // <-- This line is corrected
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User, Clock, Search } from 'lucide-react';
+import { LogOut, User, Clock, Search, Lock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import SearchComponent from './SearchComponent';
+import ChangePasswordModal from './ChangePasswordModal';
 import { navigateToSearchResult } from '../utils/searchNavigation';
 
 export default function Header() {
@@ -10,13 +11,29 @@ export default function Header() {
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showSearch, setShowSearch] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000); // Update every minute
+    }, 60000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[role="button"]') && showProfileMenu) {
+        setShowProfileMenu(false);
+      }
+    };
+    
+    if (showProfileMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showProfileMenu]);
 
   const getRoleDisplayName = (role: string) => {
     const roleMap: { [key: string]: string } = {
@@ -124,22 +141,53 @@ export default function Header() {
             })}
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 bg-gray-50 rounded-lg px-2 py-1 sm:px-4 sm:py-2">
-            <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
-            <div className="text-xs sm:text-sm min-w-0">
-              <div className="font-medium text-gray-900 truncate">{user?.name}</div>
-              <div className="text-gray-500 hidden sm:block truncate">{getRoleDisplayName(user?.role || '')}</div>
-            </div>
-          </div>
-
           <button
             onClick={() => logout()}
-            className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-red-600 transition-colors p-1 sm:p-2 rounded-lg hover:bg-red-50"
+            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             title="Logout"
           >
-            <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="hidden sm:inline text-sm">Logout</span>
+            <LogOut className="w-5 h-5" />
           </button>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="flex items-center gap-2 sm:gap-3 bg-gray-50 hover:bg-gray-100 rounded-lg px-2 py-1 sm:px-4 sm:py-2 transition-colors"
+            >
+              <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
+              <div className="text-xs sm:text-sm min-w-0 text-left">
+                <div className="font-medium text-gray-900 truncate">{user?.name}</div>
+                <div className="text-gray-500 hidden sm:block truncate">{getRoleDisplayName(user?.role || '')}</div>
+              </div>
+            </button>
+
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                <button
+                  onClick={() => {
+                    setShowChangePassword(true);
+                    setShowProfileMenu(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100"
+                >
+                  <Lock className="w-4 h-4" />
+                  Change Password
+                </button>
+                <button
+                  onClick={() => {
+                    logout();
+                    setShowProfileMenu(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-red-600 hover:bg-red-50"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+
+
         </div>
       </div>
 
@@ -159,6 +207,11 @@ export default function Header() {
           </div>
         </div>
       )}
+
+      <ChangePasswordModal 
+        isOpen={showChangePassword} 
+        onClose={() => setShowChangePassword(false)} 
+      />
     </header>
   );
 }
