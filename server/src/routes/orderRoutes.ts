@@ -15,6 +15,9 @@ router.use(authenticateToken);
 // Get staff member's recent orders (for My Recent Orders feature)
 router.get('/staff/recent', orderController.getStaffRecentOrders);
 
+// Get ALL recent orders (for Receptionist/Admin view)
+router.get('/recent/all', orderController.getAllRecentOrders);
+
 // Get orders with filtering (all authenticated users can view orders)
 router.get('/', orderController.getOrders);
 
@@ -25,6 +28,12 @@ router.get('/:id', orderController.getOrderById);
 router.put('/:id/status', 
   authorizeRoles('kitchen_staff', 'admin', 'manager'),
   orderController.updateOrderStatus
+);
+
+// Mark order as completed when receipt is printed (for receipt auditing)
+router.put('/:id/complete-for-print',
+  authorizeRoles('admin', 'manager', 'receptionist', 'waiter', 'cashier'),
+  orderController.markOrderAsCompleted
 );
 
 export default router;

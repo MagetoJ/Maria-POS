@@ -2,6 +2,7 @@ import { X, Printer } from 'lucide-react';
 
 interface ReceiptModalProps {
   receiptData: {
+    orderId?: number;
     orderNumber: string;
     customerName?: string;
     items: Array<{
@@ -40,7 +41,28 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
     }
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    try {
+      if (receiptData.orderId) {
+        const token = localStorage.getItem('pos_token');
+        const response = await fetch(`http://localhost:3000/api/orders/${receiptData.orderId}/complete-for-print`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+          }
+        });
+
+        if (response.ok) {
+          console.log('✅ Order marked as completed for receipt printing');
+        } else {
+          console.warn('⚠️ Could not mark order as completed, proceeding with print');
+        }
+      }
+    } catch (error) {
+      console.error('Error marking order as completed:', error);
+    }
+
     const customerLine = receiptData.customerName ? `<div>Customer: ${receiptData.customerName}</div>` : '';
     const receiptContent = `
       <!DOCTYPE html>
@@ -60,6 +82,7 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
             padding: 10px;
             background: #f8f8f8;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            filter: saturate(0%) contrast(1.4) brightness(0.95);
           }
           .header { font-size: 18px; font-weight: 900; margin-bottom: 8px; letter-spacing: 1px; }
           .subheader { font-size: 14px; margin-bottom: 10px; font-weight: 900; }
@@ -221,7 +244,7 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
           <div className="bg-gray-50 p-4 rounded-lg font-black text-xs text-center text-black">
             {/* Logo */}
             <div className="mb-4">
-              <img src="/logo.PNG" alt="Restaurant Logo" className="h-96 mx-auto object-contain border-4 border-black rounded-lg p-3 bg-gray-50 shadow-md" />
+              <img src="/logo.PNG" alt="Restaurant Logo" className="h-96 mx-auto object-contain border-4 border-black rounded-lg p-3 bg-gray-50 shadow-md" style={{ filter: 'saturate(0%) contrast(1.4) brightness(0.95)' }} />
             </div>
             
             {/* Header */}

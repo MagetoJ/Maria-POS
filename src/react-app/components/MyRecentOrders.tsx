@@ -26,6 +26,7 @@ interface RecentOrder {
 }
 
 interface ReceiptData {
+  orderId?: number;
   orderNumber: string;
   customerName?: string;
   items: Array<{
@@ -57,7 +58,7 @@ export default function MyRecentOrders() {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await apiClient.get('/api/orders/staff/recent?limit=20&offset=0');
+      const response = await apiClient.get('/api/orders/recent/all?limit=20&offset=0');
       
       if (!response.ok) {
         throw new Error('Failed to fetch recent orders');
@@ -100,6 +101,7 @@ export default function MyRecentOrders() {
 
   const handleReprint = (order: RecentOrder) => {
     const receiptData: ReceiptData = {
+      orderId: order.id,
       orderNumber: order.order_number,
       customerName: order.customer_name,
       items: order.items.map(item => ({

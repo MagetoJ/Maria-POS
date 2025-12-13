@@ -264,6 +264,33 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
   }
 };
 
+// Mark order as completed when receipt is printed
+export const markOrderAsCompleted = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const order = await db('orders').where({ id }).first();
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    const [updatedOrder] = await db('orders')
+      .where({ id })
+      .update({ 
+        status: 'completed', 
+        updated_at: new Date() 
+      })
+      .returning('*');
+
+    console.log(`✅ Order ${id} marked as completed for receipt printing`);
+    res.json({ message: 'Order marked as completed', order: updatedOrder });
+
+  } catch (err) {
+    console.error('Error marking order as completed:', err);
+    res.status(500).json({ message: 'Error marking order as completed' });
+  }
+};
+
 // Get staff member's recent orders (for My Recent Orders feature)
 export const getStaffRecentOrders = async (req: Request, res: Response) => {
   try {
@@ -305,6 +332,50 @@ export const getStaffRecentOrders = async (req: Request, res: Response) => {
 
   } catch (err) {
     console.error('Error fetching staff recent orders:', err);
+    res.status(500).json({ message: 'Error fetching recent orders' });
+  }
+};
+
+// Get ALL recent orders (for Receptionist/Admin view - no staff_id filter)
+export const getAllRecentOrders = async (req: Request, res: Response) => {
+  try {
+    // Only allow authorized roles
+    const authorizedRoles = ['admin', 'manager', 'receptionist', 'cashier'];
+    if (!req.user || !authorizedRoles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Unauthorized access to all orders' });
+    }
+
+    const { limit = 20, offset = 0 } = req.query;
+
+    const orders = await db('orders')
+      .select('orders.*', 'staff.name as staff_name')
+      .leftJoin('staff', 'orders.staff_id', 'staff.id')
+      .orderBy('orders.created_at', 'desc')
+      .limit(parseInt(limit as string))
+      .offset(parseInt(offset as string));
+
+    for (const order of orders) {
+      const items = await db('order_items')
+        .leftJoin('products', 'order_items.product_id', 'products.id')
+        .where('order_id', order.id)
+        .select(
+          'order_items.*',
+          'products.name as product_name'
+        );
+
+      (order as any).items = items;
+
+      const payment = await db('payments')
+        .where('order_id', order.id)
+        .first();
+      
+      (order as any).payment_method = payment?.payment_method || order.payment_method || 'cash';
+    }
+
+    res.json(orders);
+
+  } catch (err) {
+    console.error('Error fetching all recent orders:', err);
     res.status(500).json({ message: 'Error fetching recent orders' });
   }
 };
