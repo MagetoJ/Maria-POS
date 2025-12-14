@@ -1,15 +1,13 @@
-import { useState, useEffect } from 'react';
-import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle, Printer, ChevronDown } from 'lucide-react';
-// --- MODIFIED: Import new fetchReceiptsByDate function ---
+import React, { useState, useEffect } from 'react';
+import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle, Printer, ChevronDown, BarChart3 } from 'lucide-react';
 import { apiClient, fetchReceiptsByDate } from '../../config/api';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
-// --- ADDED: Import ReceiptModal ---
 import ReceiptModal from '../receptionist/ReceiptModal';
-// --- CORRECTED: Use 'any' for now as 'Order' is not exported from shared/types ---
-// import { Order as OrderType } from '../../../shared/types'; // Corrected import (assuming name)
-type OrderType = any; // Using 'any' as a temporary fix
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+
+type OrderType = any;
 
 // Format currency function (assuming KES)
 const formatCurrency = (amount: number | null | undefined): string => {
@@ -77,6 +75,22 @@ interface RoomReportData {
     roomStatusCounts: { status: string; count: number }[];
 }
 
+interface AnnualReportData {
+  year: number;
+  summary: {
+    totalRevenue: number;
+    totalOrders: number;
+    bestMonth: { name: string; revenue: number; orders: number };
+    worstMonth: { name: string; revenue: number; orders: number };
+  };
+  monthlyBreakdown: {
+    month: string;
+    monthNum: number;
+    revenue: number;
+    orders: number;
+  }[];
+}
+
 export default function ReportsManagement() {
   const [reportData, setReportData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false); // Default to false initially
@@ -105,26 +119,21 @@ export default function ReportsManagement() {
   // --- ADDED: Responsive navigation state ---
   const [showDropdown, setShowDropdown] = useState(false);
 
-  useEffect(() => {
-    // Fetch regular reports when selection or date changes
-     if (selectedReport !== 'receiptAudit') { // Only fetch standard reports if not on audit tab
-        fetchReportData();
-     } else {
-       // Reset standard report loading state if switching to audit tab
-       setIsLoading(false); // Ensure loading is false
-       setError(null);
-       setReportData(null);
-     }
-  }, [selectedReport, dateRange.start, dateRange.end]);
+  // --- ADDED: Annual Report state ---
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const currentYear = new Date().getFullYear();
 
- // Fetch overview report on initial load
- useEffect(() => {
-    // Only fetch overview if it's the selected report initially
-    if (selectedReport === 'overview') {
-        fetchReportData();
+  useEffect(() => {
+    if (selectedReport === 'receiptAudit') {
+      setIsLoading(false);
+      setError(null);
+      setReportData(null);
+    } else if (selectedReport === 'annual') {
+      fetchAnnualReport();
+    } else {
+      fetchReportData();
     }
- // eslint-disable-next-line react-hooks/exhaustive-deps
- }, []); // Run only once on mount
+  }, [selectedReport, dateRange.start, dateRange.end, selectedYear]);
 
   const fetchReportData = async () => {
     // Prevent fetching if receipt audit tab is selected initially
@@ -186,6 +195,49 @@ export default function ReportsManagement() {
     }
   };
 
+  const fetchAnnualReport = async () => {
+    setIsLoading(true);
+    setError(null);
+    setReportData(null);
+
+    try {
+      const endpoint = `/api/reports/annual?year=${selectedYear}`;
+      console.log('Fetching annual report from:', endpoint);
+      
+      const response = await apiClient.get(endpoint);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (errorText.toLowerCase().includes('forbidden') || response.status === 403) {
+          throw new Error(`Access Denied (403): You might not have the required permissions for this report.`);
+        } else if (response.status === 401) {
+          throw new Error(`Authentication Required (401): Please log in again.`);
+        }
+        throw new Error(`Failed to fetch annual report: ${response.status}`);
+      }
+
+      try {
+        const responseData = await response.json();
+        console.log('Annual report raw response:', responseData);
+        const data = responseData.data || responseData;
+        console.log('Annual report data after unwrap:', data);
+        setReportData(data);
+      } catch (jsonError) {
+        console.error("JSON Parsing Error:", jsonError);
+        throw new Error('Failed to parse server response.');
+      }
+    } catch (err) {
+      let specificError = 'Failed to fetch annual report. Please check the console.';
+      if (err instanceof Error) {
+        specificError = err.message;
+      }
+      setError(specificError);
+      console.error("Failed to fetch annual report:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // --- ADDED: New handler for fetching receipts ---
   const handleSearchReceipts = async () => {
     if (!receiptStartDate || !receiptEndDate) {
@@ -235,6 +287,7 @@ export default function ReportsManagement() {
   const reportTypes = [
     { id: 'overview', label: 'Overview', icon: TrendingUp },
     { id: 'sales', label: 'Sales Report', icon: DollarSign },
+    { id: 'annual', label: 'Annual Report', icon: BarChart3 },
     { id: 'inventory', label: 'Inventory Report', icon: Package },
     { id: 'staff', label: 'Staff Performance', icon: Users },
     { id: 'rooms', label: 'Room Revenue', icon: Bed },
@@ -285,6 +338,17 @@ export default function ReportsManagement() {
       sheetData = (data.roomStatusCounts || []).map((item: any) => ({
         'Room Status': item.status,
         'Count': item.count
+      }));
+
+    } else if (selectedReport === 'annual') {
+      const annualData = data as AnnualReportData;
+      fileName = `annual_report_${annualData.year}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      sheetData = annualData.monthlyBreakdown.map((month: any) => ({
+        'Month': month.month,
+        'Revenue (KES)': month.revenue,
+        'Orders': month.orders,
+        'Avg Order Value (KES)': month.revenue / (month.orders || 1)
       }));
     }
 
@@ -581,6 +645,112 @@ export default function ReportsManagement() {
          </div>
     );
   };
+  // --- Annual Report Rendering ---
+  const renderAnnualReport = () => {
+    if (!reportData) return <div className="text-center py-10 text-gray-500">No data available for the selected year.</div>;
+    
+    try {
+      const data = reportData as AnnualReportData;
+      if (!data.monthlyBreakdown || !data.summary) {
+        return <div className="text-center py-10 text-gray-500">Invalid annual report data.</div>;
+      }
+      const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+    
+    return (
+      <div id="report-content" className="space-y-8">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+            <p className="text-sm font-medium text-gray-600 mb-2">Total Revenue</p>
+            <p className="text-3xl font-bold text-green-600">{formatCurrency(data.summary.totalRevenue)}</p>
+            <p className="text-xs text-gray-500 mt-2">{data.year}</p>
+          </div>
+          
+          <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+            <p className="text-sm font-medium text-gray-600 mb-2">Total Orders</p>
+            <p className="text-3xl font-bold text-blue-600">{data.summary.totalOrders.toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-2">Completed orders</p>
+          </div>
+          
+          <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+            <p className="text-sm font-medium text-gray-600 mb-2">Best Month</p>
+            <p className="text-lg font-bold text-purple-600">{data.summary.bestMonth.name}</p>
+            <p className="text-sm text-gray-500 mt-2">{formatCurrency(data.summary.bestMonth.revenue)}</p>
+          </div>
+          
+          <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+            <p className="text-sm font-medium text-gray-600 mb-2">Worst Month</p>
+            <p className="text-lg font-bold text-orange-600">{data.summary.worstMonth.name}</p>
+            <p className="text-sm text-gray-500 mt-2">{formatCurrency(data.summary.worstMonth.revenue)}</p>
+          </div>
+        </div>
+
+        {/* Revenue Chart */}
+        <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Monthly Revenue Trend</h3>
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={data.monthlyBreakdown}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="month" angle={-45} textAnchor="end" height={100} />
+              <YAxis />
+              <Tooltip 
+                formatter={(value) => formatCurrency(Number(value))}
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+              />
+              <Legend />
+              <Bar dataKey="revenue" fill="#10b981" name="Revenue (KES)" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Orders Chart */}
+        <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Monthly Orders Distribution</h3>
+          <ResponsiveContainer width="100%" height={400}>
+            <LineChart data={data.monthlyBreakdown}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="month" angle={-45} textAnchor="end" height={100} />
+              <YAxis />
+              <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
+              <Legend />
+              <Line type="monotone" dataKey="orders" stroke="#3b82f6" strokeWidth={3} name="Number of Orders" dot={{ r: 5 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Detailed Monthly Data Table */}
+        <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Monthly Breakdown</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Month</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Revenue</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Orders</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Avg Order Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {data.monthlyBreakdown.map((month) => (
+                  <tr key={month.monthNum} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{month.month}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 font-semibold">{formatCurrency(month.revenue)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{month.orders}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{formatCurrency(month.revenue / (month.orders || 1))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+    } catch (err) {
+      console.error('Error rendering annual report:', err);
+      return <div className="text-center py-10 text-red-500">Error loading annual report data.</div>;
+    }
+  };
   // --- END of standard report rendering functions ---
 
 
@@ -604,21 +774,26 @@ export default function ReportsManagement() {
         );
     }
 
-    if (!reportData && selectedReport !== 'receiptAudit') { // Don't show if receipt audit is active and no data yet
+    if (!reportData && selectedReport !== 'receiptAudit') {
+      if (selectedReport === 'annual') {
+        return <div className="text-center py-20 text-gray-500">Select a year to generate a report.</div>;
+      }
       return <div className="text-center py-20 text-gray-500">Select a date range to generate a report.</div>;
     }
 
-    // --- MODIFIED: Added case for 'receiptAudit' ---
+    // --- MODIFIED: Added case for 'receiptAudit' and 'annual' ---
     switch (selectedReport) {
       case 'sales':
         return renderSalesReport();
+      case 'annual':
+        return renderAnnualReport();
       case 'inventory':
         return renderInventoryReport();
       case 'staff':
         return renderStaffReport();
       case 'rooms':
         return renderRoomReport();
-      case 'receiptAudit': // Render nothing here, handled separately below
+      case 'receiptAudit':
         return null;
       default: // Overview
         return renderOverviewReport();
@@ -631,8 +806,8 @@ export default function ReportsManagement() {
   };
 
   return (
-    <div className="space-y-6 p-4"> {/* Added padding */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"> {/* Responsive layout */}
+    <div className="space-y-6 p-4">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Reports & Analytics</h2>
           <p className="text-gray-600">Generate and export comprehensive business reports</p>
@@ -660,8 +835,45 @@ export default function ReportsManagement() {
         )}
       </div>
 
-      {/* Standard Report Date Range Picker (Only shown for standard reports) */}
-      {selectedReport !== 'receiptAudit' && (
+      {/* Year Picker for Annual Reports */}
+      {selectedReport === 'annual' && (
+        <div className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-gray-400" />
+                <span className="text-sm font-medium text-gray-700">Select Year:</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedYear(prev => prev - 1)}
+                  className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-100 font-medium text-sm"
+                >
+                  ←
+                </button>
+                <input
+                  type="number"
+                  min={2000}
+                  max={currentYear + 10}
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value) || currentYear)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium w-24 text-center"
+                />
+                <button
+                  onClick={() => setSelectedYear(prev => prev + 1)}
+                  disabled={selectedYear >= currentYear + 10}
+                  className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-100 font-medium text-sm disabled:opacity-50"
+                >
+                  →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Standard Report Date Range Picker (Only shown for non-annual, non-audit reports) */}
+      {selectedReport !== 'receiptAudit' && selectedReport !== 'annual' && (
         <div className="bg-white rounded-lg p-4 border border-gray-200">
             <div className="flex flex-wrap gap-4 items-center">
               <div className="flex items-center gap-2">
@@ -966,4 +1178,3 @@ export default function ReportsManagement() {
     </div>
   );
 }
-import React from 'react';

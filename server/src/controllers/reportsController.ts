@@ -194,7 +194,7 @@ export const getOverviewReport = async (req: Request, res: Response) => {
       },
       orders: { 
         total: parseInt(salesOverview?.total_orders) || 0,
-        completed: parseInt(salesOverview?.total_orders) || 0, // Assuming all fetched orders are completed
+        completed: parseInt(salesOverview?.total_orders) || 0,
         averageValue: parseFloat(salesOverview?.average_order_value) || 0
       },
       inventory: {
@@ -463,7 +463,6 @@ export const getPerformanceReport = async (req: Request, res: Response) => {
     const startDate = start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const endDate = end || new Date().toISOString().split('T')[0];
 
-    // Staff performance
     const staffPerformance = await db('orders')
       .join('staff', 'orders.staff_id', 'staff.id')
       .whereBetween('orders.created_at', [`${startDate} 00:00:00`, `${endDate} 23:59:59`])
@@ -478,7 +477,6 @@ export const getPerformanceReport = async (req: Request, res: Response) => {
       .groupBy('staff.id', 'staff.name', 'staff.role')
       .orderBy('total_sales', 'desc');
 
-    // Order status distribution
     const orderStatusDistribution = await db('orders')
       .whereBetween('created_at', [`${startDate} 00:00:00`, `${endDate} 23:59:59`])
       .select(
@@ -487,7 +485,6 @@ export const getPerformanceReport = async (req: Request, res: Response) => {
       )
       .groupBy('status');
 
-    // Average preparation time
     let averagePreparationTime = null;
     try {
       const prepTimeData = await db('orders')
@@ -536,8 +533,6 @@ export const getReceiptsByDate = async (req: Request, res: Response) => {
       offset = 0 
     } = req.query;
 
-    console.log('🧾 Fetching Receipt Audit:', { start_date, end_date });
-
     if (!start_date || !end_date) {
       return res.status(400).json({ message: 'start_date and end_date are required' });
     }
@@ -563,8 +558,6 @@ export const getReceiptsByDate = async (req: Request, res: Response) => {
       .limit(parseInt(limit as string))
       .offset(parseInt(offset as string));
 
-    console.log(`✅ Found ${orders.length} receipts`);
-
     const formattedOrders = [];
     
     for (const order of orders) {
@@ -582,7 +575,7 @@ export const getReceiptsByDate = async (req: Request, res: Response) => {
         .where('order_id', order.id)
         .first();
 
-      formattedOrders.push({
+      const formattedOrder = {
         id: order.id,
         order_number: order.order_number,
         created_at: order.created_at,
@@ -593,7 +586,6 @@ export const getReceiptsByDate = async (req: Request, res: Response) => {
         status: order.status,
         
         receiptData: {
-          orderId: order.id,
           orderNumber: order.order_number,
           customerName: order.customer_name,
           items: items.map((item: any) => ({
@@ -602,19 +594,21 @@ export const getReceiptsByDate = async (req: Request, res: Response) => {
             unitPrice: parseFloat(item.unit_price) || 0,
             totalPrice: parseFloat(item.total_price) || 0
           })),
-          subtotal: parseFloat(order.total_amount) || 0,
+          subtotal: parseFloat(order.subtotal) || parseFloat(order.total_amount) || 0,
           total: parseFloat(order.total_amount) || 0,
           paymentMethod: payment?.payment_method || 'cash',
           staffName: order.staff_name || 'System',
           createdAt: order.created_at,
           orderType: order.order_type || 'general'
         }
-      });
+      };
+
+      formattedOrders.push(formattedOrder);
     }
 
     let countQuery = db('orders')
       .whereBetween('created_at', [start_date as string, end_date as string]);
-
+      
     if (customer_name) {
       countQuery = countQuery.where('customer_name', 'ilike', `%${customer_name}%`);
     }
@@ -636,7 +630,82 @@ export const getReceiptsByDate = async (req: Request, res: Response) => {
     });
 
   } catch (err) {
-    console.error('❌ Error fetching receipts:', err);
+    console.error('Error fetching receipts:', err);
     res.status(500).json({ message: 'Error fetching receipts' });
+  }
+};
+
+// Get annual revenue report
+export const getAnnualReport = async (req: Request, res: Response) => {
+  try {
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+    const startDate = `${year}-01-01 00:00:00`;
+    const endDate = `${year}-12-31 23:59:59`;
+
+    console.log(`📅 Generating Annual Report for ${year}...`);
+
+    const monthlySales = await db('orders')
+      .whereBetween('created_at', [startDate, endDate])
+      .select(
+        db.raw('EXTRACT(MONTH FROM created_at) as month_num'),
+        db.raw('COUNT(id) as total_orders'),
+        db.raw('COALESCE(SUM(total_amount), 0) as total_revenue')
+      )
+      .groupByRaw('EXTRACT(MONTH FROM created_at)')
+      .orderBy('month_num', 'asc');
+
+    let totalYearlyRevenue = 0;
+    let totalYearlyOrders = 0;
+    let bestMonth = { name: 'N/A', revenue: 0, orders: 0 };
+    let worstMonth = { name: 'N/A', revenue: Infinity, orders: 0 };
+
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const allMonthsData = monthNames.map((name, index) => {
+      const monthIndex = index + 1;
+      const foundData = monthlySales.find((m: any) => Number(m.month_num) === monthIndex);
+
+      const revenue = foundData ? parseFloat(foundData.total_revenue) : 0;
+      const orders = foundData ? parseInt(foundData.total_orders) : 0;
+
+      totalYearlyRevenue += revenue;
+      totalYearlyOrders += orders;
+
+      if (revenue > bestMonth.revenue) {
+        bestMonth = { name, revenue, orders };
+      }
+
+      if (revenue < worstMonth.revenue) {
+        worstMonth = { name, revenue, orders };
+      }
+
+      return {
+        month: name,
+        monthNum: monthIndex,
+        revenue,
+        orders
+      };
+    });
+
+    if (worstMonth.revenue === Infinity) {
+      worstMonth = { name: 'N/A', revenue: 0, orders: 0 };
+    }
+
+    res.json({
+      year,
+      summary: {
+        totalRevenue: totalYearlyRevenue,
+        totalOrders: totalYearlyOrders,
+        bestMonth,
+        worstMonth
+      },
+      monthlyBreakdown: allMonthsData
+    });
+  } catch (error) {
+    console.error('Annual report error:', error);
+    res.status(500).json({ message: 'Error generating annual report' });
   }
 };

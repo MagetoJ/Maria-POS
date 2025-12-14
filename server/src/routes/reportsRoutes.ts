@@ -43,4 +43,7 @@ router.get('/rooms', reportsController.getRoomsReport);
 // Performance report
 router.get('/performance', reportsController.getPerformanceReport);
 
+// Annual report
+router.get('/annual', reportsController.getAnnualReport);
+
 export default router;
