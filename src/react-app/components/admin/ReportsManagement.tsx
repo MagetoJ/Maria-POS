@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle, Printer } from 'lucide-react';
+import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle, Printer, ChevronDown } from 'lucide-react';
 // --- MODIFIED: Import new fetchReceiptsByDate function ---
 import { apiClient, fetchReceiptsByDate } from '../../config/api';
 import jsPDF from 'jspdf';
@@ -16,7 +16,7 @@ const formatCurrency = (amount: number | null | undefined): string => {
   if (amount === null || amount === undefined) {
     return 'KES 0';
   }
-  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
 
 // Format order type for display
@@ -37,14 +37,14 @@ const formatOrderType = (orderType?: string): string => {
 
 // --- Interfaces for different report data structures ---
 interface OverviewReportData {
-  sales: { monthly: number };
-  orders: { total: number; completed: number; averageValue: number };
-  inventory: { topSellingItems: { name: string; quantity: number; revenue: number }[] };
-  staff: { topPerformers: { name: string; orders: number; revenue: number }[] };
+  sales: { monthly: number };
+  orders: { total: number; completed: number; averageValue: number };
+  inventory: { topSellingItems: { name: string; quantity: number; revenue: number }[] };
+  staff: { topPerformers: { name: string; orders: number; revenue: number }[] };
 }
 
 interface SalesReportData {
-  salesByDay: { date: string; total: number }[];
+  salesByDay: { date: string; total: number }[];
 }
 
 interface InventoryReportData {
@@ -65,27 +65,27 @@ interface InventoryReportData {
 }
 
 interface StaffReportData {
-    name: string;
-    role: string;
-    orders: number;
-    revenue: number;
-    avgOrderValue: number;
+    name: string;
+    role: string;
+    orders: number;
+    revenue: number;
+    avgOrderValue: number;
 }
 
 interface RoomReportData {
-    roomRevenue: number;
-    roomStatusCounts: { status: string; count: number }[];
+    roomRevenue: number;
+    roomStatusCounts: { status: string; count: number }[];
 }
 
 export default function ReportsManagement() {
-  const [reportData, setReportData] = useState<any | null>(null);
-  const [isLoading, setIsLoading] = useState(false); // Default to false initially
-  const [error, setError] = useState<string | null>(null);
-  const [selectedReport, setSelectedReport] = useState('overview');
-  const [dateRange, setDateRange] = useState({
-    start: new Date(new Date().setDate(1)).toISOString().split('T')[0], // Default to start of month
-    end: new Date().toISOString().split('T')[0] // Default to today
-  });
+  const [reportData, setReportData] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(false); // Default to false initially
+  const [error, setError] = useState<string | null>(null);
+  const [selectedReport, setSelectedReport] = useState('overview');
+  const [dateRange, setDateRange] = useState({
+    start: new Date(new Date().setDate(1)).toISOString().split('T')[0], // Default to start of month
+    end: new Date().toISOString().split('T')[0] // Default to today
+  });
 
   // --- ADDED: New state for Receipt Auditing ---
   const [receiptStartDate, setReceiptStartDate] = useState('');
@@ -102,7 +102,10 @@ export default function ReportsManagement() {
   // const [receiptPage, setReceiptPage] = useState(0);
   // const [receiptTotal, setReceiptTotal] = useState(0);
 
-  useEffect(() => {
+  // --- ADDED: Responsive navigation state ---
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  useEffect(() => {
     // Fetch regular reports when selection or date changes
      if (selectedReport !== 'receiptAudit') { // Only fetch standard reports if not on audit tab
         fetchReportData();
@@ -112,7 +115,7 @@ export default function ReportsManagement() {
        setError(null);
        setReportData(null);
      }
-  }, [selectedReport, dateRange.start, dateRange.end]);
+  }, [selectedReport, dateRange.start, dateRange.end]);
 
  // Fetch overview report on initial load
  useEffect(() => {
@@ -123,39 +126,39 @@ export default function ReportsManagement() {
  // eslint-disable-next-line react-hooks/exhaustive-deps
  }, []); // Run only once on mount
 
-  const fetchReportData = async () => {
+  const fetchReportData = async () => {
     // Prevent fetching if receipt audit tab is selected initially
     if (selectedReport === 'receiptAudit') {
         setIsLoading(false); // Ensure loading state is reset if switching to audit tab
         return;
     }
-    setIsLoading(true);
-    setError(null);
+    setIsLoading(true);
+    setError(null);
     setReportData(null); // Clear previous report data
 
-    const query = new URLSearchParams({
-        start: dateRange.start,
-        end: dateRange.end,
-    }).toString();
+    const query = new URLSearchParams({
+        start: dateRange.start,
+        end: dateRange.end,
+    }).toString();
 
-    try {
+    try {
       // Use the correct /api prefix for standard reports
-      const endpoint = `/api/reports/${selectedReport}?${query}`;
-      console.log('Fetching report from:', endpoint);
-      
-      const response = await apiClient.get(endpoint);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
+      const endpoint = `/api/reports/${selectedReport}?${query}`;
+      console.log('Fetching report from:', endpoint);
+      
+      const response = await apiClient.get(endpoint);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
          // Attempt to parse HTML error for better feedback
         if (errorText.toLowerCase().includes('forbidden') || response.status === 403) {
              throw new Error(`Access Denied (403): You might not have the required permissions for this report.`);
          } else if (response.status === 401) {
              throw new Error(`Authentication Required (401): Please log in again.`);
          }
-        throw new Error(`Failed to fetch report data: ${response.status} - ${errorText.substring(0, 100)}...`); // Show snippet
-      }
-      
+        throw new Error(`Failed to fetch report data: ${response.status} - ${errorText.substring(0, 100)}...`); // Show snippet
+      }
+      
       // --- WRAP JSON PARSING IN TRY/CATCH ---
       try {
         const data = await response.json();
@@ -170,18 +173,18 @@ export default function ReportsManagement() {
                throw new Error('Failed to parse server response.'); // Generic parse error
            }
       }
-    } catch (err) {
+    } catch (err) {
        let specificError = 'Failed to fetch report data. Please check the console.';
        // Use the error message directly if it was already processed
        if (err instanceof Error) {
            specificError = err.message;
        }
-      setError(specificError);
-      console.error("Failed to fetch report data:", err); // Log original error too
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      setError(specificError);
+      console.error("Failed to fetch report data:", err); // Log original error too
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // --- ADDED: New handler for fetching receipts ---
   const handleSearchReceipts = async () => {
@@ -229,13 +232,14 @@ export default function ReportsManagement() {
   };
 
 
-  const reportTypes = [
-    { id: 'overview', label: 'Overview', icon: TrendingUp },
-    { id: 'sales', label: 'Sales Report', icon: DollarSign },
-    { id: 'inventory', label: 'Inventory Report', icon: Package },
-    { id: 'staff', label: 'Staff Performance', icon: Users },
-    { id: 'rooms', label: 'Room Revenue', icon: Bed }
-  ];
+  const reportTypes = [
+    { id: 'overview', label: 'Overview', icon: TrendingUp },
+    { id: 'sales', label: 'Sales Report', icon: DollarSign },
+    { id: 'inventory', label: 'Inventory Report', icon: Package },
+    { id: 'staff', label: 'Staff Performance', icon: Users },
+    { id: 'rooms', label: 'Room Revenue', icon: Bed },
+    { id: 'receiptAudit', label: 'Receipt Audit', icon: Printer }
+  ];
 
   const exportToExcel = (data: any, reportName: string) => {
     let sheetData: any[] = [];
@@ -347,7 +351,7 @@ export default function ReportsManagement() {
       alert('Error exporting report. Please try again.');
     }
   };
-  
+  
   // --- Rendering functions for standard reports (renderOverviewReport, etc.) ---
   // --- Assume these exist as in your provided code ---
   const renderOverviewReport = () => { /* ... existing code ... */ 
@@ -580,54 +584,59 @@ export default function ReportsManagement() {
   // --- END of standard report rendering functions ---
 
 
-  const renderCurrentReport = () => {
-    if (isLoading && selectedReport !== 'receiptAudit') { // Show loading only for standard reports here
-      return (
-        <div className="flex justify-center items-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-yellow-500" />
-          <p className="ml-4 text-gray-600">Generating report...</p>
-        </div>
-      );
-    }
+  const renderCurrentReport = () => {
+    if (isLoading && selectedReport !== 'receiptAudit') { // Show loading only for standard reports here
+      return (
+        <div className="flex justify-center items-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-yellow-500" />
+          <p className="ml-4 text-gray-600">Generating report...</p>
+        </div>
+      );
+    }
 
-    if (error && selectedReport !== 'receiptAudit') { // Show error only for standard reports here
-        return (
-            <div className="flex flex-col items-center justify-center py-20 bg-red-50 border border-red-200 rounded-lg">
-                <AlertTriangle className="w-8 h-8 text-red-500" />
-                <p className="mt-4 font-semibold text-red-700">Failed to load report data</p>
-                <p className="text-sm text-red-600">{error}</p>
-            </div>
-        );
-    }
+    if (error && selectedReport !== 'receiptAudit') { // Show error only for standard reports here
+        return (
+            <div className="flex flex-col items-center justify-center py-20 bg-red-50 border border-red-200 rounded-lg">
+                <AlertTriangle className="w-8 h-8 text-red-500" />
+                <p className="mt-4 font-semibold text-red-700">Failed to load report data</p>
+                <p className="text-sm text-red-600">{error}</p>
+            </div>
+        );
+    }
 
-    if (!reportData && selectedReport !== 'receiptAudit') { // Don't show if receipt audit is active and no data yet
-      return <div className="text-center py-20 text-gray-500">Select a date range to generate a report.</div>;
-    }
+    if (!reportData && selectedReport !== 'receiptAudit') { // Don't show if receipt audit is active and no data yet
+      return <div className="text-center py-20 text-gray-500">Select a date range to generate a report.</div>;
+    }
 
     // --- MODIFIED: Added case for 'receiptAudit' ---
-    switch (selectedReport) {
-      case 'sales':
-        return renderSalesReport();
-      case 'inventory':
-        return renderInventoryReport();
-      case 'staff':
-        return renderStaffReport();
-      case 'rooms':
-        return renderRoomReport();
+    switch (selectedReport) {
+      case 'sales':
+        return renderSalesReport();
+      case 'inventory':
+        return renderInventoryReport();
+      case 'staff':
+        return renderStaffReport();
+      case 'rooms':
+        return renderRoomReport();
       case 'receiptAudit': // Render nothing here, handled separately below
         return null;
-      default: // Overview
-        return renderOverviewReport();
-    }
-  };
+      default: // Overview
+        return renderOverviewReport();
+    }
+  };
 
-  return (
-    <div className="space-y-6 p-4"> {/* Added padding */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"> {/* Responsive layout */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Reports & Analytics</h2>
-          <p className="text-gray-600">Generate and export comprehensive business reports</p>
-        </div>
+  const handleSelectReport = (reportId: string) => {
+    setSelectedReport(reportId);
+    setShowDropdown(false);
+  };
+
+  return (
+    <div className="space-y-6 p-4"> {/* Added padding */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4"> {/* Responsive layout */}
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Reports & Analytics</h2>
+          <p className="text-gray-600">Generate and export comprehensive business reports</p>
+        </div>
         {/* Only show export buttons for standard reports */}
         {selectedReport !== 'receiptAudit' && reportData && ( // Only show if data exists
           <div className="flex gap-2">
@@ -649,77 +658,101 @@ export default function ReportsManagement() {
                 </button>
           </div>
         )}
-      </div>
+      </div>
 
       {/* Standard Report Date Range Picker (Only shown for standard reports) */}
       {selectedReport !== 'receiptAudit' && (
         <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700">Date Range:</span>
-                <input
-                  type="date"
-                  value={dateRange.start}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                  className="px-3 py-1 border border-gray-300 rounded-md text-sm"
-                />
-                <span className="text-gray-500">to</span>
-                <input
-                  type="date"
-                  value={dateRange.end}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                  className="px-3 py-1 border border-gray-300 rounded-md text-sm"
-                  min={dateRange.start}
-                />
-              </div>
-            </div>
-        </div>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-gray-400" />
+                <span className="text-sm font-medium text-gray-700">Date Range:</span>
+                <input
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm"
+                />
+                <span className="text-gray-500">to</span>
+                <input
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm"
+                  min={dateRange.start}
+                />
+              </div>
+            </div>
+        </div>
       )}
 
 
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="border-b border-gray-200">
-          <nav className="flex overflow-x-auto">
-            {/* Standard Report Types */}
-            {reportTypes.map(type => {
-              const Icon = type.icon;
-              return (
-                <button
-                  key={type.id}
-                  onClick={() => setSelectedReport(type.id)}
-                  className={`flex items-center gap-2 px-4 md:px-6 py-3 text-sm font-medium whitespace-nowrap ${
-                    selectedReport === type.id
-                      ? 'text-yellow-600 border-b-2 border-yellow-500 bg-yellow-50'
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {type.label}
-                </button>
-              );
-            })}
-            {/* --- ADDED: Receipt Audit Tab --- */}
+      <div className="bg-white rounded-lg border border-gray-200">
+        <div className="border-b border-gray-200">
+          {/* Desktop Navigation - Tabs */}
+          <nav className="hidden md:flex overflow-x-auto">
+            {reportTypes.map(type => {
+              const Icon = type.icon;
+              return (
+                <button
+                  key={type.id}
+                  onClick={() => handleSelectReport(type.id)}
+                  className={`flex items-center gap-2 px-4 md:px-6 py-3 text-sm font-medium whitespace-nowrap ${
+                    selectedReport === type.id
+                      ? 'text-yellow-600 border-b-2 border-yellow-500 bg-yellow-50'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {type.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Mobile Navigation - Dropdown */}
+          <div className="md:hidden p-3">
             <button
-              key="receiptAudit"
-              onClick={() => setSelectedReport('receiptAudit')}
-              className={`flex items-center gap-2 px-4 md:px-6 py-3 text-sm font-medium whitespace-nowrap ${
-                selectedReport === 'receiptAudit'
-                  ? 'text-yellow-600 border-b-2 border-yellow-500 bg-yellow-50'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="w-full flex items-center justify-between px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 text-sm font-medium text-gray-700"
             >
-              <Printer className="w-4 h-4" />
-              Receipt Audit
+              <span className="flex items-center gap-2">
+                {reportTypes.find(t => t.id === selectedReport)?.icon && 
+                  React.createElement(reportTypes.find(t => t.id === selectedReport)!.icon, { className: "w-4 h-4" })}
+                {reportTypes.find(t => t.id === selectedReport)?.label || 'Select Report'}
+              </span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
             </button>
-          </nav>
-        </div>
+
+            {showDropdown && (
+              <div className="mt-2 border border-gray-300 rounded-lg bg-white shadow-lg z-10">
+                {reportTypes.map(type => {
+                  const Icon = type.icon;
+                  return (
+                    <button
+                      key={type.id}
+                      onClick={() => handleSelectReport(type.id)}
+                      className={`w-full flex items-center gap-2 px-4 py-3 text-sm font-medium border-b last:border-b-0 ${
+                        selectedReport === type.id
+                          ? 'text-yellow-600 bg-yellow-50'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {type.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* --- Render Standard Report Content --- */}
         {selectedReport !== 'receiptAudit' && (
            <div id="report-content" className="p-6">
-              {renderCurrentReport()}
-          </div>
+              {renderCurrentReport()}
+          </div>
         )}
 
         {/* --- ADDED: Receipt Audit Section --- */}
@@ -905,7 +938,7 @@ export default function ReportsManagement() {
 
           </div>
         )}
-      </div>
+      </div>
 
       {/* ReceiptModal - Format order data for receipt display */}
       {selectedReceipt && (
@@ -930,7 +963,7 @@ export default function ReportsManagement() {
           onClose={() => setSelectedReceipt(null)}
         />
       )}
-    </div>
-  );
+    </div>
+  );
 }
-
+import React from 'react';

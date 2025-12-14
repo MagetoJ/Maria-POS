@@ -399,25 +399,58 @@ export const getRoomsReport = async (req: Request, res: Response) => {
       roomStatusCounts = await db('rooms')
         .select('status')
         .select(db.raw('COUNT(*) as count'))
-        .groupBy('status')
-        .orderBy('count', 'desc');
+        .groupBy('status');
     } catch (e) {
       console.warn('Rooms table not found');
-      roomStatusCounts = [];
     }
 
-    // Transform data to match frontend expectations
-    const transformedData = {
-      roomRevenue,
-      roomStatusCounts: roomStatusCounts.map(status => ({
-        status: status.status,
-        count: parseInt(status.count) || 0
-      }))
+    // Transform data
+    const transformedRoomData = {
+      revenue: roomRevenue,
+      statusCounts: roomStatusCounts
     };
+
+    res.json(transformedRoomData);
+  } catch (error) {
+    console.error('Rooms report error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get category report
+export const getCategoryReport = async (req: Request, res: Response) => {
+  try {
+    const { start, end } = req.query;
+    
+    const startDate = start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const endDate = end || new Date().toISOString().split('T')[0];
+
+    // Get category sales
+    const categoryReport = await db('order_items')
+      .join('orders', 'order_items.order_id', 'orders.id')
+      .join('products', 'order_items.product_id', 'products.id')
+      .leftJoin('categories', 'products.category_id', 'categories.id')
+      .whereBetween('orders.created_at', [`${startDate} 00:00:00`, `${endDate} 23:59:59`])
+      .select(
+        'categories.name as category',
+        db.raw('COUNT(order_items.id) as item_count'),
+        db.raw('SUM(order_items.quantity) as total_quantity'),
+        db.raw('COALESCE(SUM(order_items.total_price), 0) as total_revenue')
+      )
+      .groupBy('categories.id', 'categories.name')
+      .orderBy('total_revenue', 'desc');
+
+    // Transform data
+    const transformedData = categoryReport.map((cat: any) => ({
+      category: cat.category || 'Uncategorized',
+      items: cat.item_count,
+      quantity: cat.total_quantity,
+      revenue: parseFloat(cat.total_revenue) || 0
+    }));
 
     res.json(transformedData);
   } catch (error) {
-    console.error('Rooms report error:', error);
+    console.error('Category report error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -454,7 +487,7 @@ export const getPerformanceReport = async (req: Request, res: Response) => {
       )
       .groupBy('status');
 
-    // Average preparation time (if timestamps exist)
+    // Average preparation time
     let averagePreparationTime = null;
     try {
       const prepTimeData = await db('orders')
@@ -482,12 +515,15 @@ export const getPerformanceReport = async (req: Request, res: Response) => {
   }
 };
 
-// --- NEW FUNCTION ADDED BELOW ---
-
-/**
- * @description Fetches completed orders with full details for admin receipt auditing.
- * @route GET /api/reports/receipts
- * @access Admin
+/*
+  Get receipts by date range with filters
+  Query params:
+  - start_date: Start date (YYYY-MM-DD or ISO string)
+  - end_date: End date (YYYY-MM-DD or ISO string)
+  - customer_name: Optional customer name filter
+  - order_type: Optional order type filter
+  - limit: Pagination limit (default 100)
+  - offset: Pagination offset (default 0)
  */
 export const getReceiptsByDate = async (req: Request, res: Response) => {
   try {
@@ -500,22 +536,20 @@ export const getReceiptsByDate = async (req: Request, res: Response) => {
       offset = 0 
     } = req.query;
 
+    console.log('🧾 Fetching Receipt Audit:', { start_date, end_date });
+
     if (!start_date || !end_date) {
       return res.status(400).json({ message: 'start_date and end_date are required' });
     }
 
-    // 1. Get all completed orders in the date range with staff info
     let ordersQuery = db('orders')
-      .join('staff', 'orders.staff_id', 'staff.id')
-      .where('orders.status', 'completed') // Only completed receipts
+      .leftJoin('staff', 'orders.staff_id', 'staff.id')
       .whereBetween('orders.created_at', [start_date as string, end_date as string]);
     
-    // Add customer name filter if provided
     if (customer_name) {
       ordersQuery = ordersQuery.where('orders.customer_name', 'ilike', `%${customer_name}%`);
     }
 
-    // Add order type filter if provided
     if (order_type) {
       ordersQuery = ordersQuery.where('orders.order_type', order_type as string);
     }
@@ -529,11 +563,11 @@ export const getReceiptsByDate = async (req: Request, res: Response) => {
       .limit(parseInt(limit as string))
       .offset(parseInt(offset as string));
 
-    // 2. Format data for each order to match ReceiptModal expectations
+    console.log(`✅ Found ${orders.length} receipts`);
+
     const formattedOrders = [];
     
     for (const order of orders) {
-      // Get order items
       const items = await db('order_items')
         .leftJoin('products', 'order_items.product_id', 'products.id')
         .where('order_id', order.id)
@@ -544,49 +578,43 @@ export const getReceiptsByDate = async (req: Request, res: Response) => {
           'products.name'
         );
 
-      // Get payment method (take the first payment method)
       const payment = await db('payments')
         .where('order_id', order.id)
         .first();
 
-      // Format according to ReceiptModal interface
-      const formattedOrder = {
-        // Original order data for table display
+      formattedOrders.push({
         id: order.id,
         order_number: order.order_number,
         created_at: order.created_at,
         total_amount: parseFloat(order.total_amount) || 0,
         customer_name: order.customer_name,
-        staff_name: order.staff_name,
+        staff_name: order.staff_name || 'System/Online',
         order_type: order.order_type,
+        status: order.status,
         
-        // Formatted receipt data for ReceiptModal
         receiptData: {
+          orderId: order.id,
           orderNumber: order.order_number,
           customerName: order.customer_name,
-          items: items.map(item => ({
-            name: item.name,
+          items: items.map((item: any) => ({
+            name: item.name || 'Unknown Item',
             quantity: item.quantity,
             unitPrice: parseFloat(item.unit_price) || 0,
             totalPrice: parseFloat(item.total_price) || 0
           })),
-          subtotal: parseFloat(order.subtotal) || parseFloat(order.total_amount) || 0,
+          subtotal: parseFloat(order.total_amount) || 0,
           total: parseFloat(order.total_amount) || 0,
           paymentMethod: payment?.payment_method || 'cash',
-          staffName: order.staff_name,
+          staffName: order.staff_name || 'System',
           createdAt: order.created_at,
-          orderType: order.order_type || 'general' // Add order type for dynamic receipt headers
+          orderType: order.order_type || 'general'
         }
-      };
-
-      formattedOrders.push(formattedOrder);
+      });
     }
 
-    // 3. Get total count for pagination
     let countQuery = db('orders')
-      .where('status', 'completed')
       .whereBetween('created_at', [start_date as string, end_date as string]);
-      
+
     if (customer_name) {
       countQuery = countQuery.where('customer_name', 'ilike', `%${customer_name}%`);
     }
@@ -608,7 +636,7 @@ export const getReceiptsByDate = async (req: Request, res: Response) => {
     });
 
   } catch (err) {
-    console.error('Error fetching receipts:', err);
+    console.error('❌ Error fetching receipts:', err);
     res.status(500).json({ message: 'Error fetching receipts' });
   }
 };
