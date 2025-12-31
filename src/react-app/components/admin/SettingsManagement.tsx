@@ -97,6 +97,8 @@ export default function SettingsManagement() {
                             <SettingInput label="Business Name" value={settings.business_name || ''} onChange={e => handleInputChange('business_name', e.target.value)} />
                             <SettingInput label="Address" value={settings.business_address || ''} onChange={e => handleInputChange('business_address', e.target.value)} />
                             <SettingInput label="Phone Number" value={settings.business_phone || ''} onChange={e => handleInputChange('business_phone', e.target.value)} />
+                            <SettingInput label="Paybill Number" value={settings.business_paybill || ''} onChange={e => handleInputChange('business_paybill', e.target.value)} />
+                            <SettingInput label="Account Number" value={settings.business_account_number || ''} onChange={e => handleInputChange('business_account_number', e.target.value)} />
                             <SettingInput label="Currency Symbol" value={settings.currency_symbol || ''} onChange={e => handleInputChange('currency_symbol', e.target.value)} />
                         </div>
                     </div>

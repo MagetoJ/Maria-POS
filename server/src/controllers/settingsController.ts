@@ -8,6 +8,8 @@ const DEFAULT_SETTINGS = {
   business_phone: '',
   business_email: '',
   business_logo: '/logo.PNG',
+  business_paybill: '100400',
+  business_account_number: 'MH',
   service_charge_rate: 10.0,
   currency: 'KES',
   timezone: 'Africa/Nairobi',
@@ -375,3 +377,21 @@ async function getAllSettingsInternal() {
 
   return settings;
 }
+
+// Get public settings (business info only)
+export const getPublicSettings = async (req: Request, res: Response) => {
+  try {
+    const allSettings = await getAllSettingsInternal();
+    const publicSettings = {
+      business_name: allSettings.business_name,
+      business_paybill: allSettings.business_paybill,
+      business_account_number: allSettings.business_account_number,
+      business_logo: allSettings.business_logo,
+      currency_symbol: allSettings.currency_symbol || allSettings.currency || 'KES'
+    };
+    res.json(publicSettings);
+  } catch (error) {
+    console.error('Get public settings error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};

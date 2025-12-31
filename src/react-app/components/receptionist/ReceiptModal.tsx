@@ -1,4 +1,6 @@
 import { X, Printer } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { API_URL } from '../../config/api';
 
 interface ReceiptModalProps {
   receiptData: {
@@ -22,6 +24,24 @@ interface ReceiptModalProps {
 }
 
 export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps) {
+  const [settings, setSettings] = useState<any>({});
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/settings/public`);
+      if (response.ok) {
+        const data = await response.json();
+        setSettings(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch settings:', err);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
   };
@@ -131,7 +151,9 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
       <body>
         <div class="receipt">
           <img src="/logo.PNG" alt="Restaurant Logo" class="logo" />
-          <div class="header">MARIA HAVENS</div>
+          <div style="font-size: 14px; margin-bottom: 2px;">PAYBILL: <strong>${settings.business_paybill || '100400'}</strong></div>
+          <div style="font-size: 14px; margin-bottom: 8px;">ACC NO: <strong>${settings.business_account_number || 'MH'}</strong></div>
+          <div class="header">${settings.business_name || 'MARIA HAVENS'}</div>
           <div class="subheader">Restaurant & Hotel</div>
           <div class="subheader">${getReceiptTitle(receiptData.orderType)}</div>
           <div class="divider"></div>
@@ -246,9 +268,14 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
             <div className="mb-4">
               <img src="/logo.PNG" alt="Restaurant Logo" className="h-96 mx-auto object-contain border-4 border-black rounded-lg p-3 bg-gray-50 shadow-md" style={{ filter: 'saturate(0%) contrast(1.4) brightness(0.95)' }} />
             </div>
+
+            <div className="mb-3">
+              <div className="text-sm font-black">PAYBILL: {settings.business_paybill || '100400'}</div>
+              <div className="text-sm font-black">ACC NO: {settings.business_account_number || 'MH'}</div>
+            </div>
             
             {/* Header */}
-            <div className="font-black text-lg mb-1 tracking-wider text-black">MARIA HAVENS</div>
+            <div className="font-black text-lg mb-1 tracking-wider text-black">{settings.business_name || 'MARIA HAVENS'}</div>
             <div className="text-sm mb-2 font-black text-black">Restaurant & Hotel</div>
             <div className="text-sm mb-3 font-black text-black">{getReceiptTitle(receiptData.orderType)}</div>
             <div className="border-t-2 border-dashed border-gray-400 my-2"></div>

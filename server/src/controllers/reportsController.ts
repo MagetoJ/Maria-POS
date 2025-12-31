@@ -709,3 +709,138 @@ export const getAnnualReport = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Error generating annual report' });
   }
 };
+
+export const getHourlySales = async (req: Request, res: Response) => {
+  try {
+    const { start, end } = req.query;
+    const startDate = start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const endDate = end || new Date().toISOString();
+
+    const hourlyData = await db('orders')
+      .whereBetween('created_at', [startDate, endDate])
+      .select(db.raw('EXTRACT(HOUR FROM created_at) as hour'))
+      .count('id as order_count')
+      .sum('total_amount as revenue')
+      .groupByRaw('EXTRACT(HOUR FROM created_at)')
+      .orderBy('hour');
+
+    const fullData = Array.from({ length: 24 }, (_, i) => {
+      const found = hourlyData.find((d: any) => Number(d.hour) === i);
+      return {
+        hour: `${i}:00`,
+        revenue: found ? parseFloat(found.revenue) : 0,
+        orders: found ? parseInt(found.order_count) : 0
+      };
+    });
+
+    res.json(fullData);
+  } catch (err) {
+    console.error('Hourly sales error:', err);
+    res.status(500).json({ message: 'Error fetching hourly sales' });
+  }
+};
+
+export const getPaymentStats = async (req: Request, res: Response) => {
+  try {
+    const { start, end } = req.query;
+    const startDate = start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const endDate = end || new Date().toISOString();
+
+    let paymentData = [];
+    try {
+      paymentData = await db('payments')
+        .join('orders', 'payments.order_id', 'orders.id')
+        .whereBetween('orders.created_at', [startDate, endDate])
+        .select('payments.payment_method')
+        .count('payments.id as count')
+        .sum('payments.amount as total')
+        .groupBy('payments.payment_method');
+    } catch (e) {
+      paymentData = await db('orders')
+        .whereBetween('created_at', [startDate, endDate])
+        .whereNotNull('payment_method')
+        .select('payment_method')
+        .count('id as count')
+        .sum('total_amount as total')
+        .groupBy('payment_method');
+    }
+
+    const formattedData = paymentData.map((p: any) => ({
+      name: p.payment_method || 'Unknown',
+      value: parseFloat(p.total) || 0,
+      count: parseInt(p.count) || 0
+    }));
+
+    res.json(formattedData);
+  } catch (err) {
+    console.error('Payment stats error:', err);
+    res.status(500).json({ message: 'Error fetching payment stats' });
+  }
+};
+
+export const getMenuAnalysis = async (req: Request, res: Response) => {
+  try {
+    const { start, end } = req.query;
+    const startDate = start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const endDate = end || new Date().toISOString();
+
+    const menuData = await db('order_items')
+      .join('orders', 'order_items.order_id', 'orders.id')
+      .join('products', 'order_items.product_id', 'products.id')
+      .whereBetween('orders.created_at', [startDate, endDate])
+      .select(
+        'products.name',
+        db.raw('SUM(order_items.quantity) as quantity_sold'),
+        db.raw('SUM(order_items.total_price) as total_revenue')
+      )
+      .groupBy('products.id', 'products.name')
+      .orderBy('total_revenue', 'desc');
+
+    const formattedData = menuData.map((item: any) => ({
+      name: item.name,
+      popularity: parseInt(item.quantity_sold),
+      revenue: parseFloat(item.total_revenue)
+    }));
+
+    res.json(formattedData);
+  } catch (err) {
+    console.error('Menu analysis error:', err);
+    res.status(500).json({ message: 'Error fetching menu analysis' });
+  }
+};
+
+export const getWastageStats = async (req: Request, res: Response) => {
+  try {
+    const { start, end } = req.query;
+    const startDate = start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const endDate = end || new Date().toISOString();
+
+    let wastageData: any[] = [];
+    try {
+      const tableExists = await db.schema.hasTable('wastage_logs');
+      if (tableExists) {
+        wastageData = await db('wastage_logs')
+          .whereBetween('created_at', [startDate, endDate])
+          .select(
+            'reason',
+            db.raw('COUNT(*) as count'),
+            db.raw('SUM(cost) as total_loss')
+          )
+          .groupBy('reason');
+      }
+    } catch (e) {
+      console.warn('Wastage table access failed', e);
+    }
+
+    const formattedData = wastageData.map((w: any) => ({
+      reason: w.reason,
+      count: parseInt(w.count),
+      loss: parseFloat(w.total_loss) || 0
+    }));
+
+    res.json(formattedData);
+  } catch (err) {
+    console.error('Wastage stats error:', err);
+    res.json([]);
+  }
+};

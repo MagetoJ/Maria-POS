@@ -46,4 +46,10 @@ router.get('/performance', reportsController.getPerformanceReport);
 // Annual report
 router.get('/annual', reportsController.getAnnualReport);
 
+// New Analytics Features
+router.get('/hourly', reportsController.getHourlySales);
+router.get('/payments', reportsController.getPaymentStats);
+router.get('/menu-analysis', reportsController.getMenuAnalysis);
+router.get('/wastage', reportsController.getWastageStats);
+
 export default router;

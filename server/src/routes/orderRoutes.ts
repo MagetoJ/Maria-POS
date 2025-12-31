@@ -6,7 +6,6 @@ const router = Router();
 
 // Public routes (for POS system without full authentication)
 router.post('/', orderController.createOrder);
-router.post('/unified', orderController.createUnifiedOrder);
 router.post('/validate-pin', orderController.validatePin);
 
 // Protected routes require full authentication

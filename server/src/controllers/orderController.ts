@@ -17,10 +17,10 @@ export const createOrder = async (req: Request, res: Response) => {
     let staffId = null;
     let staffName = 'Quick POS';
 
-    // For bar sales, skip PIN validation
-    if (orderData.order_type === 'bar_sale') {
-      // No PIN required for bar sales
-      console.log('Bar sale order - no PIN validation required');
+    // Skip PIN validation for bar sales AND self-service (QR) orders
+    if (orderData.order_type === 'bar_sale' || orderData.order_type === 'self_service') {
+      staffName = orderData.order_type === 'self_service' ? 'Customer (QR)' : 'Bar Staff';
+      console.log(`${orderData.order_type} order - no PIN validation required`);
     } else {
       // Validate staff username and PIN for other orders
       if (!staff_username || !pin) {
@@ -53,6 +53,8 @@ export const createOrder = async (req: Request, res: Response) => {
         subtotal: Number(orderToInsert.subtotal || 0),
         total_amount: Number(orderToInsert.total_amount || 0),
         payment_method: payment_method || 'cash',
+        // Set initial status for self-service orders to 'pending' (kitchen needs to accept/see it)
+        status: orderData.order_type === 'self_service' ? 'pending' : (orderToInsert.status || 'pending'), 
         created_at: new Date(),
         updated_at: new Date()
       };
@@ -71,27 +73,24 @@ export const createOrder = async (req: Request, res: Response) => {
         // Check which items are bar items (inventory items with type 'bar')
         const barItemIds = new Set<number>();
         for (const item of items) {
-          const barItem = await trx('inventory_items')
-            .where({ id: item.product_id, inventory_type: 'bar', is_active: true })
+          // Check inventory for ALL items if it's a self-service order to prevent ordering out-of-stock items
+          // Or just stick to BAR items logic for now to stay consistent with existing logic
+          const inventoryItem = await trx('inventory_items')
+            .where({ id: item.product_id, is_active: true })
             .first();
           
-          if (barItem) {
-            barItemIds.add(item.product_id);
-            
-            // Deduct inventory for bar items
-            const newStock = barItem.current_stock - Number(item.quantity);
-            if (newStock < 0) {
-              throw new Error(`Insufficient stock for ${barItem.name}. Available: ${barItem.current_stock}, Requested: ${item.quantity}`);
-            }
-            
-            await trx('inventory_items')
-              .where({ id: item.product_id })
-              .update({ 
-                current_stock: newStock,
-                updated_at: new Date()
-              });
-            
-            console.log(`Deducted inventory for bar item: ${barItem.name}, New stock: ${newStock}`);
+          if (inventoryItem) {
+             // Logic for BAR items or generally tracking stock
+             if (inventoryItem.inventory_type === 'bar') {
+                barItemIds.add(item.product_id);
+                const newStock = inventoryItem.current_stock - Number(item.quantity);
+                if (newStock < 0) {
+                  throw new Error(`Insufficient stock for ${inventoryItem.name}. Available: ${inventoryItem.current_stock}`);
+                }
+                await trx('inventory_items')
+                  .where({ id: item.product_id })
+                  .update({ current_stock: newStock, updated_at: new Date() });
+             }
           }
         }
 
@@ -107,13 +106,13 @@ export const createOrder = async (req: Request, res: Response) => {
         await trx('order_items').insert(orderItems);
       }
 
-      // Create payment record to associate payment method with order
+      // Create payment record
       if (payment_method) {
         await trx('payments').insert({
           order_id: orderId,
           payment_method: payment_method,
           amount: Number(orderToInsert.total_amount || 0),
-          status: 'completed'
+          status: 'pending' // Payments for QR orders might be pending initially
         });
       }
     });
@@ -400,107 +399,7 @@ export const validatePin = async (req: Request, res: Response) => {
     res.json(userWithoutSensitiveData);
 
   } catch (err) {
-    console.error('PIN validation error:', err);
-    res.status(500).json({ message: 'Server error during PIN validation' });
-  }
-};
-
-// Create unified order (handles both kitchen and bar items)
-export const createUnifiedOrder = async (req: Request, res: Response) => {
-  const { items, total_amount, payment_method = 'cash', customer_name, table_id, staff_username, pin, ...orderData } = req.body;
-  
-  if (!items || items.length === 0) {
-    return res.status(400).json({ message: 'Order is empty' });
-  }
-
-  try {
-    let staffId = null;
-    let staffName = 'Quick POS';
-
-    if (staff_username && pin) {
-      const validation = await validateStaffPinForOrder(staff_username, pin);
-      if (!validation.valid || !validation.staffId || !validation.staffName) {
-        return res.status(401).json({ message: 'Invalid username or PIN' });
-      }
-      staffId = validation.staffId;
-      staffName = validation.staffName;
-      console.log('PIN validated for unified order by:', staffName);
-    }
-
-    const result = await db.transaction(async (trx) => {
-      const [order] = await trx('orders').insert({
-        order_number: `ORD-${Date.now()}`,
-        order_type: orderData.order_type || 'dine_in',
-        status: 'pending',
-        staff_id: staffId,
-        table_id,
-        customer_name,
-        total_amount: Number(total_amount),
-        payment_status: 'pending',
-        payment_method: payment_method || 'cash'
-      }).returning('*');
-
-      for (const item of items) {
-        if (item.source === 'bar') {
-          const inventoryItem = await trx('inventory_items')
-            .where({ id: item.product_id })
-            .first();
-
-          if (!inventoryItem || inventoryItem.current_stock < item.quantity) {
-            throw new Error(`Out of stock: ${item.name}`);
-          }
-
-          await trx('inventory_items')
-            .where({ id: item.product_id })
-            .decrement('current_stock', item.quantity);
-
-          await trx('order_items').insert({
-            order_id: order.id,
-            product_id: item.product_id,
-            quantity: item.quantity,
-            unit_price: Number(item.price),
-            total_price: Number(item.price) * item.quantity,
-            notes: '[BAR_ITEM]'
-          });
-        } else {
-          await trx('order_items').insert({
-            order_id: order.id,
-            product_id: item.product_id,
-            quantity: item.quantity,
-            unit_price: Number(item.price),
-            total_price: Number(item.price) * item.quantity,
-            notes: '[KITCHEN]'
-          });
-        }
-      }
-
-      if (payment_method) {
-        await trx('payments').insert({
-          order_id: order.id,
-          payment_method: payment_method,
-          amount: Number(total_amount),
-          status: 'completed'
-        });
-      }
-
-      return order;
-    });
-
-    if (webSocketService) {
-      webSocketService.broadcastToKitchens({ type: 'new_order' });
-    }
-
-    res.status(201).json({ 
-      success: true, 
-      order: result,
-      staff_name: staffName 
-    });
-
-  } catch (error: any) {
-    console.error('Unified order error:', error);
-    res.status(500).json({ 
-      message: error.message || 'Failed to create order',
-      error: error.message 
-    });
+    console.error('Error validating PIN:', err);
+    res.status(500).json({ message: 'Error validating PIN' });
   }
 };

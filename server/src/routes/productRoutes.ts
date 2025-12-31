@@ -23,9 +23,12 @@ const upload = multer({
 }); 
   
 const router = Router(); 
+
+// --- PUBLIC ROUTES (No Auth Required) ---
+router.get('/public', productController.getPublicProducts);
   
 router.get('/', productController.getProducts); 
-router.get('/categories', productController.getProductCategories); 
+router.get('/categories', productController.getProductCategories);
 
 router.use(authenticateToken); 
 

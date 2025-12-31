@@ -30,6 +30,22 @@ interface OrderPanelProps {
 // --- Receipt Preview Component (Internal to OrderPanel) ---
 const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => void }> = ({ details, onClose }) => {
   const { order, staff, orderNumber, subtotal, total, orderType, locationDetail } = details;
+  const [settings, setSettings] = useState<any>({});
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/settings/public`);
+        if (response.ok) {
+          const data = await response.json();
+          setSettings(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch settings:', err);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const handlePrint = () => {
     const locationLine = locationDetail ? `<div>Location: ${locationDetail}</div>` : '';
@@ -70,7 +86,10 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
           
           <img src="/logo.PNG" alt="Restaurant Logo" class="logo" />
 
-         
+          <div style="font-size: 16px; margin-bottom: 2px;">PAYBILL: <strong>${settings.business_paybill || '100400'}</strong></div>
+          <div style="font-size: 16px; margin-bottom: 10px;">ACC NO: <strong>${settings.business_account_number || 'MH'}</strong></div>
+
+          <div class="header">${settings.business_name || 'MARIA HAVENS'}</div>
           <div class="divider"></div>
           <div class="order-info">
             <div>Order: ${orderNumber}</div>
@@ -159,7 +178,11 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
               <div className="mb-3">
                 <img src="/logo.PNG" alt="Restaurant Logo" className="h-32 mx-auto" />
               </div>
-              <div className="text-xl font-extrabold mb-1">MARIA HAVENS</div>
+              <div className="mb-2">
+                <div className="text-sm font-bold">PAYBILL: {settings.business_paybill || '100400'}</div>
+                <div className="text-sm font-bold">ACC NO: {settings.business_account_number || 'MH'}</div>
+              </div>
+              <div className="text-xl font-extrabold mb-1">{settings.business_name || 'MARIA HAVENS'}</div>
               <div className="text-sm">Restaurant & Hotel</div>
               <div className="border-t border-dashed border-gray-400 my-3"></div>
               <div className="text-left text-sm space-y-1 mb-3">

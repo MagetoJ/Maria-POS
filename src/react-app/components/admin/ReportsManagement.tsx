@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle, Printer, ChevronDown, BarChart3 } from 'lucide-react';
+import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle, Printer, ChevronDown, BarChart3, Clock, CreditCard, Trash2 } from 'lucide-react';
 import { apiClient, fetchReceiptsByDate } from '../../config/api';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import ReceiptModal from '../receptionist/ReceiptModal';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, ComposedChart, ScatterChart, Scatter, ZAxis } from 'recharts';
 
 type OrderType = any;
 
@@ -91,6 +91,30 @@ interface AnnualReportData {
   }[];
 }
 
+interface HourlyData {
+  hour: string;
+  revenue: number;
+  orders: number;
+}
+
+interface PaymentData {
+  name: string;
+  value: number;
+  count: number;
+}
+
+interface MenuData {
+  name: string;
+  popularity: number;
+  revenue: number;
+}
+
+interface WastageData {
+  reason: string;
+  count: number;
+  loss: number;
+}
+
 export default function ReportsManagement() {
   const [reportData, setReportData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false); // Default to false initially
@@ -123,6 +147,12 @@ export default function ReportsManagement() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const currentYear = new Date().getFullYear();
 
+  // --- ADDED: Overview Analytics Data ---
+  const [hourlyData, setHourlyData] = useState<HourlyData[] | null>(null);
+  const [paymentData, setPaymentData] = useState<PaymentData[] | null>(null);
+  const [menuData, setMenuData] = useState<MenuData[] | null>(null);
+  const [wastageData, setWastageData] = useState<WastageData[] | null>(null);
+
   useEffect(() => {
     if (selectedReport === 'receiptAudit') {
       setIsLoading(false);
@@ -136,14 +166,13 @@ export default function ReportsManagement() {
   }, [selectedReport, dateRange.start, dateRange.end, selectedYear]);
 
   const fetchReportData = async () => {
-    // Prevent fetching if receipt audit tab is selected initially
     if (selectedReport === 'receiptAudit') {
-        setIsLoading(false); // Ensure loading state is reset if switching to audit tab
+        setIsLoading(false);
         return;
     }
     setIsLoading(true);
     setError(null);
-    setReportData(null); // Clear previous report data
+    setReportData(null);
 
     const query = new URLSearchParams({
         start: dateRange.start,
@@ -151,7 +180,6 @@ export default function ReportsManagement() {
     }).toString();
 
     try {
-      // Use the correct /api prefix for standard reports
       const endpoint = `/api/reports/${selectedReport}?${query}`;
       console.log('Fetching report from:', endpoint);
       
@@ -159,37 +187,48 @@ export default function ReportsManagement() {
       
       if (!response.ok) {
         const errorText = await response.text();
-         // Attempt to parse HTML error for better feedback
         if (errorText.toLowerCase().includes('forbidden') || response.status === 403) {
              throw new Error(`Access Denied (403): You might not have the required permissions for this report.`);
          } else if (response.status === 401) {
              throw new Error(`Authentication Required (401): Please log in again.`);
          }
-        throw new Error(`Failed to fetch report data: ${response.status} - ${errorText.substring(0, 100)}...`); // Show snippet
+        throw new Error(`Failed to fetch report data: ${response.status}`);
       }
       
-      // --- WRAP JSON PARSING IN TRY/CATCH ---
-      try {
-        const data = await response.json();
-        console.log('Report data received:', selectedReport, data);
-        setReportData(data);
-      } catch (jsonError) {
-          console.error("JSON Parsing Error:", jsonError);
-          // Check if it's the specific HTML error
-           if (jsonError instanceof SyntaxError && jsonError.message.includes("token '<'")) {
-               throw new Error('Received an invalid response (HTML instead of JSON). Check server logs and authentication.');
-           } else {
-               throw new Error('Failed to parse server response.'); // Generic parse error
-           }
+      const data = await response.json();
+      console.log('Report data received:', selectedReport, data);
+      setReportData(data);
+
+      // If overview, also fetch the 4 analytics endpoints
+      if (selectedReport === 'overview') {
+        try {
+          const [hourly, payments, menu, wastage] = await Promise.all([
+            apiClient.get(`/api/reports/hourly?${query}`),
+            apiClient.get(`/api/reports/payments?${query}`),
+            apiClient.get(`/api/reports/menu-analysis?${query}`),
+            apiClient.get(`/api/reports/wastage?${query}`)
+          ]);
+
+          const hourlyJson = await hourly.json();
+          const paymentsJson = await payments.json();
+          const menuJson = await menu.json();
+          const wastageJson = await wastage.json();
+
+          setHourlyData(hourlyJson);
+          setPaymentData(paymentsJson);
+          setMenuData(menuJson);
+          setWastageData(wastageJson);
+        } catch (analyticsErr) {
+          console.warn('Failed to fetch analytics data:', analyticsErr);
+        }
       }
     } catch (err) {
        let specificError = 'Failed to fetch report data. Please check the console.';
-       // Use the error message directly if it was already processed
        if (err instanceof Error) {
            specificError = err.message;
        }
       setError(specificError);
-      console.error("Failed to fetch report data:", err); // Log original error too
+      console.error("Failed to fetch report data:", err);
     } finally {
       setIsLoading(false);
     }
@@ -418,14 +457,13 @@ export default function ReportsManagement() {
   
   // --- Rendering functions for standard reports (renderOverviewReport, etc.) ---
   // --- Assume these exist as in your provided code ---
-  const renderOverviewReport = () => { /* ... existing code ... */ 
+  const renderOverviewReport = () => {
     const data = reportData as OverviewReportData;
     if (!data || !data.sales || !data.orders || !data.inventory || !data.staff) {
         return <div className="text-center py-8">No data available for the selected period.</div>;
     }
     return (
         <div className="space-y-6">
-            {/* ... rest of the overview JSX ... */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="bg-white rounded-lg p-6 border border-gray-200">
                     <div className="flex items-center">
@@ -436,8 +474,7 @@ export default function ReportsManagement() {
                         </div>
                     </div>
                 </div>
-                {/* Other stat boxes */}
-                 <div className="bg-white rounded-lg p-6 border border-gray-200">
+                <div className="bg-white rounded-lg p-6 border border-gray-200">
                     <div className="flex items-center">
                         <div className="p-2 bg-blue-100 rounded-lg"><FileText className="w-6 h-6 text-blue-600" /></div>
                         <div className="ml-4">
@@ -451,7 +488,7 @@ export default function ReportsManagement() {
                         </div>
                      }
                 </div>
-                 <div className="bg-white rounded-lg p-6 border border-gray-200">
+                <div className="bg-white rounded-lg p-6 border border-gray-200">
                      <div className="flex items-center">
                          <div className="p-2 bg-purple-100 rounded-lg"><DollarSign className="w-6 h-6 text-purple-600" /></div>
                          <div className="ml-4">
@@ -461,8 +498,7 @@ export default function ReportsManagement() {
                      </div>
                  </div>
             </div>
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 {/* Top Selling Items */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  <div className="bg-white rounded-lg p-6 border border-gray-200">
                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Selling Items</h3>
                      <div className="space-y-3">
@@ -482,8 +518,7 @@ export default function ReportsManagement() {
                           )}
                      </div>
                  </div>
-                 {/* Top Staff Performance */}
-                  <div className="bg-white rounded-lg p-6 border border-gray-200">
+                 <div className="bg-white rounded-lg p-6 border border-gray-200">
                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Staff Performance</h3>
                      <div className="space-y-3">
                          {(data.staff?.topPerformers || []).map((staff, index) => (
@@ -503,6 +538,95 @@ export default function ReportsManagement() {
                      </div>
                  </div>
              </div>
+
+            {hourlyData && <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6">Peak Hours Analysis</h3>
+              <div style={{ height: '350px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={hourlyData} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="hour" angle={-45} textAnchor="end" height={80} />
+                    <YAxis yAxisId="left" stroke="#8884d8" />
+                    <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
+                    <Tooltip />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="revenue" name="Revenue (KES)" fill="#8884d8" />
+                    <Bar yAxisId="right" dataKey="orders" name="Orders" fill="#82ca9d" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>}
+
+            {paymentData && <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6">Payment Method Breakdown</h3>
+              <div style={{ height: '350px', display: 'flex', justifyContent: 'center' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie 
+                      data={paymentData} 
+                      cx="50%" 
+                      cy="50%" 
+                      labelLine={false} 
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={100} 
+                      fill="#8884d8" 
+                      dataKey="value"
+                    >
+                      {paymentData.map((entry, index) => {
+                        const colors = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+                        return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                      })}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>}
+
+            {menuData && menuData.length > 0 && <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Menu Engineering Matrix</h3>
+              <p className="text-sm text-gray-500 mb-6">Popularity vs Profitability (Green=Stars, Yellow=Plowhorses, Blue=Puzzles, Red=Dogs)</p>
+              <div style={{ height: '400px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                    <CartesianGrid />
+                    <XAxis type="number" dataKey="popularity" name="Quantity Sold" />
+                    <YAxis type="number" dataKey="revenue" name="Total Revenue" />
+                    <ZAxis type="category" dataKey="name" name="Item" />
+                    <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                    <Scatter name="Menu Items" data={menuData} fill="#8884d8">
+                      {menuData.map((entry, index) => {
+                        const avgPop = menuData.reduce((sum, i) => sum + i.popularity, 0) / menuData.length;
+                        const avgRev = menuData.reduce((sum, i) => sum + i.revenue, 0) / menuData.length;
+                        const isHighPop = entry.popularity >= avgPop;
+                        const isHighRev = entry.revenue >= avgRev;
+                        let color = '#8884d8';
+                        if (isHighPop && isHighRev) color = '#16a34a';
+                        else if (isHighPop && !isHighRev) color = '#eab308';
+                        else if (!isHighPop && isHighRev) color = '#2563eb';
+                        else color = '#dc2626';
+                        return <Cell key={`cell-${index}`} fill={color} />;
+                      })}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+            </div>}
+
+            {wastageData && wastageData.length > 0 && <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6">Wastage Analysis</h3>
+              <div style={{ height: '350px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={wastageData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                    <XAxis type="number" />
+                    <YAxis dataKey="reason" type="category" width={100} />
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    <Bar dataKey="loss" name="Total Loss (KES)" fill="#ef4444" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>}
         </div>
     );
   };
@@ -753,6 +877,129 @@ export default function ReportsManagement() {
   };
   // --- END of standard report rendering functions ---
 
+  const renderHourlyReport = () => {
+    const data = reportData as HourlyData[];
+    if (!data || data.length === 0) {
+      return <div className="text-center py-10 text-gray-500">No hourly data available.</div>;
+    }
+    return (
+      <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Sales by Hour of Day</h3>
+        <div style={{ height: '400px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="hour" angle={-45} textAnchor="end" height={80} />
+              <YAxis yAxisId="left" stroke="#8884d8" />
+              <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
+              <Tooltip />
+              <Legend />
+              <Bar yAxisId="left" dataKey="revenue" name="Revenue (KES)" fill="#8884d8" />
+              <Bar yAxisId="right" dataKey="orders" name="Orders" fill="#82ca9d" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPaymentReport = () => {
+    const data = reportData as PaymentData[];
+    if (!data || data.length === 0) {
+      return <div className="text-center py-10 text-gray-500">No payment data available.</div>;
+    }
+    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7c7c'];
+    return (
+      <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Payment Method Breakdown</h3>
+        <div style={{ height: '400px', display: 'flex', justifyContent: 'center' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie 
+                data={data} 
+                cx="50%" 
+                cy="50%" 
+                labelLine={false} 
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                outerRadius={120} 
+                fill="#8884d8" 
+                dataKey="value"
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMenuMatrix = () => {
+    const data = reportData as MenuData[];
+    if (!data || data.length === 0) {
+      return <div className="text-center py-10 text-gray-500">No menu data available.</div>;
+    }
+    const avgPop = data.reduce((sum, i) => sum + i.popularity, 0) / (data.length || 1);
+    const avgRev = data.reduce((sum, i) => sum + i.revenue, 0) / (data.length || 1);
+
+    return (
+      <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Menu Engineering Matrix</h3>
+        <p className="text-sm text-gray-500 mb-6">Popularity (Quantity) vs Profitability (Revenue)</p>
+        <div style={{ height: '500px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+              <CartesianGrid />
+              <XAxis type="number" dataKey="popularity" name="Quantity Sold" />
+              <YAxis type="number" dataKey="revenue" name="Total Revenue" />
+              <ZAxis type="category" dataKey="name" name="Item" />
+              <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+              <Scatter name="Menu Items" data={data} fill="#8884d8">
+                {data.map((entry, index) => {
+                  const isHighPop = entry.popularity >= avgPop;
+                  const isHighRev = entry.revenue >= avgRev;
+                  let color = '#8884d8';
+                  if (isHighPop && isHighRev) color = '#16a34a';
+                  else if (isHighPop && !isHighRev) color = '#eab308';
+                  else if (!isHighPop && isHighRev) color = '#2563eb';
+                  else color = '#dc2626';
+                  return <Cell key={`cell-${index}`} fill={color} />;
+                })}
+              </Scatter>
+            </ScatterChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  const renderWastageReport = () => {
+    const data = reportData as WastageData[];
+    if (!data || data.length === 0) {
+      return <div className="text-center py-10 text-gray-500">No wastage data recorded.</div>;
+    }
+    return (
+      <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Wastage Analysis</h3>
+        <div style={{ height: '400px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" />
+              <YAxis dataKey="reason" type="category" width={100} />
+              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+              <Legend />
+              <Bar dataKey="loss" name="Total Loss (KES)" fill="#ef4444" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
 
   const renderCurrentReport = () => {
     if (isLoading && selectedReport !== 'receiptAudit') { // Show loading only for standard reports here
@@ -781,7 +1028,6 @@ export default function ReportsManagement() {
       return <div className="text-center py-20 text-gray-500">Select a date range to generate a report.</div>;
     }
 
-    // --- MODIFIED: Added case for 'receiptAudit' and 'annual' ---
     switch (selectedReport) {
       case 'sales':
         return renderSalesReport();

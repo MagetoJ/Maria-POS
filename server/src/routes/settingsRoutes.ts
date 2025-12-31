@@ -4,6 +4,9 @@ import * as settingsController from '../controllers/settingsController';
 
 const router = express.Router();
 
+// Public route for basic business info
+router.get('/public', settingsController.getPublicSettings);
+
 // All routes require authentication
 router.use(authenticateToken);
 

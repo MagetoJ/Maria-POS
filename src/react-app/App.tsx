@@ -7,7 +7,8 @@ import HousekeepingDashboard from './pages/HousekeepingDashboard';
 import Home from './pages/Home';
 import NetworkStatus from './components/NetworkStatus';
 import KitchenDashboard from './pages/KitchenDashboard';
-import ReceptionistDashboard from './pages/ReceptionistDashboard'; // <-- Import the new dashboard
+import ReceptionistDashboard from './pages/ReceptionistDashboard';
+import QRMenuOrdering from './components/QRMenuOrdering';
 
 import PWAUpdateNotification from './components/PWAUpdateNotification';
 
@@ -48,6 +49,9 @@ function App() {
       <PWAUpdateNotification />
       <Routes>
         <Route path="/login" element={<Login onQuickPOSAccess={handleQuickPOS} />} />
+        
+        {/* Public QR Menu Ordering Route */}
+        <Route path="/qr/menu" element={<QRMenuOrdering />} />
         
         <Route path="/pos" element={<POS />} /> 
         
