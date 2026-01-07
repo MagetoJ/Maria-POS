@@ -89,7 +89,17 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
       <html>
       <head>
         <title>Receipt - ${receiptData.orderNumber}</title>
-        <style>
+       <style>
+       .logo {
+    max-width: 220px;
+    height: auto;
+    margin: 0 auto 15px;
+    display: block;
+    border: none; /* Removed the 3px solid border */
+    background: transparent; /* Removed the gray background */
+    box-shadow: none; /* Removed the shadow */
+    filter: grayscale(100%) contrast(1.2); /* Clean black and white */
+  }
   body { 
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
     width: 320px; 
@@ -97,56 +107,61 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
     padding: 15px; 
     font-size: 13px; 
     line-height: 1.4;
-    color: #000;
+    color: #000; /* Force all text to black */
   }
   .receipt { text-align: center; }
-  .logo {
-    max-width: 180px;
-    height: auto;
-    margin: 0 auto 15px;
-    display: block;
-    /* Removed filters and borders for better visibility */
-  }
+ 
   .header { 
     font-size: 18px; 
     font-weight: 800; 
     margin-bottom: 4px; 
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    color: #000;
   }
   .subheader { 
     font-size: 13px; 
     margin-bottom: 5px; 
     font-weight: 600; 
+    color: #000;
   }
   .divider { 
     border-top: 1px dashed #000; 
     margin: 12px 0; 
   }
-  .item-row { 
-    display: flex; 
-    justify-content: space-between; 
-    margin: 4px 0;
-    font-weight: 500;
+  .item-row, .total-row, .order-info div { 
+    color: #000;
+    font-weight: 600; /* Makes text more visible on receipts */
   }
   .grand-total { 
     font-size: 17px; 
     border-top: 2px solid #000; 
     padding-top: 8px;
     margin-top: 8px;
-    font-weight: 800;
+    font-weight: 900;
+    color: #000;
   }
   .footer { 
     margin-top: 20px; 
     font-size: 12px; 
-    border-top: 1px solid #eee;
+    border-top: 1px solid #000;
     padding-top: 10px;
+    color: #000;
   }
 </style>
       </head>
       <body>
         <div class="receipt">
-          <img src="/logo.PNG" alt="Restaurant Logo" class="logo" />
+          <div className="mb-4">
+  <img 
+    src="/logo.PNG" 
+    alt="Restaurant Logo" 
+    className="h-32 mx-auto object-contain" 
+    style={{ 
+      filter: 'grayscale(100%) contrast(1.2)',
+      backgroundColor: 'transparent' 
+    }} 
+  />
+</div>
           <div style="font-size: 14px; margin-bottom: 2px;">PAYBILL: <strong>${settings.business_paybill || '100400'}</strong></div>
           <div style="font-size: 14px; margin-bottom: 8px;">ACC NO: <strong>${settings.business_account_number || 'MH'}</strong></div>
           <div class="header">${settings.business_name || 'MARIA HAVENS'}</div>
