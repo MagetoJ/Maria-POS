@@ -90,63 +90,59 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
       <head>
         <title>Receipt - ${receiptData.orderNumber}</title>
         <style>
-          body { font-family: 'Arial Black', 'Arial', sans-serif; width: 360px; margin: 0; padding: 10px; font-size: 12px; font-weight: 900; }
-          .receipt { text-align: center; font-weight: 900; }
-          .logo {
-            max-width: 360px;
-            height: auto;
-            margin: 0 auto 20px;
-            display: block;
-            border: 3px solid #000;
-            border-radius: 8px;
-            padding: 10px;
-            background: #f8f8f8;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            filter: saturate(0%) contrast(1.4) brightness(0.95);
-          }
-          .header { font-size: 18px; font-weight: 900; margin-bottom: 8px; letter-spacing: 1px; }
-          .subheader { font-size: 14px; margin-bottom: 10px; font-weight: 900; }
-          .divider { border-top: 2px dashed #000; margin: 8px 0; }
-          .order-info { text-align: left; margin: 8px 0; font-size: 12px; font-weight: 900; }
-          .items { text-align: left; }
-          .item-row { 
-            display: flex; 
-            justify-content: space-between; 
-            margin: 3px 0;
-            font-size: 12px;
-            font-weight: 900;
-          }
-          .item-name { flex: 1; font-weight: 900; }
-          .item-qty { width: 30px; text-align: center; font-weight: 900; }
-          .item-price { width: 60px; text-align: right; font-weight: 900; }
-          .totals { margin-top: 8px; font-weight: 900; font-size: 13px; }
-          .total-row { 
-            display: flex; 
-            justify-content: space-between; 
-            margin: 3px 0;
-            font-weight: 900;
-          }
-          .grand-total { 
-            font-size: 16px; 
-            border-top: 2px solid #000; 
-            padding-top: 5px;
-            margin-top: 5px;
-            font-weight: 900;
-          }
-          .footer { 
-            margin-top: 15px; 
-            font-size: 11px; 
-            text-align: center;
-            font-weight: 900;
-            letter-spacing: 0.5px;
-          }
-          .payment-info {
-            margin: 8px 0;
-            font-size: 12px;
-            text-align: left;
-            font-weight: 900;
-          }
-        </style>
+  body { 
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+    width: 320px; 
+    margin: 0; 
+    padding: 15px; 
+    font-size: 13px; 
+    line-height: 1.4;
+    color: #000;
+  }
+  .receipt { text-align: center; }
+  .logo {
+    max-width: 180px;
+    height: auto;
+    margin: 0 auto 15px;
+    display: block;
+    /* Removed filters and borders for better visibility */
+  }
+  .header { 
+    font-size: 18px; 
+    font-weight: 800; 
+    margin-bottom: 4px; 
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .subheader { 
+    font-size: 13px; 
+    margin-bottom: 5px; 
+    font-weight: 600; 
+  }
+  .divider { 
+    border-top: 1px dashed #000; 
+    margin: 12px 0; 
+  }
+  .item-row { 
+    display: flex; 
+    justify-content: space-between; 
+    margin: 4px 0;
+    font-weight: 500;
+  }
+  .grand-total { 
+    font-size: 17px; 
+    border-top: 2px solid #000; 
+    padding-top: 8px;
+    margin-top: 8px;
+    font-weight: 800;
+  }
+  .footer { 
+    margin-top: 20px; 
+    font-size: 12px; 
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+  }
+</style>
       </head>
       <body>
         <div class="receipt">
