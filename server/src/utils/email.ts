@@ -63,3 +63,46 @@ export const sendResetEmail = async (email: string, code: string, name: string):
     return false;
   }
 };
+
+// Send invoice email with PDF attachment
+export const sendInvoiceEmail = async (email: string, invoiceNumber: string, pdfBuffer: Buffer): Promise<boolean> => {
+  try {
+    const mailOptions = {
+      from: config.EMAIL.FROM,
+      to: email,
+      subject: `Invoice ${invoiceNumber} from Maria Havens`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #f59e0b; margin: 0;">Maria Havens</h1>
+            <p style="color: #666; margin: 5px 0;">Restaurant & Hotel</p>
+          </div>
+          
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h2 style="color: #333; margin-top: 0;">Your Invoice</h2>
+            <p style="color: #555;">Hello,</p>
+            <p style="color: #555;">Please find attached your invoice <strong>${invoiceNumber}</strong> for your recent visit to Maria Havens.</p>
+            <p style="color: #555;">Thank you for your business!</p>
+          </div>
+          
+          <div style="text-align: center; color: #999; font-size: 14px;">
+            <p>© ${new Date().getFullYear()} Maria Havens</p>
+            <p>Email: info@mariahavens.com | Phone: 0719431878</p>
+          </div>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: `Invoice_${invoiceNumber}.pdf`,
+          content: pdfBuffer
+        }
+      ]
+    };
+
+    await emailTransporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Invoice email sending error:', error);
+    return false;
+  }
+};

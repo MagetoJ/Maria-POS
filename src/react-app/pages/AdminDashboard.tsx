@@ -16,6 +16,8 @@ import ExpensesManagement from '../components/admin/ExpensesManagement';
 import ProductReturnsManagement from '../components/admin/ProductReturnsManagement';
 import SuppliersManagement from '../components/admin/SuppliersManagement';
 import PurchaseOrdersManagement from '../components/admin/PurchaseOrdersManagement';
+import InvoicesManagement from '../components/admin/InvoicesManagement';
+import InvoiceModal from '../components/admin/InvoiceModal';
 import PerfomanceDashboard from '../components/PerfomanceDashboardView';
 import PersonalSalesReport from '../components/PersonalSalesReport';
 import SearchComponent from '../components/SearchComponent';
@@ -125,6 +127,7 @@ export default function AdminDashboard() {
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [allInventory, setAllInventory] = useState<any[]>([]);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
   
   // Chart data state
   const [revenueData] = useState([
@@ -221,6 +224,29 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleGenerateInvoice = async (orderId: number) => {
+    try {
+      const response = await apiClient.post('/api/invoices', {
+        order_id: orderId,
+        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setSelectedInvoiceId(data.id);
+      } else {
+        if (data.invoice) {
+          setSelectedInvoiceId(data.invoice.id);
+        } else {
+          alert(data.message || 'Failed to generate invoice');
+        }
+      }
+    } catch (err) {
+      console.error('Error generating invoice:', err);
+      alert('Error generating invoice');
+    }
+  };
+
   useEffect(() => {
       const fetchOverviewData = async () => {
           if (activeTab === 'overview') {
@@ -286,6 +312,7 @@ export default function AdminDashboard() {
     { id: 'rooms', label: 'Room Management', icon: Bed },
     { id: 'suppliers', label: 'Suppliers', icon: Truck },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
+    { id: 'invoices', label: 'Invoices', icon: FileText },
     { id: 'expenses', label: 'Expenses', icon: Receipt },
     { id: 'product-returns', label: 'Product Returns', icon: RotateCcw },
     { id: 'reports', label: 'Reports', icon: FileText },
@@ -788,9 +815,18 @@ export default function AdminDashboard() {
                         <p className="font-medium text-gray-900 truncate">{order.order_number}</p>
                         <p className="text-sm text-gray-600 truncate">{order.location}</p>
                         </div>
-                        <div className="text-left sm:text-right flex-shrink-0">
-                        <p className="font-medium text-gray-900">{formatCurrency(order.total_amount)}</p>
-                        <p className="text-sm text-gray-600">{timeAgo(order.created_at)}</p>
+                        <div className="flex items-center gap-4">
+                            <div className="text-left sm:text-right flex-shrink-0">
+                            <p className="font-medium text-gray-900">{formatCurrency(order.total_amount)}</p>
+                            <p className="text-sm text-gray-600">{timeAgo(order.created_at)}</p>
+                            </div>
+                            <button
+                                onClick={() => handleGenerateInvoice(order.id)}
+                                className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                                title="Generate Invoice"
+                            >
+                                <FileText className="w-5 h-5" />
+                            </button>
                         </div>
                     </div>
                     ))
@@ -1020,6 +1056,8 @@ export default function AdminDashboard() {
         return <SuppliersManagement />;
       case 'purchase-orders':
         return <PurchaseOrdersManagement />;
+      case 'invoices':
+        return <InvoicesManagement />;
       case 'expenses':
         return <ExpensesManagement />;
       case 'product-returns':
@@ -1073,6 +1111,13 @@ export default function AdminDashboard() {
           </main>
         </div>
       </div>
+
+      {selectedInvoiceId && (
+        <InvoiceModal
+          invoiceId={selectedInvoiceId}
+          onClose={() => setSelectedInvoiceId(null)}
+        />
+      )}
     </div>
   );
 }

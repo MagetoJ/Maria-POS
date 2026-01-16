@@ -5,8 +5,8 @@ import db from '../db';
 const DEFAULT_SETTINGS = {
   business_name: 'Maria Havens POS',
   business_address: '',
-  business_phone: '',
-  business_email: '',
+  business_phone: '0719431878',
+  business_email: 'info@mariahavens.com',
   business_logo: '/logo.PNG',
   business_paybill: '100400',
   business_account_number: 'MH',
@@ -318,7 +318,7 @@ export const updateSetting = async (req: Request, res: Response) => {
 };
 
 // Internal helper function to get all settings
-async function getAllSettingsInternal() {
+export async function getAllSettingsInternal() {
   // Check if type column exists
   const hasTypeColumn = await db.schema.hasColumn('settings', 'type');
   
@@ -384,6 +384,8 @@ export const getPublicSettings = async (req: Request, res: Response) => {
     const allSettings = await getAllSettingsInternal();
     const publicSettings = {
       business_name: allSettings.business_name,
+      business_phone: allSettings.business_phone,
+      business_email: allSettings.business_email,
       business_paybill: allSettings.business_paybill,
       business_account_number: allSettings.business_account_number,
       business_logo: allSettings.business_logo,

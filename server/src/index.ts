@@ -45,6 +45,7 @@ import recipesRoutes from './routes/recipesRoutes';
 import wastageRoutes from './routes/wastageRoutes';
 import stockTransfersRoutes from './routes/stockTransfersRoutes';
 import inventoryAuditsRoutes from './routes/inventoryAuditsRoutes';
+import invoiceRoutes from './routes/invoiceRoutes';
 
 // --- Initialization ---
 dotenv.config();
@@ -156,6 +157,7 @@ app.use('/api/recipes', recipesRoutes);
 app.use('/api/wastage', wastageRoutes);
 app.use('/api/stock-transfers', stockTransfersRoutes);
 app.use('/api/inventory-audits', inventoryAuditsRoutes);
+app.use('/api/invoices', invoiceRoutes);
 
 // --- Search Endpoint ---
 app.get('/api/search', async (req, res) => {

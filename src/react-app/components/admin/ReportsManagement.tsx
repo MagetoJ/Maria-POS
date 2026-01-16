@@ -5,6 +5,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import ReceiptModal from '../receptionist/ReceiptModal';
+import InvoiceModal from './InvoiceModal';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, ComposedChart, ScatterChart, Scatter, ZAxis } from 'recharts';
 
 type OrderType = any;
@@ -136,6 +137,7 @@ export default function ReportsManagement() {
   const [receiptError, setReceiptError] = useState<string | null>(null);
   // --- CORRECTED: Use the defined OrderType ---
   const [selectedReceipt, setSelectedReceipt] = useState<OrderType | null>(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
   // Optional: Add pagination state if needed
   // const [receiptPage, setReceiptPage] = useState(0);
   // const [receiptTotal, setReceiptTotal] = useState(0);
@@ -319,6 +321,29 @@ export default function ReportsManagement() {
        setReceiptError(specificError);
     } finally {
       setReceiptLoading(false);
+    }
+  };
+
+  const handleGenerateInvoice = async (orderId: number) => {
+    try {
+      const response = await apiClient.post('/api/invoices', {
+        order_id: orderId,
+        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setSelectedInvoiceId(data.id);
+      } else {
+        if (data.invoice) {
+          setSelectedInvoiceId(data.invoice.id);
+        } else {
+          alert(data.message || 'Failed to generate invoice');
+        }
+      }
+    } catch (err) {
+      console.error('Error generating invoice:', err);
+      alert('Error generating invoice');
     }
   };
 
@@ -1333,12 +1358,20 @@ export default function ReportsManagement() {
                           <td className="px-4 py-3 text-sm text-gray-500">{new Date(order.created_at).toLocaleDateString()}</td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{formatCurrency(order.total_amount)}</td>
                           <td className="px-4 py-3 text-sm font-medium">
-                            <button
-                              onClick={() => setSelectedReceipt(order)}
-                              className="text-indigo-600 hover:text-indigo-900 hover:underline"
-                            >
-                              View
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setSelectedReceipt(order)}
+                                className="text-indigo-600 hover:text-indigo-900 hover:underline"
+                              >
+                                View
+                              </button>
+                              <button
+                                onClick={() => handleGenerateInvoice(order.id)}
+                                className="text-blue-600 hover:text-blue-900 hover:underline"
+                              >
+                                Invoice
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1369,12 +1402,20 @@ export default function ReportsManagement() {
                         <p><span className="font-medium">Date:</span> {new Date(order.created_at).toLocaleString()}</p>
                         <p><span className="font-medium">Total:</span> {formatCurrency(order.total_amount)}</p>
                       </div>
-                      <button
-                        onClick={() => setSelectedReceipt(order)}
-                        className="w-full mt-3 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors"
-                      >
-                        View Receipt
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedReceipt(order)}
+                          className="flex-1 mt-3 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors"
+                        >
+                          View Receipt
+                        </button>
+                        <button
+                          onClick={() => handleGenerateInvoice(order.id)}
+                          className="flex-1 mt-3 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+                        >
+                          Invoice
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1419,6 +1460,13 @@ export default function ReportsManagement() {
             orderType: selectedReceipt.order_type || 'general'
           }}
           onClose={() => setSelectedReceipt(null)}
+        />
+      )}
+
+      {selectedInvoiceId && (
+        <InvoiceModal
+          invoiceId={selectedInvoiceId}
+          onClose={() => setSelectedInvoiceId(null)}
         />
       )}
     </div>
