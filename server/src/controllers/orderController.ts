@@ -37,8 +37,10 @@ export const createOrder = async (req: Request, res: Response) => {
       console.log('PIN validated for order by:', staffName);
     }
 
-    // Function to generate a unique order_number
-    const generateOrderNumber = () => `ORD-${Date.now()}`;
+    // 1. Generate order number outside to keep it in scope
+    const orderNumber = `ORD-${Date.now()}`;
+
+    let orderId: any;
 
     // Start DB transaction
     await db.transaction(async trx => {
@@ -49,7 +51,7 @@ export const createOrder = async (req: Request, res: Response) => {
       const safeOrder = {
         ...orderToInsert,
         staff_id: staffId,
-        order_number: generateOrderNumber(),
+        order_number: orderNumber, // Use the variable from outer scope
         subtotal: Number(orderToInsert.subtotal || 0),
         total_amount: Number(orderToInsert.total_amount || 0),
         payment_method: payment_method || 'cash',
@@ -62,9 +64,11 @@ export const createOrder = async (req: Request, res: Response) => {
       console.log('Inserting order:', safeOrder);
 
       // Insert order and get auto-generated ID
-      const [{ id: orderId }] = await trx('orders')
+      const [insertedOrder] = await trx('orders')
         .insert(safeOrder)
         .returning('id');
+
+      orderId = insertedOrder.id;
 
       if (!orderId) throw new Error('Failed to create order and get ID');
 
@@ -124,6 +128,8 @@ export const createOrder = async (req: Request, res: Response) => {
 
     res.status(201).json({
       message: 'Order created successfully',
+      order_id: orderId,
+      order_number: orderNumber,
       staff_name: staffName,
     });
 
@@ -174,18 +180,37 @@ export const getOrders = async (req: Request, res: Response) => {
 
     const orders = await query;
 
-    // Get order items for each order
-    for (const order of orders) {
-      (order as any).items = await db('order_items')
-        .leftJoin('products', 'order_items.product_id', 'products.id')
-        .where('order_id', order.id)
-        .select(
-          'order_items.*',
-          'products.name as product_name'
-        );
+    if (orders.length === 0) {
+      return res.json([]);
     }
 
-    res.json(orders);
+    const orderIds = orders.map(o => o.id);
+
+    // Get all order items in one query
+    const allItems = await db('order_items')
+      .leftJoin('products', 'order_items.product_id', 'products.id')
+      .whereIn('order_id', orderIds)
+      .select(
+        'order_items.*',
+        'products.name as product_name'
+      );
+
+    // Group items by order_id
+    const itemsByOrder = allItems.reduce((acc: any, item: any) => {
+      if (!acc[item.order_id]) {
+        acc[item.order_id] = [];
+      }
+      acc[item.order_id].push(item);
+      return acc;
+    }, {});
+
+    // Attach items to orders
+    const ordersWithItems = orders.map(order => ({
+      ...order,
+      items: itemsByOrder[order.id] || []
+    }));
+
+    res.json(ordersWithItems);
 
   } catch (err) {
     console.error('Error fetching orders:', err);
@@ -300,7 +325,6 @@ export const getStaffRecentOrders = async (req: Request, res: Response) => {
 
     const { limit = 20, offset = 0 } = req.query;
 
-    // Fetch orders for this staff member, ordered by most recent
     const orders = await db('orders')
       .where('staff_id', staffId)
       .select('*')
@@ -308,26 +332,45 @@ export const getStaffRecentOrders = async (req: Request, res: Response) => {
       .limit(parseInt(limit as string))
       .offset(parseInt(offset as string));
 
-    // Get order items and payment details for each order
-    for (const order of orders) {
-      // Get order items
-      (order as any).items = await db('order_items')
-        .leftJoin('products', 'order_items.product_id', 'products.id')
-        .where('order_id', order.id)
-        .select(
-          'order_items.*',
-          'products.name as product_name'
-        );
-
-      // Get payment details
-      const payment = await db('payments')
-        .where('order_id', order.id)
-        .first();
-      
-      (order as any).payment_method = payment?.payment_method || order.payment_method || 'cash';
+    if (orders.length === 0) {
+      return res.json([]);
     }
 
-    res.json(orders);
+    const orderIds = orders.map(o => o.id);
+
+    // Get order items in one query
+    const allItems = await db('order_items')
+      .leftJoin('products', 'order_items.product_id', 'products.id')
+      .whereIn('order_id', orderIds)
+      .select(
+        'order_items.*',
+        'products.name as product_name'
+      );
+
+    // Get payment details in one query
+    const allPayments = await db('payments')
+      .whereIn('order_id', orderIds);
+
+    // Group items and payments
+    const itemsByOrder = allItems.reduce((acc: any, item: any) => {
+      if (!acc[item.order_id]) acc[item.order_id] = [];
+      acc[item.order_id].push(item);
+      return acc;
+    }, {});
+
+    const paymentsByOrder = allPayments.reduce((acc: any, payment: any) => {
+      acc[payment.order_id] = payment;
+      return acc;
+    }, {});
+
+    // Attach to orders
+    const ordersWithDetails = orders.map(order => ({
+      ...order,
+      items: itemsByOrder[order.id] || [],
+      payment_method: paymentsByOrder[order.id]?.payment_method || order.payment_method || 'cash'
+    }));
+
+    res.json(ordersWithDetails);
 
   } catch (err) {
     console.error('Error fetching staff recent orders:', err);
@@ -353,25 +396,45 @@ export const getAllRecentOrders = async (req: Request, res: Response) => {
       .limit(parseInt(limit as string))
       .offset(parseInt(offset as string));
 
-    for (const order of orders) {
-      const items = await db('order_items')
-        .leftJoin('products', 'order_items.product_id', 'products.id')
-        .where('order_id', order.id)
-        .select(
-          'order_items.*',
-          'products.name as product_name'
-        );
-
-      (order as any).items = items;
-
-      const payment = await db('payments')
-        .where('order_id', order.id)
-        .first();
-      
-      (order as any).payment_method = payment?.payment_method || order.payment_method || 'cash';
+    if (orders.length === 0) {
+      return res.json([]);
     }
 
-    res.json(orders);
+    const orderIds = orders.map(o => o.id);
+
+    // Get order items in one query
+    const allItems = await db('order_items')
+      .leftJoin('products', 'order_items.product_id', 'products.id')
+      .whereIn('order_id', orderIds)
+      .select(
+        'order_items.*',
+        'products.name as product_name'
+      );
+
+    // Get payments in one query
+    const allPayments = await db('payments')
+      .whereIn('order_id', orderIds);
+
+    // Group items and payments
+    const itemsByOrder = allItems.reduce((acc: any, item: any) => {
+      if (!acc[item.order_id]) acc[item.order_id] = [];
+      acc[item.order_id].push(item);
+      return acc;
+    }, {});
+
+    const paymentsByOrder = allPayments.reduce((acc: any, payment: any) => {
+      acc[payment.order_id] = payment;
+      return acc;
+    }, {});
+
+    // Attach to orders
+    const ordersWithDetails = orders.map(order => ({
+      ...order,
+      items: itemsByOrder[order.id] || [],
+      payment_method: paymentsByOrder[order.id]?.payment_method || order.payment_method || 'cash'
+    }));
+
+    res.json(ordersWithDetails);
 
   } catch (err) {
     console.error('Error fetching all recent orders:', err);

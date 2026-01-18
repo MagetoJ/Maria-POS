@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '../config/api';
-import { Printer, Download, Loader2, Clock, DollarSign } from 'lucide-react';
+import { apiClient, API_URL } from '../config/api';
+import { Printer, Download, Loader2, Clock, DollarSign, FileText } from 'lucide-react';
 import ReceiptModal from './receptionist/ReceiptModal';
 
 interface OrderItem {
@@ -49,10 +49,40 @@ export default function MyRecentOrders() {
   const [error, setError] = useState<string | null>(null);
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<ReceiptData | null>(null);
   const [staffName, setStaffName] = useState<string>('');
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState<number | null>(null);
 
   useEffect(() => {
     fetchRecentOrders();
   }, []);
+
+  const handleIssueInvoice = async (orderId: number) => {
+    try {
+      setIsGeneratingInvoice(orderId);
+      const response = await apiClient.post('/api/quick-pos/create-invoice', {
+        order_id: orderId,
+        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Default 7 days
+        notes: "Generated via Quick POS"
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        alert(`Invoice ${data.invoice_number} created!`);
+        window.open(`${API_URL}/api/quick-pos/download-invoice/${data.id}`, '_blank');
+      } else {
+        if (data.invoice) {
+          // If already exists, just download the existing one
+          window.open(`${API_URL}/api/quick-pos/download-invoice/${data.invoice.id}`, '_blank');
+        } else {
+          alert(`Failed: ${data.message}`);
+        }
+      }
+    } catch (err) {
+      console.error('Invoice error:', err);
+      alert('An error occurred while generating the invoice');
+    } finally {
+      setIsGeneratingInvoice(null);
+    }
+  };
 
   const fetchRecentOrders = async () => {
     try {
@@ -227,14 +257,28 @@ export default function MyRecentOrders() {
               </div>
             </div>
 
-            {/* Action Button */}
-            <button
-              onClick={() => handleReprint(order)}
-              className="w-full py-2 px-4 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
-            >
-              <Printer className="w-4 h-4" />
-              Reprint Receipt
-            </button>
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleReprint(order)}
+                className="flex-1 py-2 px-4 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                Reprint Receipt
+              </button>
+              <button
+                onClick={() => handleIssueInvoice(order.id)}
+                disabled={isGeneratingInvoice === order.id}
+                className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {isGeneratingInvoice === order.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
+                Issue Invoice
+              </button>
+            </div>
           </div>
         ))}
       </div>

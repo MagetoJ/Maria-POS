@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Wine, ShoppingBag, History, Search, X } from 'lucide-react';
+import { LogOut, Wine, ShoppingBag, History, Search, X, FileText } from 'lucide-react';
 import { apiClient } from '../config/api';
 import { usePOS } from '../contexts/POSContext';
 
@@ -18,13 +18,15 @@ interface QuickPOSHeaderProps {
   toggleBarMode: () => void;
   isBarMode: boolean;
   setShowRecentOrders: (show: boolean) => void;
+  onGenerateInvoiceClick: () => void;
 }
 
 const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = ({
   onLogout,
   toggleBarMode,
   isBarMode,
-  setShowRecentOrders
+  setShowRecentOrders,
+  onGenerateInvoiceClick
 }) => {
   const { user } = useAuth();
   const { addItemToOrder } = usePOS();
@@ -222,6 +224,15 @@ const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = ({
           title={isBarMode ? "Switch to Kitchen Menu" : "Switch to Bar Menu"}
         >
           <Wine className="h-6 w-6" />
+        </button>
+
+        {/* Generate Invoice Button - Secured by PIN */}
+        <button
+          onClick={onGenerateInvoiceClick}
+          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+          title="Generate Invoice (PIN Required)"
+        >
+          <FileText className="h-6 w-6" />
         </button>
 
         <div className="h-6 w-px bg-gray-300 mx-2 hidden sm:block"></div>

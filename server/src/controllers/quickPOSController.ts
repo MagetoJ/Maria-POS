@@ -1,5 +1,9 @@
 import { Request, Response } from 'express';
 import db from '../db';
+import { generateInvoicePDF } from '../utils/pdfGenerator';
+import { sendInvoiceEmail } from '../utils/email';
+import { getAllSettingsInternal } from './settingsController';
+import { generateInvoiceNumber } from './invoiceController';
 
 // Search products and inventory items for Quick POS
 export const searchProductsAndInventory = async (req: Request, res: Response) => {
@@ -197,6 +201,50 @@ export const getBarItemsAsProducts = async (req: Request, res: Response) => {
     res.json(formattedItems);
   } catch (error) {
     console.error('Get bar items as products error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Generate a quick invoice for a waiter
+export const generateQuickInvoice = async (req: Request, res: Response) => {
+  const { order_id } = req.body;
+
+  if (!order_id) {
+    return res.status(400).json({ message: 'Order ID is required' });
+  }
+
+  try {
+    // Check if order exists
+    const order = await db('orders').where({ id: order_id }).first();
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Check if invoice already exists
+    let invoice = await db('invoices').where({ order_id }).first();
+
+    if (!invoice) {
+      // Create new invoice automatically for Quick POS
+      const invoice_number = await generateInvoiceNumber();
+      
+      const [newInvoice] = await db('invoices')
+        .insert({
+          order_id,
+          invoice_number,
+          due_date: new Date(), // Immediate due for POS
+          customer_email: order.customer_email,
+          status: order.payment_status === 'paid' ? 'paid' : 'unpaid',
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .returning('*');
+      
+      invoice = newInvoice;
+    }
+
+    res.json(invoice);
+  } catch (error) {
+    console.error('Generate quick invoice error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };

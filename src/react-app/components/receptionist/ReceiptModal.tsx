@@ -1,6 +1,7 @@
-import { X, Printer } from 'lucide-react';
+import { X, Printer, FileText, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { API_URL } from '../../config/api';
+import { API_URL, apiClient } from '../../config/api';
+import InvoiceModal from '../admin/InvoiceModal';
 
 interface ReceiptModalProps {
   receiptData: {
@@ -25,6 +26,8 @@ interface ReceiptModalProps {
 
 export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps) {
   const [settings, setSettings] = useState<any>({});
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
+  const [activeInvoiceId, setActiveInvoiceId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchSettings();
@@ -58,6 +61,30 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
         return 'Room Service Receipt';
       default:
         return 'Sales Receipt';
+    }
+  };
+
+  const handleGenerateInvoice = async () => {
+    if (!receiptData.orderId) {
+      alert("Order ID missing. Cannot generate invoice.");
+      return;
+    }
+
+    setIsGeneratingInvoice(true);
+    try {
+      const response = await apiClient.post('/api/quick-pos/generate-invoice', { order_id: receiptData.orderId });
+      if (response.ok) {
+        const data = await response.json();
+        setActiveInvoiceId(data.id);
+      } else {
+        const error = await response.json();
+        alert(error.message || "Failed to generate invoice");
+      }
+    } catch (err) {
+      console.error("Error generating invoice:", err);
+      alert("An error occurred while generating the invoice");
+    } finally {
+      setIsGeneratingInvoice(false);
     }
   };
 
@@ -347,7 +374,7 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
         </div>
 
         {/* Actions */}
-        <div className="p-4 border-t">
+        <div className="p-4 border-t flex flex-col gap-2">
           <div className="flex gap-3">
             <button
               onClick={onClose}
@@ -363,8 +390,28 @@ export default function ReceiptModal({ receiptData, onClose }: ReceiptModalProps
               Print Receipt
             </button>
           </div>
+
+          <button
+            onClick={handleGenerateInvoice}
+            disabled={isGeneratingInvoice}
+            className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center disabled:opacity-50"
+          >
+            {isGeneratingInvoice ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4 mr-2" />
+            )}
+            Generate A4 Invoice
+          </button>
         </div>
       </div>
+
+      {activeInvoiceId && (
+        <InvoiceModal 
+          invoiceId={activeInvoiceId} 
+          onClose={() => setActiveInvoiceId(null)} 
+        />
+      )}
     </div>
   );
 }

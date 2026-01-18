@@ -23,16 +23,16 @@ const getDatabaseConfig = () => {
         ssl: { rejectUnauthorized: false },
       },
       pool: {
-        min: 0,
-        max: 5,
-        acquireTimeoutMillis: 30000,
-        idleTimeoutMillis: 10000,
+        min: 2,
+        max: 10,
+        acquireTimeoutMillis: 60000,
+        idleTimeoutMillis: 30000,
         reapIntervalMillis: 2000,
       },
       debug: isDevelopment,
     };
   }
-  return {
+    return {
     client: 'pg',
     connection: {
       host: process.env.DB_HOST || 'localhost',
@@ -40,6 +40,13 @@ const getDatabaseConfig = () => {
       password: process.env.DB_PASSWORD || 'postgres',
       database: process.env.DB_NAME || 'pos_mocha_dev',
       port: parseInt(process.env.DB_PORT || '5432'),
+    },
+    pool: {
+      min: 2,
+      max: 10,
+      acquireTimeoutMillis: 60000,
+      idleTimeoutMillis: 30000,
+      reapIntervalMillis: 2000,
     },
     debug: isDevelopment,
     };

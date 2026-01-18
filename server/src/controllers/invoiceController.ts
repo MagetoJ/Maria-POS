@@ -5,7 +5,7 @@ import { generateInvoicePDF } from '../utils/pdfGenerator';
 import { sendInvoiceEmail } from '../utils/email';
 
 // Generate a unique invoice number
-const generateInvoiceNumber = async () => {
+export const generateInvoiceNumber = async () => {
   const date = new Date();
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');

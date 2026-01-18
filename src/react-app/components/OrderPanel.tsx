@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { usePOS, OrderItem, Order, Table } from '../contexts/POSContext';
 import { useAuth, User } from '../contexts/AuthContext';
 import { API_URL, apiClient } from '../config/api';
-import { Trash2, UtensilsCrossed, Loader2, User as UserIcon, Printer, X } from 'lucide-react';
+import { Trash2, UtensilsCrossed, Loader2, User as UserIcon, Printer, X, FileText } from 'lucide-react';
+import InvoiceModal from './admin/InvoiceModal';
 
 // Centralized currency formatter
 const formatCurrency = (amount: number): string => {
@@ -15,6 +16,7 @@ interface ReceiptDetails {
   order: Order;
   staff: User;
   orderNumber: string;
+  orderId?: number;
   subtotal: number;
   total: number;
   orderType: 'dine_in' | 'takeaway' | 'delivery' | 'room_service';
@@ -29,8 +31,10 @@ interface OrderPanelProps {
 
 // --- Receipt Preview Component (Internal to OrderPanel) ---
 const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => void }> = ({ details, onClose }) => {
-  const { order, staff, orderNumber, subtotal, total, orderType, locationDetail } = details;
+  const { order, staff, orderNumber, orderId, subtotal, total, orderType, locationDetail } = details;
   const [settings, setSettings] = useState<any>({});
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
+  const [activeInvoiceId, setActiveInvoiceId] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -46,6 +50,44 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
     };
     fetchSettings();
   }, []);
+
+  const handleGenerateInvoice = async () => {
+    if (!orderId) {
+      alert("Order ID missing. Cannot generate invoice.");
+      return;
+    }
+
+    setIsGeneratingInvoice(true);
+    try {
+      const response = await apiClient.post('/api/quick-pos/create-invoice', {
+        order_id: orderId,
+        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Default 7 days
+        notes: "Generated via Quick POS"
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        alert(`Invoice ${data.invoice_number} created!`);
+        
+        // Automatically trigger the download
+        window.open(`${API_URL}/api/quick-pos/download-invoice/${data.id}`, '_blank');
+        setActiveInvoiceId(data.id);
+      } else {
+        if (data.invoice) {
+          // If already exists, just download and show existing one
+          window.open(`${API_URL}/api/quick-pos/download-invoice/${data.invoice.id}`, '_blank');
+          setActiveInvoiceId(data.invoice.id);
+        } else {
+          alert(data.message || "Failed to generate invoice");
+        }
+      }
+    } catch (err) {
+      console.error("Error generating invoice:", err);
+      alert("An error occurred while generating the invoice");
+    } finally {
+      setIsGeneratingInvoice(false);
+    }
+  };
 
   const handlePrint = () => {
     const locationLine = locationDetail ? `<div>Location: ${locationDetail}</div>` : '';
@@ -216,22 +258,44 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
             </div>
           </div>
         </div>
-        <div className="p-4 flex gap-2">
+        <div className="p-4 flex flex-col gap-2">
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="w-full py-3 bg-gray-200 hover:bg-gray-300 rounded-md font-semibold transition-colors"
+            >
+              Close
+            </button>
+            <button
+              onClick={handlePrint}
+              className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-md font-semibold flex justify-center items-center transition-colors"
+            >
+              <Printer className="w-5 h-5 mr-2" />
+              Print Receipt
+            </button>
+          </div>
+          
           <button
-            onClick={onClose}
-            className="w-full py-3 bg-gray-200 hover:bg-gray-300 rounded-md font-semibold transition-colors"
+            onClick={handleGenerateInvoice}
+            disabled={isGeneratingInvoice}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold flex justify-center items-center transition-colors disabled:opacity-50"
           >
-            Cancel
-          </button>
-          <button
-            onClick={handlePrint}
-            className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-md font-semibold flex justify-center items-center transition-colors"
-          >
-            <Printer className="w-5 h-5 mr-2" />
-            Print Receipt
+            {isGeneratingInvoice ? (
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+            ) : (
+              <FileText className="w-5 h-5 mr-2" />
+            )}
+            Generate A4 Invoice
           </button>
         </div>
       </div>
+
+      {activeInvoiceId && (
+        <InvoiceModal 
+          invoiceId={activeInvoiceId} 
+          onClose={() => setActiveInvoiceId(null)} 
+        />
+      )}
     </div>
   );
 };
@@ -369,7 +433,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
     }
   };
 
-  const prepareAndShowReceiptModal = (staff: User, orderNumber: string) => {
+  const prepareAndShowReceiptModal = (staff: User, orderNumber: string, orderId?: number) => {
     if (!currentOrder) return;
     
     // Get table details for receipt
@@ -385,6 +449,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       order: { ...currentOrder, customer_name: customerName.trim() || undefined },
       staff,
       orderNumber,
+      orderId,
       subtotal,
       total,
       orderType: currentOrderType,
@@ -468,7 +533,8 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       if (response.ok) {
         const result = await response.json();
         console.log('Order submitted successfully:', result);
-        const orderNumber = `ORD-${Date.now()}`;
+        const orderId = result.order_id;
+        const orderNumber = result.order_number || `ORD-${Date.now()}`;
         setShowPinModal(false);
         setPin('');
         setSelectedWaiterId('');
@@ -476,7 +542,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
         setCustomerName('');
         setSelectedTableId('');
         setIsSubmitting(false);
-        prepareAndShowReceiptModal(staff, orderNumber);
+        prepareAndShowReceiptModal(staff || { name: result.staff_name || 'Staff', id: 0 } as User, orderNumber, orderId);
         return;
       } else {
         let errorMessage = 'Order submission failed.';
