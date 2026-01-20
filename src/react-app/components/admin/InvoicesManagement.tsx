@@ -17,15 +17,18 @@ import InvoiceModal from './InvoiceModal';
 
 interface Invoice {
   id: number;
-  order_id: number;
+  order_id: number | null;
   invoice_number: string;
   due_date: string;
   status: 'unpaid' | 'partial' | 'paid' | 'overdue';
   billing_address: string;
   notes: string;
-  order_number: string;
+  order_number: string | null;
   total_amount: number;
   customer_name: string;
+  event_name?: string;
+  event_price?: number;
+  customer_email?: string;
   created_at: string;
 }
 
@@ -54,7 +57,11 @@ export default function InvoicesManagement() {
   const [invoiceFormData, setInvoiceFormData] = useState({
     due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     billing_address: '',
-    notes: ''
+    notes: '',
+    event_name: '',
+    event_price: '',
+    customer_name: '',
+    customer_email: ''
   });
 
   useEffect(() => {
@@ -97,12 +104,16 @@ export default function InvoicesManagement() {
 
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedOrderId) return;
+    if (!selectedOrderId && !invoiceFormData.event_name) {
+      setError('Please select an order or provide manual event details');
+      return;
+    }
 
     try {
       const response = await apiClient.post('/api/invoices', {
         order_id: selectedOrderId,
-        ...invoiceFormData
+        ...invoiceFormData,
+        event_price: invoiceFormData.event_price ? parseFloat(invoiceFormData.event_price) : null
       });
 
       if (response.ok) {
@@ -253,7 +264,7 @@ export default function InvoicesManagement() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="font-medium text-gray-900">{inv.customer_name || 'Walk-in Customer'}</div>
-                          <div className="text-xs text-gray-500">Order: {inv.order_number}</div>
+                          <div className="text-xs text-gray-500">{inv.order_number ? `Order: ${inv.order_number}` : 'Manual Event'}</div>
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm text-gray-900">{new Date(inv.created_at).toLocaleDateString()}</div>
@@ -308,8 +319,58 @@ export default function InvoicesManagement() {
           </div>
 
           <form onSubmit={handleCreateInvoice} className="space-y-6">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Select Order *</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Manual Event Name Input */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Event Type (Manual Entry)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Wedding, Baby Shower, Corporate Party"
+                  value={invoiceFormData.event_name}
+                  onChange={(e) => setInvoiceFormData({ ...invoiceFormData, event_name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* Manual Price Input */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Event Price (KES)</label>
+                <input
+                  type="number"
+                  placeholder="Key in price..."
+                  value={invoiceFormData.event_price}
+                  onChange={(e) => setInvoiceFormData({ ...invoiceFormData, event_price: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* Manual Customer Name */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Customer Name (Manual)</label>
+                <input
+                  type="text"
+                  placeholder="Enter customer name..."
+                  value={invoiceFormData.customer_name}
+                  onChange={(e) => setInvoiceFormData({ ...invoiceFormData, customer_name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* Manual Customer Email */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Customer Email (Manual)</label>
+                <input
+                  type="email"
+                  placeholder="Enter customer email..."
+                  value={invoiceFormData.customer_email}
+                  onChange={(e) => setInvoiceFormData({ ...invoiceFormData, customer_email: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-6">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Or Select Recent Order</label>
               <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
                 {orders.length === 0 ? (
                   <div className="p-4 text-center text-gray-500">No recent orders found</div>
@@ -376,7 +437,7 @@ export default function InvoicesManagement() {
             <div className="flex gap-4 pt-4">
               <button
                 type="submit"
-                disabled={!selectedOrderId}
+                disabled={!selectedOrderId && !invoiceFormData.event_name}
                 className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-200"
               >
                 Generate Invoice

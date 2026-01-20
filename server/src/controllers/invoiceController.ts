@@ -26,46 +26,108 @@ export const generateInvoiceNumber = async () => {
   return `INV-${year}${month}-${String(sequence).padStart(3, '0')}`;
 };
 
-// Create a new invoice from an order
+// Create a new invoice from an order or from scratch with multiple items
 export const createInvoice = async (req: Request, res: Response) => {
-  const { order_id, due_date, billing_address, notes, customer_email } = req.body;
+  const { 
+    order_id, 
+    items, // Array of { product_id, quantity, unit_price, total_price }
+    due_date, 
+    billing_address, 
+    notes, 
+    customer_email,
+    customer_name,
+    payment_method = 'cash'
+  } = req.body;
 
   try {
-    // Check if order exists
-    const order = await db('orders').where({ id: order_id }).first();
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
+    let finalOrderId = order_id;
 
-    // Check if invoice already exists for this order
-    const existingInvoice = await db('invoices').where({ order_id }).first();
-    if (existingInvoice) {
-      return res.status(400).json({ 
-        message: 'Invoice already exists for this order',
-        invoice: existingInvoice 
-      });
-    }
+    await db.transaction(async (trx) => {
+      // If items are provided without an order_id, create a new order first
+      if (!order_id && items && items.length > 0) {
+        const order_number = `ORD-${Date.now()}`;
+        const total_amount = items.reduce((sum: number, item: any) => sum + (Number(item.total_price) || 0), 0);
+        const subtotal = items.reduce((sum: number, item: any) => sum + (Number(item.unit_price) * Number(item.quantity) || 0), 0);
 
-    const invoice_number = await generateInvoiceNumber();
+        const [newOrder] = await trx('orders')
+          .insert({
+            order_number,
+            order_type: 'quick_sale',
+            status: 'completed',
+            payment_status: 'unpaid',
+            total_amount,
+            subtotal,
+            customer_name: customer_name || 'Walk-in Customer',
+            customer_email,
+            payment_method,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .returning('id');
 
-    const [invoice] = await db('invoices')
-      .insert({
-        order_id,
-        invoice_number,
-        due_date: due_date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default 7 days due
-        billing_address,
-        notes,
-        customer_email: customer_email || order.customer_email,
-        status: 'unpaid',
-        created_at: new Date(),
-        updated_at: new Date()
-      })
-      .returning('*');
+        finalOrderId = newOrder.id || newOrder;
 
-    res.status(201).json(invoice);
-  } catch (err) {
+        // Insert items
+        const orderItems = items.map((item: any) => ({
+          order_id: finalOrderId,
+          product_id: item.product_id,
+          quantity: Number(item.quantity),
+          unit_price: Number(item.unit_price),
+          total_price: Number(item.total_price),
+          notes: item.notes || ''
+        }));
+
+        await trx('order_items').insert(orderItems);
+
+        // Insert initial payment record
+        await trx('payments').insert({
+          order_id: finalOrderId,
+          payment_method,
+          amount: total_amount,
+          status: 'pending'
+        });
+      } else if (order_id) {
+        // Check if order exists
+        const order = await trx('orders').where({ id: order_id }).first();
+        if (!order) {
+          throw new Error('Order not found');
+        }
+
+        // Check if invoice already exists for this order
+        const existingInvoice = await trx('invoices').where({ order_id }).first();
+        if (existingInvoice) {
+          // Instead of erroring, we can return the existing one or handle as needed
+          // But based on user request, maybe they want to update it? 
+          // For now, let's keep it strict or return existing.
+          return existingInvoice;
+        }
+      } else {
+        throw new Error('Either order_id or items are required');
+      }
+
+      const invoice_number = await generateInvoiceNumber();
+
+      const [invoice] = await trx('invoices')
+        .insert({
+          order_id: finalOrderId,
+          invoice_number,
+          due_date: due_date || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default 7 days due
+          billing_address,
+          notes,
+          customer_email,
+          status: 'unpaid',
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .returning('*');
+
+      res.status(201).json(invoice);
+    });
+  } catch (err: any) {
     console.error('Error creating invoice:', err);
-    res.status(500).json({ message: 'Error creating invoice' });
+    res.status(err.message === 'Order not found' ? 404 : 500).json({ 
+      message: err.message || 'Error creating invoice' 
+    });
   }
 };
 

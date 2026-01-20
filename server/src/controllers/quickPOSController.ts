@@ -205,46 +205,103 @@ export const getBarItemsAsProducts = async (req: Request, res: Response) => {
   }
 };
 
-// Generate a quick invoice for a waiter
+// Generate a quick invoice for a waiter or a quick sale
 export const generateQuickInvoice = async (req: Request, res: Response) => {
-  const { order_id } = req.body;
-
-  if (!order_id) {
-    return res.status(400).json({ message: 'Order ID is required' });
-  }
+  const { 
+    order_id,
+    items, // Optional: array of items to create a new order if order_id is missing
+    customer_name,
+    customer_email,
+    payment_method = 'cash'
+  } = req.body;
 
   try {
-    // Check if order exists
-    const order = await db('orders').where({ id: order_id }).first();
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
+    let finalOrderId = order_id;
 
-    // Check if invoice already exists
-    let invoice = await db('invoices').where({ order_id }).first();
+    await db.transaction(async (trx) => {
+      // If items are provided without an order_id, create a new order first
+      if (!order_id && items && items.length > 0) {
+        const order_number = `ORD-POS-${Date.now()}`;
+        const total_amount = items.reduce((sum: number, item: any) => sum + (Number(item.total_price) || 0), 0);
+        const subtotal = items.reduce((sum: number, item: any) => sum + (Number(item.unit_price) * Number(item.quantity) || 0), 0);
 
-    if (!invoice) {
-      // Create new invoice automatically for Quick POS
-      const invoice_number = await generateInvoiceNumber();
-      
-      const [newInvoice] = await db('invoices')
-        .insert({
-          order_id,
-          invoice_number,
-          due_date: new Date(), // Immediate due for POS
-          customer_email: order.customer_email,
-          status: order.payment_status === 'paid' ? 'paid' : 'unpaid',
-          created_at: new Date(),
-          updated_at: new Date()
-        })
-        .returning('*');
-      
-      invoice = newInvoice;
-    }
+        const [newOrder] = await trx('orders')
+          .insert({
+            order_number,
+            order_type: 'quick_sale',
+            status: 'completed',
+            payment_status: 'unpaid',
+            total_amount,
+            subtotal,
+            customer_name: customer_name || 'Quick POS Customer',
+            customer_email,
+            payment_method,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .returning('id');
 
-    res.json(invoice);
-  } catch (error) {
+        finalOrderId = newOrder.id || newOrder;
+
+        // Insert items
+        const orderItems = items.map((item: any) => ({
+          order_id: finalOrderId,
+          product_id: item.product_id,
+          quantity: Number(item.quantity),
+          unit_price: Number(item.unit_price),
+          total_price: Number(item.total_price),
+          notes: item.notes || ''
+        }));
+
+        await trx('order_items').insert(orderItems);
+
+        // Insert initial payment record
+        await trx('payments').insert({
+          order_id: finalOrderId,
+          payment_method,
+          amount: total_amount,
+          status: 'pending'
+        });
+      } else if (order_id) {
+        const order = await trx('orders').where({ id: order_id }).first();
+        if (!order) {
+          throw new Error('Order not found');
+        }
+      } else {
+        throw new Error('Either order_id or items are required');
+      }
+
+      // Check if invoice already exists
+      let invoice = await trx('invoices').where({ order_id: finalOrderId }).first();
+
+      if (!invoice) {
+        // Create new invoice automatically for Quick POS
+        const invoice_number = await generateInvoiceNumber();
+        
+        // Get order details to populate invoice
+        const order = await trx('orders').where({ id: finalOrderId }).first();
+
+        const [newInvoice] = await trx('invoices')
+          .insert({
+            order_id: finalOrderId,
+            invoice_number,
+            due_date: new Date(), // Immediate due for POS
+            customer_email: customer_email || order.customer_email,
+            status: order.payment_status === 'paid' ? 'paid' : 'unpaid',
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .returning('*');
+        
+        invoice = newInvoice;
+      }
+
+      res.json(invoice);
+    });
+  } catch (error: any) {
     console.error('Generate quick invoice error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(error.message === 'Order not found' ? 404 : 500).json({ 
+      message: error.message || 'Internal server error' 
+    });
   }
 };

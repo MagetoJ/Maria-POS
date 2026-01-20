@@ -5,10 +5,12 @@ interface InvoiceData {
   invoice_number: string;
   created_at: string;
   due_date: string;
-  order_number: string;
+  order_number: string | null;
   customer_name?: string;
   customer_phone?: string;
   billing_address?: string;
+  event_name?: string;
+  event_price?: number;
   status: string;
   items: any[];
   subtotal: number;
@@ -60,7 +62,7 @@ export const generateInvoicePDF = async (invoice: InvoiceData, settings: Busines
        .text(`Invoice #: ${invoice.invoice_number}`, 350, 150, { align: 'right' })
        .text(`Date: ${new Date(invoice.created_at).toLocaleDateString()}`, 350, 165, { align: 'right' })
        .text(`Due Date: ${new Date(invoice.due_date).toLocaleDateString()}`, 350, 180, { align: 'right' })
-       .text(`Order #: ${invoice.order_number}`, 350, 195, { align: 'right' });
+       .text(`Ref: ${invoice.order_number || 'Manual Event'}`, 350, 195, { align: 'right' });
 
     // --- Billing Info ---
     doc.fontSize(12)
@@ -94,24 +96,40 @@ export const generateInvoicePDF = async (invoice: InvoiceData, settings: Busines
     // --- Table Rows ---
     let y = tableTop + 30;
     doc.font('Helvetica');
-    invoice.items.forEach(item => {
-      const itemTotal = Number(item.total_price || (item.quantity * item.unit_price));
-      
+
+    // Show manual event row if present
+    if (invoice.event_name) {
       doc.fillColor('#444444')
-         .text(item.product_name || 'Item', 60, y)
-         .text(item.quantity.toString(), 300, y)
-         .text(Number(item.unit_price).toLocaleString(), 380, y, { width: 80, align: 'right' })
-         .text(itemTotal.toLocaleString(), 470, y, { width: 70, align: 'right' });
+         .text(invoice.event_name, 60, y)
+         .text('1', 300, y)
+         .text(Number(invoice.event_price).toLocaleString(), 380, y, { width: 80, align: 'right' })
+         .text(Number(invoice.event_price).toLocaleString(), 470, y, { width: 70, align: 'right' });
       
       y += 20;
       doc.moveTo(50, y - 5).lineTo(550, y - 5).stroke('#eeeeee');
-    });
+    }
+
+    if (invoice.items) {
+      invoice.items.forEach(item => {
+        const itemTotal = Number(item.total_price || (item.quantity * item.unit_price));
+        
+        doc.fillColor('#444444')
+           .text(item.product_name || 'Item', 60, y)
+           .text(item.quantity.toString(), 300, y)
+           .text(Number(item.unit_price).toLocaleString(), 380, y, { width: 80, align: 'right' })
+           .text(itemTotal.toLocaleString(), 470, y, { width: 70, align: 'right' });
+        
+        y += 20;
+        doc.moveTo(50, y - 5).lineTo(550, y - 5).stroke('#eeeeee');
+      });
+    }
 
     // --- Totals ---
     const totalsY = y + 20;
+    const subtotalValue = Number(invoice.subtotal || invoice.event_price || 0);
     doc.fontSize(10)
        .text('Subtotal:', 350, totalsY)
-       .text(invoice.subtotal.toLocaleString(), 470, totalsY, { width: 70, align: 'right' });
+       .text(subtotalValue.toLocaleString(), 470, totalsY, { width: 70, align: 'right' });
 
     if (invoice.tax_amount > 0) {
       doc.text('Tax:', 350, totalsY + 15)

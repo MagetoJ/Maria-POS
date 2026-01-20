@@ -300,7 +300,7 @@ export default function InvoiceModal({ invoiceId, onClose }: InvoiceModalProps) 
                   <p><span className="font-semibold">Invoice #:</span> {invoice.invoice_number}</p>
                   <p><span className="font-semibold">Date:</span> {new Date(invoice.created_at).toLocaleDateString('en-KE')}</p>
                   <p><span className="font-semibold">Due Date:</span> {new Date(invoice.due_date).toLocaleDateString('en-KE')}</p>
-                  <p><span className="font-semibold">Order #:</span> {invoice.order_number}</p>
+                  <p><span className="font-semibold">Reference:</span> {invoice.order_number || 'Manual Event'}</p>
                 </div>
               </div>
             </div>
@@ -339,6 +339,15 @@ export default function InvoiceModal({ invoiceId, onClose }: InvoiceModalProps) 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
+                {/* Show manual event details if present */}
+                {invoice.event_name && (
+                  <tr>
+                    <td className="py-4 font-medium">{invoice.event_name}</td>
+                    <td className="py-4 text-center">1</td>
+                    <td className="py-4 text-right">{formatCurrency(invoice.event_price)}</td>
+                    <td className="py-4 text-right font-semibold">{formatCurrency(invoice.event_price)}</td>
+                  </tr>
+                )}
                 {invoice.items && invoice.items.map((item: any, index: number) => (
                   <tr key={index}>
                     <td className="py-4 font-medium">{item.product_name}</td>
@@ -355,7 +364,7 @@ export default function InvoiceModal({ invoiceId, onClose }: InvoiceModalProps) 
               <div className="w-full max-w-xs space-y-3">
                 <div className="flex justify-between text-gray-600">
                   <span>Subtotal:</span>
-                  <span>{formatCurrency(invoice.subtotal)}</span>
+                  <span>{formatCurrency(invoice.subtotal || invoice.event_price || 0)}</span>
                 </div>
                 {invoice.tax_amount > 0 && (
                   <div className="flex justify-between text-gray-600">
