@@ -143,7 +143,11 @@ export const generateInvoicePDF = async (invoice: InvoiceData, settings: Busines
 
     // --- Totals ---
     const totalsY = y + 20;
-    const subtotalValue = Number(invoice.subtotal || invoice.event_price || 0);
+    const itemsTotal = invoice.items?.reduce((sum: number, item: any) => sum + (Number(item.total_price || (item.quantity * item.unit_price)) || 0), 0) || 0;
+    const subtotalValue = invoice.order_number 
+      ? (Number(invoice.subtotal) || itemsTotal)
+      : ((Number(invoice.event_price) || 0) + itemsTotal);
+
     doc.fontSize(10)
        .text('Subtotal:', 350, totalsY)
        .text(subtotalValue.toLocaleString(), 470, totalsY, { width: 70, align: 'right' });

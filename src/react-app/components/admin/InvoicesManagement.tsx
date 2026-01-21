@@ -430,16 +430,28 @@ export default function InvoicesManagement() {
 
             {invoiceType === 'event' ? (
               <div className="space-y-4 border-t pt-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Event Type</label>
-                  <select 
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={invoiceFormData.event_type}
-                    onChange={(e) => handleTemplateChange(e.target.value)}
-                  >
-                    <option value="">-- Select Event Type --</option>
-                    {Object.keys(EVENT_TEMPLATES).map(type => <option key={type} value={type}>{type}</option>)}
-                  </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Event Type</label>
+                    <select 
+                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      value={invoiceFormData.event_type}
+                      onChange={(e) => handleTemplateChange(e.target.value)}
+                    >
+                      <option value="">-- Select Event Type --</option>
+                      {Object.keys(EVENT_TEMPLATES).map(type => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Event Package Price (KES)</label>
+                    <input 
+                      type="number"
+                      placeholder="e.g. 50000"
+                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      value={invoiceFormData.event_price}
+                      onChange={(e) => setInvoiceFormData({ ...invoiceFormData, event_price: e.target.value })}
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -669,21 +681,34 @@ export default function InvoicesManagement() {
               </div>
             </div>
 
-            <div className="flex gap-4 pt-4">
-              <button
-                type="submit"
-                disabled={invoiceType === 'order' ? (!selectedOrderId && invoiceFormData.items.length === 0) : (!invoiceFormData.event_type && manualItems.filter(i => i.selected).length === 0)}
-                className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-200"
-              >
-                Generate Invoice
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCreateView(false)}
-                className="px-8 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
+            <div className="flex flex-col gap-4 pt-4">
+              {invoiceType === 'event' && (
+                <div className="flex justify-between items-center p-4 bg-blue-50 rounded-xl border border-blue-100">
+                  <span className="text-blue-800 font-bold">Estimated Total:</span>
+                  <span className="text-2xl font-black text-blue-900">
+                    {formatCurrency(
+                      (Number(invoiceFormData.event_price) || 0) + 
+                      manualItems.filter(i => i.selected).reduce((sum, i) => sum + (Number(i.price) || 0), 0)
+                    )}
+                  </span>
+                </div>
+              )}
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  disabled={invoiceType === 'order' ? (!selectedOrderId && invoiceFormData.items.length === 0) : (!invoiceFormData.event_type && manualItems.filter(i => i.selected).length === 0)}
+                  className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-200"
+                >
+                  Generate Invoice
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateView(false)}
+                  className="px-8 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </form>
         </div>

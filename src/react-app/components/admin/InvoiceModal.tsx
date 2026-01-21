@@ -228,6 +228,11 @@ export default function InvoiceModal({ invoiceId, onClose }: InvoiceModalProps) 
 
   if (!invoice) return null;
 
+  const itemsTotal = invoice.items?.reduce((sum: number, item: any) => sum + (Number(item.total_price) || 0), 0) || 0;
+  const subtotalValue = invoice.order_id 
+    ? (Number(invoice.subtotal) || itemsTotal)
+    : ((Number(invoice.event_price) || 0) + itemsTotal);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-start z-[70] p-4 overflow-y-auto">
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl flex flex-col my-auto md:my-8 max-h-[90vh]">
@@ -341,12 +346,12 @@ export default function InvoiceModal({ invoiceId, onClose }: InvoiceModalProps) 
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {/* Show manual event details if present */}
-                {invoice.event_type && (!invoice.items || invoice.items.length === 0) && (
-                  <tr>
-                    <td className="py-4 font-medium">{invoice.event_type}</td>
+                {invoice.event_type && Number(invoice.event_price) > 0 && (
+                  <tr className="bg-blue-50/30">
+                    <td className="py-4 font-bold text-blue-900">{invoice.event_type} Package</td>
                     <td className="py-4 text-center">1</td>
                     <td className="py-4 text-right">{formatCurrency(invoice.event_price)}</td>
-                    <td className="py-4 text-right font-semibold">{formatCurrency(invoice.event_price)}</td>
+                    <td className="py-4 text-right font-bold text-blue-900">{formatCurrency(invoice.event_price)}</td>
                   </tr>
                 )}
                 {invoice.items && invoice.items.map((item: any, index: number) => (
@@ -365,7 +370,7 @@ export default function InvoiceModal({ invoiceId, onClose }: InvoiceModalProps) 
               <div className="w-full max-w-xs space-y-3">
                 <div className="flex justify-between text-gray-600">
                   <span>Subtotal:</span>
-                  <span>{formatCurrency(invoice.subtotal || invoice.event_price || 0)}</span>
+                  <span>{formatCurrency(subtotalValue)}</span>
                 </div>
                 {invoice.tax_amount > 0 && (
                   <div className="flex justify-between text-gray-600">

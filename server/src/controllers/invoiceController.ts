@@ -47,11 +47,19 @@ export const createInvoice = async (req: Request, res: Response) => {
     let finalTotalAmount = provided_total;
 
     // Calculate total from items if not provided
-    if (!finalTotalAmount && items && items.length > 0) {
-      finalTotalAmount = items.reduce((sum: number, i: any) => sum + (Number(i.total_price) || Number(i.price) || (Number(i.unit_price) * Number(i.quantity)) || 0), 0);
+    if (!finalTotalAmount) {
+      const itemsTotal = items && items.length > 0 
+        ? items.reduce((sum: number, i: any) => sum + (Number(i.total_price) || Number(i.price) || (Number(i.unit_price) * (Number(i.quantity) || 1)) || 0), 0)
+        : 0;
+      
+      if (event_type) {
+        finalTotalAmount = (Number(event_price) || 0) + itemsTotal;
+      } else if (items && items.length > 0) {
+        finalTotalAmount = itemsTotal;
+      } else if (event_price) {
+        finalTotalAmount = Number(event_price);
+      }
     }
-
-    if (!finalTotalAmount) finalTotalAmount = event_price || 0;
 
     await db.transaction(async (trx) => {
       // If items are provided without an order_id, AND it's not an explicit event (no event_type),
