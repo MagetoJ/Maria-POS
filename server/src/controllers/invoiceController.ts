@@ -30,24 +30,36 @@ export const generateInvoiceNumber = async () => {
 export const createInvoice = async (req: Request, res: Response) => {
   const { 
     order_id, 
-    items, // Array of { product_id, quantity, unit_price, total_price }
+    items, // Array of { description, product_id, quantity, unit_price, total_price }
     due_date, 
     billing_address, 
     notes, 
     customer_email,
     customer_name,
-    payment_method = 'cash'
+    event_type,
+    event_price,
+    payment_method = 'cash',
+    total_amount: provided_total
   } = req.body;
 
   try {
     let finalOrderId = order_id;
+    let finalTotalAmount = provided_total;
+
+    // Calculate total from items if not provided
+    if (!finalTotalAmount && items && items.length > 0) {
+      finalTotalAmount = items.reduce((sum: number, i: any) => sum + (Number(i.total_price) || Number(i.price) || (Number(i.unit_price) * Number(i.quantity)) || 0), 0);
+    }
+
+    if (!finalTotalAmount) finalTotalAmount = event_price || 0;
 
     await db.transaction(async (trx) => {
-      // If items are provided without an order_id, create a new order first
-      if (!order_id && items && items.length > 0) {
+      // If items are provided without an order_id, AND it's not an explicit event (no event_type),
+      // create a new order first for tracking
+      if (!order_id && !event_type && items && items.length > 0) {
         const order_number = `ORD-${Date.now()}`;
-        const total_amount = items.reduce((sum: number, item: any) => sum + (Number(item.total_price) || 0), 0);
-        const subtotal = items.reduce((sum: number, item: any) => sum + (Number(item.unit_price) * Number(item.quantity) || 0), 0);
+        const total_amount = finalTotalAmount;
+        const subtotal = items.reduce((sum: number, item: any) => sum + (Number(item.unit_price) * Number(item.quantity) || Number(item.price) || 0), 0);
 
         const [newOrder] = await trx('orders')
           .insert({
@@ -67,14 +79,14 @@ export const createInvoice = async (req: Request, res: Response) => {
 
         finalOrderId = newOrder.id || newOrder;
 
-        // Insert items
+        // Insert items into order_items
         const orderItems = items.map((item: any) => ({
           order_id: finalOrderId,
-          product_id: item.product_id,
-          quantity: Number(item.quantity),
-          unit_price: Number(item.unit_price),
-          total_price: Number(item.total_price),
-          notes: item.notes || ''
+          product_id: item.product_id || null,
+          quantity: Number(item.quantity) || 1,
+          unit_price: Number(item.unit_price) || 0,
+          total_price: Number(item.total_price) || (Number(item.unit_price) * Number(item.quantity)) || 0,
+          notes: item.notes || item.description || ''
         }));
 
         await trx('order_items').insert(orderItems);
@@ -86,6 +98,8 @@ export const createInvoice = async (req: Request, res: Response) => {
           amount: total_amount,
           status: 'pending'
         });
+        
+        if (!finalTotalAmount) finalTotalAmount = total_amount;
       } else if (order_id) {
         // Check if order exists
         const order = await trx('orders').where({ id: order_id }).first();
@@ -96,13 +110,15 @@ export const createInvoice = async (req: Request, res: Response) => {
         // Check if invoice already exists for this order
         const existingInvoice = await trx('invoices').where({ order_id }).first();
         if (existingInvoice) {
-          // Instead of erroring, we can return the existing one or handle as needed
-          // But based on user request, maybe they want to update it? 
-          // For now, let's keep it strict or return existing.
           return existingInvoice;
         }
-      } else {
-        throw new Error('Either order_id or items are required');
+        
+        if (!finalTotalAmount) finalTotalAmount = order.total_amount;
+      } else if (!items || items.length === 0) {
+        // Allow creating a manual invoice without items if event_price is provided
+        if (!finalTotalAmount) {
+          throw new Error('Either order_id, items, or event_price are required');
+        }
       }
 
       const invoice_number = await generateInvoiceNumber();
@@ -115,11 +131,27 @@ export const createInvoice = async (req: Request, res: Response) => {
           billing_address,
           notes,
           customer_email,
+          customer_name,
+          event_type,
+          event_price,
+          total_amount: finalTotalAmount,
           status: 'unpaid',
           created_at: new Date(),
           updated_at: new Date()
         })
         .returning('*');
+
+      // Insert into invoice_items if provided
+      if (items && items.length > 0) {
+        const invoiceItems = items.map((item: any) => ({
+          invoice_id: invoice.id,
+          description: item.description || item.product_name || 'Item',
+          quantity: Number(item.quantity) || 1,
+          unit_price: Number(item.unit_price) || Number(item.price) || 0,
+          total_price: Number(item.total_price) || Number(item.price) || (Number(item.unit_price) * Number(item.quantity)) || 0
+        }));
+        await trx('invoice_items').insert(invoiceItems);
+      }
 
       res.status(201).json(invoice);
     });
@@ -143,7 +175,12 @@ export const getInvoices = async (req: Request, res: Response) => {
     } = req.query;
 
     let query = db('invoices')
-      .select('invoices.*', 'orders.order_number', 'orders.total_amount', 'orders.customer_name')
+      .select(
+        'invoices.*', 
+        'orders.order_number', 
+        db.raw('COALESCE(invoices.total_amount, orders.total_amount) as total_amount'),
+        db.raw('COALESCE(invoices.customer_name, orders.customer_name) as customer_name')
+      )
       .leftJoin('orders', 'invoices.order_id', 'orders.id')
       .orderBy('invoices.created_at', 'desc')
       .limit(parseInt(limit as string))
@@ -171,7 +208,13 @@ export const getInvoiceById = async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const invoice = await db('invoices')
-      .select('invoices.*', 'orders.order_number', 'orders.total_amount', 'orders.subtotal', 'orders.tax_amount', 'orders.service_charge', 'orders.discount_amount', 'orders.customer_name', 'orders.customer_phone')
+      .select(
+        'invoices.*', 
+        'orders.order_number', 
+        db.raw('COALESCE(invoices.total_amount, orders.total_amount) as total_amount'),
+        db.raw('COALESCE(invoices.customer_name, orders.customer_name) as customer_name'),
+        'orders.subtotal', 'orders.tax_amount', 'orders.service_charge', 'orders.discount_amount', 'orders.customer_phone'
+      )
       .leftJoin('orders', 'invoices.order_id', 'orders.id')
       .where('invoices.id', id)
       .first();
@@ -180,19 +223,31 @@ export const getInvoiceById = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
-    // Get order items
-    invoice.items = await db('order_items')
-      .leftJoin('products', 'order_items.product_id', 'products.id')
-      .where('order_id', invoice.order_id)
-      .select(
-        'order_items.*',
-        'products.name as product_name'
-      );
+    // Try to get invoice items
+    const invoiceItems = await db('invoice_items').where('invoice_id', id);
+    
+    if (invoiceItems.length > 0) {
+      invoice.items = invoiceItems.map(item => ({
+        ...item,
+        product_name: item.description 
+      }));
+    } else if (invoice.order_id) {
+      // Fallback to order items
+      invoice.items = await db('order_items')
+        .leftJoin('products', 'order_items.product_id', 'products.id')
+        .where('order_id', invoice.order_id)
+        .select(
+          'order_items.*',
+          'products.name as product_name'
+        );
+    } else {
+      invoice.items = [];
+    }
 
     // Get payments
-    invoice.payments = await db('payments')
+    invoice.payments = invoice.order_id ? await db('payments')
       .where('order_id', invoice.order_id)
-      .select('*');
+      .select('*') : [];
 
     res.json(invoice);
   } catch (err) {
@@ -239,7 +294,13 @@ export const emailInvoice = async (req: Request, res: Response) => {
 
     // Get full invoice details
     const invoice = await db('invoices')
-      .select('invoices.*', 'orders.order_number', 'orders.total_amount', 'orders.subtotal', 'orders.tax_amount', 'orders.service_charge', 'orders.discount_amount', 'orders.customer_name', 'orders.customer_phone')
+      .select(
+        'invoices.*', 
+        'orders.order_number', 
+        db.raw('COALESCE(invoices.total_amount, orders.total_amount) as total_amount'),
+        db.raw('COALESCE(invoices.customer_name, orders.customer_name) as customer_name'),
+        'orders.subtotal', 'orders.tax_amount', 'orders.service_charge', 'orders.discount_amount', 'orders.customer_phone'
+      )
       .leftJoin('orders', 'invoices.order_id', 'orders.id')
       .where('invoices.id', id)
       .first();
@@ -253,14 +314,21 @@ export const emailInvoice = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Recipient email is required' });
     }
 
-    // Get order items
-    invoice.items = await db('order_items')
-      .leftJoin('products', 'order_items.product_id', 'products.id')
-      .where('order_id', invoice.order_id)
-      .select(
-        'order_items.*',
-        'products.name as product_name'
-      );
+    // Get items
+    const invoiceItems = await db('invoice_items').where('invoice_id', id);
+    if (invoiceItems.length > 0) {
+      invoice.items = invoiceItems.map(item => ({ ...item, product_name: item.description }));
+    } else if (invoice.order_id) {
+      invoice.items = await db('order_items')
+        .leftJoin('products', 'order_items.product_id', 'products.id')
+        .where('order_id', invoice.order_id)
+        .select(
+          'order_items.*',
+          'products.name as product_name'
+        );
+    } else {
+      invoice.items = [];
+    }
 
     // Get business settings
     const settings = await getAllSettingsInternal();
@@ -293,7 +361,13 @@ export const downloadInvoice = async (req: Request, res: Response) => {
 
     // Get full invoice details
     const invoice = await db('invoices')
-      .select('invoices.*', 'orders.order_number', 'orders.total_amount', 'orders.subtotal', 'orders.tax_amount', 'orders.service_charge', 'orders.discount_amount', 'orders.customer_name', 'orders.customer_phone')
+      .select(
+        'invoices.*', 
+        'orders.order_number', 
+        db.raw('COALESCE(invoices.total_amount, orders.total_amount) as total_amount'),
+        db.raw('COALESCE(invoices.customer_name, orders.customer_name) as customer_name'),
+        'orders.subtotal', 'orders.tax_amount', 'orders.service_charge', 'orders.discount_amount', 'orders.customer_phone'
+      )
       .leftJoin('orders', 'invoices.order_id', 'orders.id')
       .where('invoices.id', id)
       .first();
@@ -302,14 +376,21 @@ export const downloadInvoice = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
-    // Get order items
-    invoice.items = await db('order_items')
-      .leftJoin('products', 'order_items.product_id', 'products.id')
-      .where('order_id', invoice.order_id)
-      .select(
-        'order_items.*',
-        'products.name as product_name'
-      );
+    // Get items
+    const invoiceItems = await db('invoice_items').where('invoice_id', id);
+    if (invoiceItems.length > 0) {
+      invoice.items = invoiceItems.map(item => ({ ...item, product_name: item.description }));
+    } else if (invoice.order_id) {
+      invoice.items = await db('order_items')
+        .leftJoin('products', 'order_items.product_id', 'products.id')
+        .where('order_id', invoice.order_id)
+        .select(
+          'order_items.*',
+          'products.name as product_name'
+        );
+    } else {
+      invoice.items = [];
+    }
 
     // Get business settings
     const settings = await getAllSettingsInternal();

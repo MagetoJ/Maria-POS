@@ -9,7 +9,7 @@ interface InvoiceData {
   customer_name?: string;
   customer_phone?: string;
   billing_address?: string;
-  event_name?: string;
+  event_type?: string;
   event_price?: number;
   status: string;
   items: any[];
@@ -41,14 +41,31 @@ export const generateInvoicePDF = async (invoice: InvoiceData, settings: Busines
     });
     doc.on('error', reject);
 
+    const safeSettings = {
+      business_name: settings?.business_name || 'MARIA HAVENS',
+      business_phone: settings?.business_phone || '0719431878',
+      business_email: settings?.business_email || 'info@mariahavens.com',
+      business_paybill: settings?.business_paybill || 'N/A',
+      business_account_number: settings?.business_account_number || 'N/A'
+    };
+
+    const safeDate = (date: any) => {
+      try {
+        if (!date) return 'N/A';
+        return new Date(date).toLocaleDateString();
+      } catch (e) {
+        return 'N/A';
+      }
+    };
+
     // --- Header ---
     doc.fillColor('#444444')
        .fontSize(20)
-       .text(settings.business_name.toUpperCase(), 50, 50, { align: 'left' })
+       .text(safeSettings.business_name.toUpperCase(), 50, 50, { align: 'left' })
        .fontSize(10)
        .text('Restaurant & Hotel', 50, 75)
-       .text(settings.business_email || 'info@mariahavens.com', 50, 90)
-       .text(settings.business_phone || '0719431878', 50, 105);
+       .text(safeSettings.business_email, 50, 90)
+       .text(safeSettings.business_phone, 50, 105);
 
     doc.fontSize(30)
        .fillColor('#cccccc')
@@ -60,8 +77,8 @@ export const generateInvoicePDF = async (invoice: InvoiceData, settings: Busines
     doc.fillColor('#444444')
        .fontSize(10)
        .text(`Invoice #: ${invoice.invoice_number}`, 350, 150, { align: 'right' })
-       .text(`Date: ${new Date(invoice.created_at).toLocaleDateString()}`, 350, 165, { align: 'right' })
-       .text(`Due Date: ${new Date(invoice.due_date).toLocaleDateString()}`, 350, 180, { align: 'right' })
+       .text(`Date: ${safeDate(invoice.created_at)}`, 350, 165, { align: 'right' })
+       .text(`Due Date: ${safeDate(invoice.due_date)}`, 350, 180, { align: 'right' })
        .text(`Ref: ${invoice.order_number || 'Manual Event'}`, 350, 195, { align: 'right' });
 
     // --- Billing Info ---
@@ -98,9 +115,9 @@ export const generateInvoicePDF = async (invoice: InvoiceData, settings: Busines
     doc.font('Helvetica');
 
     // Show manual event row if present
-    if (invoice.event_name) {
+    if (invoice.event_type) {
       doc.fillColor('#444444')
-         .text(invoice.event_name, 60, y)
+         .text(invoice.event_type, 60, y)
          .text('1', 300, y)
          .text(Number(invoice.event_price).toLocaleString(), 380, y, { width: 80, align: 'right' })
          .text(Number(invoice.event_price).toLocaleString(), 470, y, { width: 70, align: 'right' });
@@ -161,8 +178,8 @@ export const generateInvoicePDF = async (invoice: InvoiceData, settings: Busines
        .text('PAYMENT INSTRUCTIONS:', 50, footerY)
        .font('Helvetica')
        .fillColor('#444444')
-       .text(`M-PESA Paybill: ${settings.business_paybill}`, 50, footerY + 20)
-       .text(`Account Number: ${settings.business_account_number}-${invoice.invoice_number}`, 50, footerY + 35);
+       .text(`M-PESA Paybill: ${safeSettings.business_paybill}`, 50, footerY + 20)
+       .text(`Account Number: ${safeSettings.business_account_number}-${invoice.invoice_number}`, 50, footerY + 35);
 
     // --- Notes ---
     doc.font('Helvetica-Bold')

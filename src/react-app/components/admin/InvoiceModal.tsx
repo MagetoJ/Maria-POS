@@ -46,8 +46,9 @@ export default function InvoiceModal({ invoiceId, onClose }: InvoiceModalProps) 
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
+  const formatCurrency = (amount: number | null | undefined) => {
+    const safeAmount = amount || 0;
+    return `KES ${safeAmount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
   };
 
   const handlePrint = () => {
@@ -298,9 +299,9 @@ export default function InvoiceModal({ invoiceId, onClose }: InvoiceModalProps) 
                 <h2 className="text-4xl font-light text-gray-400 uppercase tracking-widest mb-4">Invoice</h2>
                 <div className="space-y-1">
                   <p><span className="font-semibold">Invoice #:</span> {invoice.invoice_number}</p>
-                  <p><span className="font-semibold">Date:</span> {new Date(invoice.created_at).toLocaleDateString('en-KE')}</p>
-                  <p><span className="font-semibold">Due Date:</span> {new Date(invoice.due_date).toLocaleDateString('en-KE')}</p>
-                  <p><span className="font-semibold">Reference:</span> {invoice.order_number || 'Manual Event'}</p>
+                  <p><span className="font-semibold">Date:</span> {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString('en-KE') : 'N/A'}</p>
+                  <p><span className="font-semibold">Due Date:</span> {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-KE') : 'N/A'}</p>
+                  <p><span className="font-semibold">Reference:</span> {invoice.order_number || invoice.event_type || 'Manual Event'}</p>
                 </div>
               </div>
             </div>
@@ -340,9 +341,9 @@ export default function InvoiceModal({ invoiceId, onClose }: InvoiceModalProps) 
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {/* Show manual event details if present */}
-                {invoice.event_name && (
+                {invoice.event_type && (!invoice.items || invoice.items.length === 0) && (
                   <tr>
-                    <td className="py-4 font-medium">{invoice.event_name}</td>
+                    <td className="py-4 font-medium">{invoice.event_type}</td>
                     <td className="py-4 text-center">1</td>
                     <td className="py-4 text-right">{formatCurrency(invoice.event_price)}</td>
                     <td className="py-4 text-right font-semibold">{formatCurrency(invoice.event_price)}</td>
