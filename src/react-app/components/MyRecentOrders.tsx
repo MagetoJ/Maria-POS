@@ -43,7 +43,11 @@ interface ReceiptData {
   orderType?: string;
 }
 
-export default function MyRecentOrders() {
+interface MyRecentOrdersProps {
+  isQuickAccess?: boolean;
+}
+
+export default function MyRecentOrders({ isQuickAccess = false }: MyRecentOrdersProps) {
   const [orders, setOrders] = useState<RecentOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +92,12 @@ export default function MyRecentOrders() {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await apiClient.get('/api/orders/recent/all?limit=20&offset=0');
+      
+      const endpoint = isQuickAccess 
+        ? '/api/quick-pos/recent-orders?limit=20&offset=0'
+        : '/api/orders/recent/all?limit=20&offset=0';
+
+      const response = await apiClient.get(endpoint);
       
       if (!response.ok) {
         throw new Error('Failed to fetch recent orders');

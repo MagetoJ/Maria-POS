@@ -382,15 +382,13 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       alert('Cannot process an empty order.');
       return;
     }
-    if (isQuickAccess) {
-      // For quick access, submit directly without PIN
-      await submitOrder(null);
-    } else {
-      if (waitersList.length === 0) {
-        await fetchWaiters();
-      }
-      setShowPinModal(true);
+    
+    // Always show PIN modal for finalizing orders (both regular and quick access)
+    // as per user requirement to select name and enter PIN at completion
+    if (waitersList.length === 0) {
+      await fetchWaiters();
     }
+    setShowPinModal(true);
   };
 
   const handlePinInput = (digit: string) => {
@@ -474,6 +472,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
     const { id, ...orderData } = currentOrder;
     const orderPayload: any = {
       ...orderData,
+      order_type: isQuickAccess ? 'quick_sale' : currentOrderType,
       customer_name: customerName.trim() || null,
       table_id: currentOrderType === 'dine_in' && selectedTableId ? selectedTableId : null,
       items: currentOrder.items.map((item) => ({
@@ -496,33 +495,24 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
     const maxRetries = 2;
 
     try {
-      // Use the same API URL determination as apiClient for consistency
-      const url = API_URL ? `${API_URL}/api/orders` : '/api/orders';
+      // Use the public quick-pos endpoint for unauthenticated quick access
+      const endpoint = isQuickAccess 
+        ? '/api/quick-pos/generate-invoice'
+        : '/api/orders';
 
       // Log device and environment info for debugging (only on first attempt)
       if (retryCount === 0) {
-        console.log('Submitting order to:', url);
+        console.log('Submitting order to endpoint:', endpoint);
         console.log('Device info:', {
           userAgent: navigator.userAgent,
           isOnline: navigator.onLine,
-          platform: navigator.platform,
-          cookieEnabled: navigator.cookieEnabled,
-          onLine: navigator.onLine
-        });
-        console.log('Environment:', {
-          DEV: import.meta.env.DEV,
-          PROD: import.meta.env.PROD,
-          API_URL: API_URL
         });
         console.log('Order payload:', orderPayload);
       } else {
         console.log(`Retrying order submission (attempt ${retryCount + 1}/${maxRetries + 1})`);
       }
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderPayload),
+      const response = await apiClient.post(endpoint, orderPayload, {
         // Add timeout and better error handling
         signal: AbortSignal.timeout(30000), // 30 second timeout
       });

@@ -54,11 +54,14 @@ export default function RoomManagement() {
       });
       if (response.ok) {
         const data = await response.json();
-        // Map backend rate_per_night to frontend rate, and add floor
+        // Map backend rate to frontend rate, and add floor
         const roomsWithFloor = data.map((r: any) => ({
           ...r, 
-          rate: Number(r.rate_per_night) || 0,
-          floor: r.floor || parseInt(r.room_number?.toString()?.charAt(0) || '1') || 1
+          rate: Number(r.rate) || 0,
+          floor: r.floor || parseInt(r.room_number?.toString()?.charAt(0) || '1') || 1,
+          amenities: typeof r.amenities === 'string' 
+            ? r.amenities.split(',').map((a: string) => a.trim()).filter(Boolean) 
+            : Array.isArray(r.amenities) ? r.amenities : []
         }));
         setRooms(roomsWithFloor);
       } else {
@@ -95,12 +98,14 @@ export default function RoomManagement() {
   });
 
   const handleAddRoom = async () => {
-    // Map frontend 'rate' to backend 'rate_per_night'
-    const { max_occupancy, amenities, rate, ...rest } = roomForm;
-    
+    // Map frontend 'rate' to backend 'rate'
     const roomDataForApi = {
-      ...rest,
-      rate_per_night: rate,
+      room_number: roomForm.room_number,
+      room_type: roomForm.room_type,
+      rate: roomForm.rate,
+      floor: roomForm.floor,
+      max_occupancy: roomForm.max_occupancy,
+      amenities: roomForm.amenities.join(', '), // Convert array to comma-separated string
       status: 'vacant'
     };
 
@@ -143,12 +148,14 @@ export default function RoomManagement() {
   const handleUpdateRoom = async () => {
     if (!editingRoom) return;
 
-    // Map frontend 'rate' to backend 'rate_per_night'
-    const { max_occupancy, amenities, rate, ...rest } = roomForm;
-    
+    // Map frontend 'rate' to backend 'rate'
     const roomDataForApi = {
-      ...rest,
-      rate_per_night: rate
+      room_number: roomForm.room_number,
+      room_type: roomForm.room_type,
+      rate: roomForm.rate,
+      floor: roomForm.floor,
+      max_occupancy: roomForm.max_occupancy,
+      amenities: roomForm.amenities.join(', ') // Convert array to comma-separated string
     };
 
     try {

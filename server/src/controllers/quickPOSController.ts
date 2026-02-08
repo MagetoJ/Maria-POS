@@ -4,6 +4,7 @@ import { generateInvoicePDF } from '../utils/pdfGenerator';
 import { sendInvoiceEmail } from '../utils/email';
 import { getAllSettingsInternal } from './settingsController';
 import { generateInvoiceNumber } from './invoiceController';
+import { validateStaffPinForOrder } from '../utils/validation';
 
 // Search products and inventory items for Quick POS
 export const searchProductsAndInventory = async (req: Request, res: Response) => {
@@ -212,11 +213,26 @@ export const generateQuickInvoice = async (req: Request, res: Response) => {
     items, // Optional: array of items to create a new order if order_id is missing
     customer_name,
     customer_email,
-    payment_method = 'cash'
+    payment_method = 'cash',
+    staff_username,
+    pin
   } = req.body;
 
   try {
     let finalOrderId = order_id;
+    let staffId = null;
+    let staffName = 'Quick POS';
+
+    // Validate staff PIN if provided
+    if (staff_username && pin) {
+      const validation = await validateStaffPinForOrder(staff_username, pin);
+      if (validation.valid) {
+        staffId = validation.staffId;
+        staffName = validation.staffName || 'Quick POS Staff';
+      } else {
+        return res.status(401).json({ message: 'Invalid staff PIN' });
+      }
+    }
 
     await db.transaction(async (trx) => {
       // If items are provided without an order_id, create a new order first
@@ -231,6 +247,7 @@ export const generateQuickInvoice = async (req: Request, res: Response) => {
             order_type: 'quick_sale',
             status: 'completed',
             payment_status: 'unpaid',
+            staff_id: staffId,
             total_amount,
             subtotal,
             customer_name: customer_name || 'Quick POS Customer',
@@ -296,12 +313,72 @@ export const generateQuickInvoice = async (req: Request, res: Response) => {
         invoice = newInvoice;
       }
 
-      res.json(invoice);
+      res.json({
+        ...invoice,
+        staff_name: staffName
+      });
     });
   } catch (error: any) {
     console.error('Generate quick invoice error:', error);
     res.status(error.message === 'Order not found' ? 404 : 500).json({ 
       message: error.message || 'Internal server error' 
     });
+  }
+};
+
+// Get recent orders for Quick POS (public)
+export const getRecentOrders = async (req: Request, res: Response) => {
+  try {
+    const { limit = 20, offset = 0 } = req.query;
+
+    const orders = await db('orders')
+      .select('orders.*', 'staff.name as staff_name')
+      .leftJoin('staff', 'orders.staff_id', 'staff.id')
+      .orderBy('orders.created_at', 'desc')
+      .limit(parseInt(limit as string))
+      .offset(parseInt(offset as string));
+
+    if (orders.length === 0) {
+      return res.json([]);
+    }
+
+    const orderIds = orders.map(o => o.id);
+
+    // Get order items in one query
+    const allItems = await db('order_items')
+      .leftJoin('products', 'order_items.product_id', 'products.id')
+      .whereIn('order_id', orderIds)
+      .select(
+        'order_items.*',
+        'products.name as product_name'
+      );
+
+    // Get payment details in one query
+    const allPayments = await db('payments')
+      .whereIn('order_id', orderIds);
+
+    // Group items and payments
+    const itemsByOrder = allItems.reduce((acc: any, item: any) => {
+      if (!acc[item.order_id]) acc[item.order_id] = [];
+      acc[item.order_id].push(item);
+      return acc;
+    }, {});
+
+    const paymentsByOrder = allPayments.reduce((acc: any, payment: any) => {
+      acc[payment.order_id] = payment;
+      return acc;
+    }, {});
+
+    // Attach to orders
+    const ordersWithDetails = orders.map(order => ({
+      ...order,
+      items: itemsByOrder[order.id] || [],
+      payment_method: paymentsByOrder[order.id]?.payment_method || order.payment_method || 'cash'
+    }));
+
+    res.json(ordersWithDetails);
+  } catch (err) {
+    console.error('Error fetching quick recent orders:', err);
+    res.status(500).json({ message: 'Error fetching recent orders' });
   }
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { LogOut, Wine, ShoppingBag, History, Search, X, FileText } from 'lucide-react';
 import { apiClient } from '../config/api';
@@ -36,6 +36,31 @@ const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = ({
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
+  const performSearch = useCallback(async (query: string) => {
+    const trimmedSearch = query.trim();
+    if (trimmedSearch.length >= 2) {
+      setIsSearching(true);
+      setShowSearchResults(true);
+      try {
+        const response = await apiClient.get(`/api/quick-pos/search?q=${encodeURIComponent(trimmedSearch)}&limit=20`);
+        if (response.ok) {
+          const data = await response.json();
+          setSearchResults(data.results || []);
+        } else {
+          setSearchResults([]);
+        }
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    } else {
+      setSearchResults([]);
+      setShowSearchResults(false);
+    }
+  }, []);
+
   // Debounce search term
   useEffect(() => {
     const timerId = setTimeout(() => {
@@ -49,33 +74,8 @@ const QuickPOSHeader: React.FC<QuickPOSHeaderProps> = ({
 
   // Perform search when debounced term changes
   useEffect(() => {
-    const performSearch = async () => {
-      const trimmedSearch = debouncedSearchTerm.trim();
-      if (trimmedSearch.length >= 2) {
-        setIsSearching(true);
-        setShowSearchResults(true);
-        try {
-          const response = await apiClient.get(`/api/quick-pos/search?q=${encodeURIComponent(trimmedSearch)}&limit=20`);
-          if (response.ok) {
-            const data = await response.json();
-            setSearchResults(data.results || []);
-          } else {
-            setSearchResults([]);
-          }
-        } catch (error) {
-          console.error('Search error:', error);
-          setSearchResults([]);
-        } finally {
-          setIsSearching(false);
-        }
-      } else {
-        setSearchResults([]);
-        setShowSearchResults(false);
-      }
-    };
-
-    performSearch();
-  }, [debouncedSearchTerm]);
+    performSearch(debouncedSearchTerm);
+  }, [debouncedSearchTerm, performSearch]);
 
   const handleSearchResultClick = (result: SearchResult) => {
     if (result.type === 'menu') {

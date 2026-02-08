@@ -321,7 +321,7 @@ app.get('/api/search', async (req, res) => {
         .whereRaw('LOWER(room_number) LIKE ?', [searchTerm])
         .orWhereRaw('LOWER(room_type) LIKE ?', [searchTerm])
         .limit(limitNum)
-        .select('id', 'room_number', 'room_type', 'status', 'rate_per_night', 'created_at');
+        .select('id', 'room_number', 'room_type', 'status', 'rate', 'created_at');
 
       for (const room of roomResults) {
         searchResults.push({
@@ -329,12 +329,12 @@ app.get('/api/search', async (req, res) => {
           type: 'room',
           title: `Room ${room.room_number}`,
           subtitle: `${room.room_type} - ${room.status}`,
-          description: `KES ${room.rate_per_night}/night`,
+          description: `KES ${room.rate}/night`,
           metadata: {
             room_number: room.room_number,
             room_type: room.room_type,
             status: room.status,
-            rate_per_night: room.rate_per_night,
+            rate: room.rate,
             created_at: room.created_at
           }
         });

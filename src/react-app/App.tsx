@@ -42,7 +42,11 @@ function App() {
   const navigate = useNavigate();
 
   const handleQuickPOS = () => {
-    navigate('/pos');
+    navigate('/quick-pos');
+  };
+
+  const handleBackToLogin = () => {
+    navigate('/login');
   };
 
   return (
@@ -52,6 +56,9 @@ function App() {
       <PWAUpdateNotification />
       <Routes>
         <Route path="/login" element={<Login onQuickPOSAccess={handleQuickPOS} />} />
+        
+        {/* Public Quick POS Route */}
+        <Route path="/quick-pos" element={<POS isQuickAccess={true} onBackToLogin={handleBackToLogin} />} />
         
         {/* Public QR Menu Ordering Route */}
         <Route path="/qr/menu" element={<QRMenuOrdering />} />
@@ -114,13 +121,7 @@ function App() {
         
         <Route
           path="/"
-          element={
-            user?.role === 'accountant' ? (
-              <Navigate to="/accountant" replace />
-            ) : (
-              <Navigate to="/pos" replace />
-            )
-          }
+          element={<Home />}
         />
         <Route path="*" element={
           user?.role === 'accountant' ? (

@@ -39,7 +39,7 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
   const { user } = useAuth();
   const { addItemToOrder } = usePOS();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'bar_sales' | 'quick_bar_sales' | 'sales_dashboard'>(isQuickAccess ? 'quick_bar_sales' : 'menu');
+  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'bar_sales' | 'quick_bar_sales' | 'sales_dashboard'>('menu');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   // State to manage order panel visibility on mobile
   const [isOrderPanelVisible, setOrderPanelVisible] = useState(false);
@@ -353,7 +353,7 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-              <MyRecentOrders />
+              <MyRecentOrders isQuickAccess={isQuickAccess} />
             </div>
           </div>
         </div>

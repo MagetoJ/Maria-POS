@@ -70,7 +70,7 @@ export const createRoom = async (req: Request, res: Response) => {
       room_number,
       room_type,
       status,
-      rate_per_night,
+      rate,
       max_occupancy,
       amenities,
       floor
@@ -96,7 +96,7 @@ export const createRoom = async (req: Request, res: Response) => {
         room_number,
         room_type,
         status: status || 'available',
-        rate_per_night: rate_per_night || 0,
+        rate: rate || 0,
         max_occupancy: max_occupancy || 1,
         amenities: amenities || '',
         floor: floor || 1,

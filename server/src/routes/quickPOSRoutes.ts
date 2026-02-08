@@ -20,6 +20,11 @@ router.post('/sell-item',
   quickPOSController.sellBarItem
 );
 
+// Get recent orders for Quick POS (accessible without authentication)
+router.get('/recent-orders',
+  quickPOSController.getRecentOrders
+);
+
 // NEW: Invoicing routes for Quick POS (no admin restriction)
 router.post('/create-invoice', invoiceController.createInvoice);
 router.get('/download-invoice/:id', invoiceController.downloadInvoice);
