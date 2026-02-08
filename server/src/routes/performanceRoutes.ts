@@ -8,9 +8,9 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Specific routes must be defined BEFORE parametric routes
-// Admin/Manager can view all staff performance
+// Admin/Manager/Accountant can view all staff performance
 router.get('/all', 
-  authorizeRoles('admin', 'manager'), 
+  authorizeRoles('admin', 'manager', 'accountant'), 
   performanceController.getAllStaffPerformance
 );
 

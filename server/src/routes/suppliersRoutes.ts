@@ -7,8 +7,8 @@ const router = Router();
 // All supplier routes require authentication
 router.use(authenticateToken);
 
-// Only admin and manager can access supplier routes
-router.use(authorizeRoles('admin', 'manager'));
+// Only admin, manager and accountant can access supplier routes
+router.use(authorizeRoles('admin', 'manager', 'accountant'));
 
 // Get all suppliers
 router.get('/', suppliersController.getSuppliers);

@@ -9,7 +9,7 @@ export interface User {
   employee_id: string;
   username: string;
   name: string;
-  role: 'admin' | 'manager' | 'cashier' | 'waiter' | 'kitchen_staff' | 'delivery' | 'receptionist' | 'housekeeping';
+  role: 'admin' | 'manager' | 'cashier' | 'waiter' | 'kitchen_staff' | 'delivery' | 'receptionist' | 'housekeeping' | 'accountant';
   pin?: string;
   is_active: boolean;
 }
@@ -34,18 +34,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const navigate = useNavigate();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('pos_user');
-    const storedToken = localStorage.getItem('pos_token');
-    
-    if (storedUser && storedToken) {
-      setUser(JSON.parse(storedUser));
-      setToken(storedToken);
+    try {
+      const storedUser = localStorage.getItem('pos_user');
+      const storedToken = localStorage.getItem('pos_token');
       
-      if (IS_DEVELOPMENT) {
-        console.log('✅ Restored session for:', JSON.parse(storedUser).username);
+      if (storedUser && storedToken) {
+        const parsedUser = JSON.parse(storedUser);
+        if (parsedUser && typeof parsedUser === 'object') {
+          setUser(parsedUser);
+          setToken(storedToken);
+          
+          if (IS_DEVELOPMENT) {
+            console.log('✅ Restored session for:', parsedUser.username);
+          }
+        } else {
+          // Clear invalid data
+          localStorage.removeItem('pos_user');
+          localStorage.removeItem('pos_token');
+        }
       }
+    } catch (error) {
+      console.error('Failed to restore session:', error);
+      // Clear potentially corrupted data
+      localStorage.removeItem('pos_user');
+      localStorage.removeItem('pos_token');
+    } finally {
+      setIsInitialLoading(false);
     }
-    setIsInitialLoading(false);
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
@@ -93,6 +108,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         case 'admin':
         case 'manager':
           navigate('/admin');
+          break;
+        case 'accountant':
+          navigate('/accountant');
           break;
         case 'housekeeping':
           navigate('/housekeeping');

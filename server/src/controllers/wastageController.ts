@@ -79,6 +79,7 @@ export const createWastageLog = async (req: Request, res: Response) => {
       reason,
       waste_date,
       notes: notes || null,
+      cost: (item.cost_per_unit || 0) * parseFloat(quantity_wasted),
       logged_by: userId,
     });
 
@@ -164,11 +165,14 @@ export const getWastageSummary = async (req: Request, res: Response) => {
     if (startDate) countQuery = countQuery.where('waste_date', '>=', startDate);
     if (endDate) countQuery = countQuery.where('waste_date', '<=', endDate);
 
-    const [totalCount] = await countQuery.count('id as count');
+    const [totalStats] = await countQuery
+      .count('id as count')
+      .sum('cost as total_loss');
 
     res.json({
       byReason: summary,
-      totalCount: totalCount?.count || 0,
+      totalCount: totalStats?.count || 0,
+      totalLoss: totalStats?.total_loss || 0,
     });
   } catch (error) {
     console.error('Get wastage summary error:', error);

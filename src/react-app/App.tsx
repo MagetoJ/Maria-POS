@@ -12,6 +12,8 @@ import QRMenuOrdering from './components/QRMenuOrdering';
 
 import PWAUpdateNotification from './components/PWAUpdateNotification';
 
+import AccountantDashboard from './pages/AccountantDashboard';
+
 const SKIP_LOGIN = import.meta.env.VITE_SKIP_LOGIN === 'true';
 
 // This component remains the same, protecting sensitive routes
@@ -27,15 +29,16 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: JSX.Element, all
     return children;
   }
 
-  if (user && !allowedRoles.includes(user.role)) {
-    // Redirect unauthorized users to a default page, e.g., /pos
-    return <Navigate to="/pos" replace />;
+  if (user && allowedRoles && !allowedRoles.includes(user.role)) {
+    // Redirect unauthorized users to home, which will then route them to their correct dashboard
+    return <Navigate to="/" replace />;
   }
 
   return children;
 };
 
 function App() {
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const handleQuickPOS = () => {
@@ -53,7 +56,14 @@ function App() {
         {/* Public QR Menu Ordering Route */}
         <Route path="/qr/menu" element={<QRMenuOrdering />} />
         
-        <Route path="/pos" element={<POS />} /> 
+        <Route 
+          path="/pos" 
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'manager', 'staff', 'waiter', 'cashier', 'delivery', 'kitchen_staff', 'receptionist', 'housekeeping']}>
+              <POS />
+            </ProtectedRoute>
+          } 
+        /> 
         
         <Route
           path="/admin"
@@ -94,12 +104,31 @@ function App() {
         />
         
         <Route
-          path="/"
+          path="/accountant"
           element={
-              <Navigate to="/pos" replace />
+            <ProtectedRoute allowedRoles={['accountant', 'admin', 'manager']}>
+              <AccountantDashboard />
+            </ProtectedRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/pos" replace />} />
+        
+        <Route
+          path="/"
+          element={
+            user?.role === 'accountant' ? (
+              <Navigate to="/accountant" replace />
+            ) : (
+              <Navigate to="/pos" replace />
+            )
+          }
+        />
+        <Route path="*" element={
+          user?.role === 'accountant' ? (
+            <Navigate to="/accountant" replace />
+          ) : (
+            <Navigate to="/pos" replace />
+          )
+        } />
       </Routes>
     </>
   );

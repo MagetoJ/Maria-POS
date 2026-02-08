@@ -7,8 +7,8 @@ const router = Router();
 // All purchase order routes require authentication
 router.use(authenticateToken);
 
-// Only admin and manager can access purchase order routes
-router.use(authorizeRoles('admin', 'manager'));
+// Only admin, manager and accountant can access purchase order routes
+router.use(authorizeRoles('admin', 'manager', 'accountant'));
 
 // Get all purchase orders with optional filtering
 router.get('/', purchaseOrdersController.getPurchaseOrders);

@@ -4,9 +4,9 @@ import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = Router();
 
-// All dashboard routes require authentication and admin/manager privileges
+// All dashboard routes require authentication and admin/manager/accountant privileges
 router.use(authenticateToken);
-router.use(authorizeRoles('admin', 'manager'));
+router.use(authorizeRoles('admin', 'manager', 'accountant'));
 
 // Overview statistics
 router.get('/overview-stats', dashboardController.getOverviewStats);

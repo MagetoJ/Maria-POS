@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle, Printer, ChevronDown, BarChart3, Clock, CreditCard, Trash2 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { FileText, Download, Calendar, TrendingUp, Users, DollarSign, Package, Bed, Loader2, AlertTriangle, Printer, ChevronDown, BarChart3, Clock, CreditCard, Trash2, FileSpreadsheet } from 'lucide-react';
 import { apiClient, fetchReceiptsByDate } from '../../config/api';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -11,11 +12,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 type OrderType = any;
 
 // Format currency function (assuming KES)
-const formatCurrency = (amount: number | null | undefined): string => {
-  if (amount === null || amount === undefined) {
+const formatCurrency = (amount: any): string => {
+  const num = typeof amount === 'number' ? amount : parseFloat(amount);
+  if (isNaN(num)) {
     return 'KES 0';
   }
-  return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  return `KES ${num.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 };
 
 // Format order type for display
@@ -36,7 +38,15 @@ const formatOrderType = (orderType?: string): string => {
 
 // --- Interfaces for different report data structures ---
 interface OverviewReportData {
-  sales: { monthly: number };
+  sales: { 
+    monthly: number;
+    total_revenue: number;
+    total_cogs: number;
+    total_expenses: number;
+    gross_profit: number;
+    net_profit: number;
+    revenue_trend: { date: string; revenue: number }[];
+  };
   orders: { total: number; completed: number; averageValue: number };
   inventory: { topSellingItems: { name: string; quantity: number; revenue: number }[] };
   staff: { topPerformers: { name: string; orders: number; revenue: number }[] };
@@ -116,11 +126,33 @@ interface WastageData {
   loss: number;
 }
 
+interface PriceVarianceData {
+  order_number: string;
+  created_at: string;
+  product_name: string;
+  standard_price: number;
+  actual_price: number;
+  quantity: number;
+  variance_amount: number;
+  staff_name: string;
+}
+
+interface DeadStockData {
+  id: number;
+  name: string;
+  inventory_type: string;
+  current_stock: number;
+  cost_per_unit: number;
+  last_update: string;
+}
+
 export default function ReportsManagement() {
+  const { user } = useAuth();
   const [reportData, setReportData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false); // Default to false initially
+  const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedReport, setSelectedReport] = useState('overview');
+  const [selectedReport, setSelectedReport] = useState(user?.role === 'accountant' ? 'detailed-accounting' : 'overview');
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().setDate(1)).toISOString().split('T')[0], // Default to start of month
     end: new Date().toISOString().split('T')[0] // Default to today
@@ -350,13 +382,16 @@ export default function ReportsManagement() {
 
   const reportTypes = [
     { id: 'overview', label: 'Overview', icon: TrendingUp },
+    { id: 'detailed-accounting', label: 'Financial Dashboard', icon: FileSpreadsheet, roles: ['admin', 'accountant'] },
     { id: 'sales', label: 'Sales Report', icon: DollarSign },
     { id: 'annual', label: 'Annual Report', icon: BarChart3 },
     { id: 'inventory', label: 'Inventory Report', icon: Package },
     { id: 'staff', label: 'Staff Performance', icon: Users },
     { id: 'rooms', label: 'Room Revenue', icon: Bed },
+    { id: 'price-variance', label: 'Price Variance', icon: AlertTriangle },
+    { id: 'dead-stock', label: 'Dead Stock', icon: Clock },
     { id: 'receiptAudit', label: 'Receipt Audit', icon: Printer }
-  ];
+  ].filter(type => !type.roles || (user && type.roles.includes(user.role)));
 
   const exportToExcel = (data: any, reportName: string) => {
     let sheetData: any[] = [];
@@ -402,6 +437,28 @@ export default function ReportsManagement() {
       sheetData = (data.roomStatusCounts || []).map((item: any) => ({
         'Room Status': item.status,
         'Count': item.count
+      }));
+
+    } else if (selectedReport === 'price-variance') {
+      sheetData = (data || []).map((item: any) => ({
+        'Order Number': item.order_number,
+        'Date': new Date(item.created_at).toLocaleString(),
+        'Product': item.product_name,
+        'Std Price': item.standard_price,
+        'Actual Price': item.actual_price,
+        'Quantity': item.quantity,
+        'Variance': item.variance_amount,
+        'Staff': item.staff_name
+      }));
+
+    } else if (selectedReport === 'dead-stock') {
+      sheetData = (data || []).map((item: any) => ({
+        'Item Name': item.name,
+        'Type': item.inventory_type,
+        'Stock': item.current_stock,
+        'Unit Cost': item.cost_per_unit,
+        'Total Value': item.current_stock * item.cost_per_unit,
+        'Last Update': new Date(item.last_update || '').toLocaleDateString()
       }));
 
     } else if (selectedReport === 'annual') {
@@ -479,52 +536,184 @@ export default function ReportsManagement() {
       alert('Error exporting report. Please try again.');
     }
   };
+
+  const exportDetailedAccountingReport = async () => {
+    setIsExporting(true);
+    try {
+      const query = new URLSearchParams({
+        start: dateRange.start,
+        end: dateRange.end,
+      }).toString();
+
+      const response = await apiClient.get(`/api/reports/detailed-accounting?${query}`);
+      if (!response.ok) throw new Error('Failed to fetch detailed accounting data');
+      
+      const data = await response.json();
+      const workbook = XLSX.utils.book_new();
+
+      // 1. Sales Register Sheet
+      const salesData = data.sales || [];
+      const registerData = salesData.map((sale: any) => ({
+        "Date": new Date(sale.created_at).toLocaleDateString(),
+        "Receipt #": sale.order_number,
+        "Branch": sale.location || 'Main Location',
+        "Customer": sale.customer_name || 'Walk-in',
+        "Cashier": sale.staff_name || 'System',
+        "Payment Method": sale.payment_method || 'Cash',
+        "Total": sale.total_amount,
+        "Status": sale.status
+      }));
+      const registerSheet = XLSX.utils.json_to_sheet(registerData);
+      XLSX.utils.book_append_sheet(workbook, registerSheet, "Sales Register");
+
+      // 2. Sales Detail Sheet
+      const itemsData = data.items || [];
+      const detailData = itemsData.map((item: any) => ({
+        "Date": new Date(item.created_at).toLocaleDateString(),
+        "Receipt #": item.order_number,
+        "Product Code": item.sku,
+        "Product Name": item.product_name,
+        "Quantity": item.quantity,
+        "Unit Price": item.unit_price,
+        "Cost": item.buying_price || 0,
+        "Profit": (item.unit_price - (item.buying_price || 0)) * item.quantity
+      }));
+      const detailSheet = XLSX.utils.json_to_sheet(detailData);
+      XLSX.utils.book_append_sheet(workbook, detailSheet, "Sales Detail");
+
+      // 3. Payment Reconciliation Sheet
+      const statsData = data.paymentStats || [];
+      const reconData = statsData.map((stat: any) => ({
+        "Payment Method": stat.name,
+        "Transaction Count": stat.count,
+        "Total Amount": stat.value
+      }));
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(reconData), "Payment Reconciliation");
+
+      // 4. Expense Register Sheet
+      const expensesData = data.expenses || [];
+      const expData = expensesData.map((exp: any) => ({
+        "Date": new Date(exp.date).toLocaleDateString(),
+        "Category": exp.category,
+        "Description": exp.description,
+        "Amount": exp.amount
+      }));
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(expData), "Expense Register");
+
+      // 5. Wastage Sheet
+      const wastageData = data.wastage || [];
+      const wasteData = wastageData.map((w: any) => ({
+        "Date": new Date(w.created_at).toLocaleDateString(),
+        "Reason": w.reason,
+        "Quantity Wasted": w.quantity_wasted,
+        "Loss Value": w.cost || 0
+      }));
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(wasteData), "Wastage Report");
+
+      // 6. VAT Summary Sheet
+      const summary = data.taxSummary || {};
+      const vatData = [
+        { "Metric": "Total Sales (VAT Incl.)", "Value": summary.totalSales || 0 },
+        { "Metric": "VAT Collected on Sales (16%)", "Value": summary.vatCollected || 0 },
+        { "Metric": "Total Expenses (VAT Incl.)", "Value": summary.totalExpenses || 0 },
+        { "Metric": "VAT Paid on Purchases (16%)", "Value": summary.vatPaid || 0 },
+        { "Metric": "Net VAT Obligation", "Value": summary.netVat || 0 }
+      ];
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(vatData), "VAT Summary");
+
+      // Generate and Download
+      const fileName = `Accounting_Export_${dateRange.start}_to_${dateRange.end}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+      alert('Detailed accounting export successful!');
+    } catch (error) {
+      console.error('Detailed accounting export error:', error);
+      alert('Failed to generate detailed accounting report');
+    } finally {
+      setIsExporting(false);
+    }
+  };
   
   // --- Rendering functions for standard reports (renderOverviewReport, etc.) ---
   // --- Assume these exist as in your provided code ---
   const renderOverviewReport = () => {
     const data = reportData as OverviewReportData;
-    if (!data || !data.sales || !data.orders || !data.inventory || !data.staff) {
-        return <div className="text-center py-8">No data available for the selected period.</div>;
+    if (!data || !data.sales) {
+        return <div className="text-center py-8">No summary data available for the selected period.</div>;
     }
+
+    const { 
+        total_revenue = 0, 
+        total_cogs = 0, 
+        total_expenses = 0, 
+        gross_profit = 0, 
+        net_profit = 0, 
+        revenue_trend = [] 
+    } = data.sales;
+
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="bg-white rounded-lg p-6 border border-gray-200">
+            {/* Financial Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white rounded-lg p-5 border border-gray-200 shadow-sm">
                     <div className="flex items-center">
-                        <div className="p-2 bg-green-100 rounded-lg"><DollarSign className="w-6 h-6 text-green-600" /></div>
-                        <div className="ml-4">
-                            <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-                            <p className="text-2xl font-bold text-gray-900">{formatCurrency(data.sales?.monthly || 0)}</p>
+                        <div className="p-2 bg-green-100 rounded-lg"><DollarSign className="w-5 h-5 text-green-600" /></div>
+                        <div className="ml-3">
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Revenue</p>
+                            <p className="text-xl font-bold text-gray-900">{formatCurrency(total_revenue)}</p>
                         </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-lg p-6 border border-gray-200">
+                <div className="bg-white rounded-lg p-5 border border-gray-200 shadow-sm">
                     <div className="flex items-center">
-                        <div className="p-2 bg-blue-100 rounded-lg"><FileText className="w-6 h-6 text-blue-600" /></div>
-                        <div className="ml-4">
-                            <p className="text-sm font-medium text-gray-600">Total Orders</p>
-                            <p className="text-2xl font-bold text-gray-900">{data.orders?.total || 0}</p>
+                        <div className="p-2 bg-blue-100 rounded-lg"><Package className="w-5 h-5 text-blue-600" /></div>
+                        <div className="ml-3">
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Gross Profit</p>
+                            <p className="text-xl font-bold text-gray-900">{formatCurrency(gross_profit)}</p>
+                            <p className="text-xs text-gray-500">Margin: {total_revenue > 0 ? ((gross_profit / total_revenue) * 100).toFixed(1) : 0}%</p>
                         </div>
                     </div>
-                     {(data.orders?.total || 0) > 0 &&
-                        <div className="mt-4">
-                             <span className="text-blue-500 text-sm">{(((data.orders?.completed || 0) / (data.orders?.total || 1)) * 100).toFixed(1)}% completion rate</span>
-                        </div>
-                     }
                 </div>
-                <div className="bg-white rounded-lg p-6 border border-gray-200">
-                     <div className="flex items-center">
-                         <div className="p-2 bg-purple-100 rounded-lg"><DollarSign className="w-6 h-6 text-purple-600" /></div>
-                         <div className="ml-4">
-                             <p className="text-sm font-medium text-gray-600">Average Order Value</p>
-                             <p className="text-2xl font-bold text-gray-900">{formatCurrency(data.orders?.averageValue || 0)}</p>
-                         </div>
-                     </div>
-                 </div>
+                <div className="bg-white rounded-lg p-5 border border-gray-200 shadow-sm">
+                    <div className="flex items-center">
+                        <div className="p-2 bg-red-100 rounded-lg"><Trash2 className="w-5 h-5 text-red-600" /></div>
+                        <div className="ml-3">
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Expenses</p>
+                            <p className="text-xl font-bold text-gray-900">{formatCurrency(total_expenses)}</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white rounded-lg p-5 border border-gray-200 shadow-sm">
+                    <div className="flex items-center">
+                        <div className="p-2 bg-indigo-100 rounded-lg"><TrendingUp className="w-5 h-5 text-indigo-600" /></div>
+                        <div className="ml-3">
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Net Profit</p>
+                            <p className="text-xl font-bold text-green-600">{formatCurrency(net_profit)}</p>
+                        </div>
+                    </div>
+                </div>
             </div>
+
+            {/* Revenue Trend Chart */}
+            {revenue_trend && revenue_trend.length > 0 && (
+              <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-6">Revenue Trend</h3>
+                  <div style={{ height: '300px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={revenue_trend}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                              <XAxis dataKey="date" tick={{fontSize: 12}} />
+                              <YAxis tick={{fontSize: 12}} />
+                              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                              <Legend />
+                              <Line type="monotone" dataKey="revenue" name="Daily Revenue" stroke="#3b82f6" strokeWidth={2} dot={{r: 4}} activeDot={{r: 6}} />
+                          </LineChart>
+                      </ResponsiveContainer>
+                  </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 <div className="bg-white rounded-lg p-6 border border-gray-200">
+                 <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Selling Items</h3>
                      <div className="space-y-3">
                          {(data.inventory?.topSellingItems || []).map((item, index) => (
@@ -543,7 +732,7 @@ export default function ReportsManagement() {
                           )}
                      </div>
                  </div>
-                 <div className="bg-white rounded-lg p-6 border border-gray-200">
+                 <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Staff Performance</h3>
                      <div className="space-y-3">
                          {(data.staff?.topPerformers || []).map((staff, index) => (
@@ -1026,6 +1215,305 @@ export default function ReportsManagement() {
     );
   };
 
+  const renderDeadStockReport = () => {
+    const data = Array.isArray(reportData) ? reportData : [];
+    
+    if (data.length === 0) {
+      return <div className="text-center py-10 text-gray-500">No dead stock identified.</div>;
+    }
+
+    return (
+      <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Dead Stock Report (No sales in 90 days)</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {data.map((item, index) => {
+                if (!item) return null;
+                const qty = Number(item.current_stock) || 0;
+                const cost = Number(item.cost_per_unit) || 0;
+                
+                return (
+                  <tr key={item.id || index}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name || 'Unnamed Item'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{item.inventory_type || 'n/a'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{qty}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(cost)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatCurrency(qty * cost)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPriceVarianceReport = () => {
+    const data = Array.isArray(reportData) ? reportData : [];
+    
+    if (data.length === 0) {
+      return <div className="text-center py-10 text-gray-500">No price variances found for this period.</div>;
+    }
+
+    return (
+      <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Price Variance Report (Unauthorized Discounts)</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Std Price</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actual Price</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variance</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Staff</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {data.map((item, idx) => {
+                if (!item) return null;
+                return (
+                  <tr key={idx}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.order_number || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.product_name || 'Unknown Product'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency(item.standard_price)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">{formatCurrency(item.actual_price)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.quantity || 0}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-700">{formatCurrency(item.variance_amount)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{item.staff_name || 'System'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDetailedAccountingReport = () => {
+    const data = reportData;
+    if (!data) return null;
+
+    const { 
+      sales: rawSales = [], 
+      items: rawItems = [], 
+      paymentStats: rawPaymentStats = [], 
+      taxSummary = {}, 
+      creditAging: rawCreditAging = [],
+      wastage: rawWastage = []
+    } = data;
+
+    const sales = Array.isArray(rawSales) ? rawSales : [];
+    const items = Array.isArray(rawItems) ? rawItems : [];
+    const paymentStats = Array.isArray(rawPaymentStats) ? rawPaymentStats : [];
+    const creditAging = Array.isArray(rawCreditAging) ? rawCreditAging : [];
+    const wastage = Array.isArray(rawWastage) ? rawWastage : [];
+
+    return (
+      <div className="space-y-8">
+        {/* 1. Key Financial Performance Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg p-5 border border-gray-200 shadow-sm">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Revenue</p>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(taxSummary?.totalSales || 0)}</p>
+          </div>
+          <div className="bg-white rounded-lg p-5 border border-gray-200 shadow-sm">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Gross Margin %</p>
+            <p className="text-2xl font-bold text-blue-600">
+              {taxSummary?.totalSales > 0 ? ((( (Number(taxSummary.totalSales) || 0) - (Number(taxSummary.totalExpenses) || 0) ) / (Number(taxSummary.totalSales) || 1)) * 100).toFixed(1) : 0}%
+            </p>
+          </div>
+          <div className="bg-white rounded-lg p-5 border border-gray-200 shadow-sm">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Net Profit</p>
+            <p className="text-2xl font-bold text-green-600">{formatCurrency((Number(taxSummary?.totalSales) || 0) - (Number(taxSummary?.totalExpenses) || 0))}</p>
+          </div>
+          <div className="bg-white rounded-lg p-5 border border-gray-200 shadow-sm">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Expenses</p>
+            <p className="text-2xl font-bold text-red-600">{formatCurrency(taxSummary?.totalExpenses || 0)}</p>
+          </div>
+        </div>
+
+        {/* 2. Tax Summary */}
+        <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-indigo-600" />
+            VAT & Tax Summary
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">VAT Collected (Sales)</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(taxSummary?.vatCollected)}</p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">VAT Paid (Purchases/Expenses)</p>
+              <p className="text-xl font-bold text-gray-900">{formatCurrency(taxSummary?.vatPaid)}</p>
+            </div>
+            <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+              <p className="text-sm text-indigo-700 font-medium">Net VAT Obligation</p>
+              <p className="text-xl font-bold text-indigo-900">{formatCurrency(taxSummary?.netVat)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Transaction Oversight (Sales Register) */}
+        <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" />
+            Transaction Oversight (Sales Register)
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Receipt #</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cashier</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {sales.slice(0, 10).map((sale: any, idx: number) => (
+                  <tr key={idx}>
+                    <td className="px-4 py-2 text-sm text-gray-600">{new Date(sale.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-2 text-sm font-medium text-gray-900">{sale.order_number}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{sale.staff_name}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{sale.payment_method}</td>
+                    <td className="px-4 py-2 text-sm font-semibold text-gray-900">{formatCurrency(sale.total_amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 4. Credit & Debt Tracking */}
+        <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+            Credit & Debt Tracking (Aging Analysis)
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Days Outstanding</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {creditAging.length > 0 ? creditAging.map((credit: any, idx: number) => (
+                  <tr key={idx}>
+                    <td className="px-4 py-2 text-sm font-medium text-gray-900">{credit.customer}</td>
+                    <td className="px-4 py-2 text-sm font-bold text-red-600">{formatCurrency(credit.amount)}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{new Date(credit.date).toLocaleDateString()}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{credit.daysOutstanding} days</td>
+                    <td className="px-4 py-2">
+                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                        credit.daysOutstanding > 30 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {credit.daysOutstanding > 30 ? 'Overdue' : 'Pending'}
+                      </span>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">No outstanding credit found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 5. Inventory & Profit Audit (Sales Detail) */}
+        <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Package className="w-5 h-5 text-green-600" />
+            Inventory & Profit Audit (Sales Detail)
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty Sold</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Unit Cost</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Profit</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {items.slice(0, 10).map((item: any, idx: number) => (
+                  <tr key={idx}>
+                    <td className="px-4 py-2 text-sm font-medium text-gray-900">{item.product_name}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{item.quantity}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{formatCurrency(item.unit_price)}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{formatCurrency(item.buying_price)}</td>
+                    <td className="px-4 py-2 text-sm font-bold text-green-600">
+                      {formatCurrency((item.unit_price - item.buying_price) * item.quantity)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 6. Wastage Audit */}
+        <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Trash2 className="w-5 h-5 text-red-600" />
+            Wastage Audit
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Loss Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {wastage.length > 0 ? wastage.slice(0, 10).map((w: any, idx: number) => (
+                  <tr key={idx}>
+                    <td className="px-4 py-2 text-sm text-gray-600">{new Date(w.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-2 text-sm text-gray-900">{w.reason}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{w.quantity_wasted}</td>
+                    <td className="px-4 py-2 text-sm font-bold text-red-600">{formatCurrency(w.cost)}</td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">No wastage records found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderCurrentReport = () => {
     if (isLoading && selectedReport !== 'receiptAudit') { // Show loading only for standard reports here
       return (
@@ -1064,6 +1552,12 @@ export default function ReportsManagement() {
         return renderStaffReport();
       case 'rooms':
         return renderRoomReport();
+      case 'price-variance':
+        return renderPriceVarianceReport();
+      case 'dead-stock':
+        return renderDeadStockReport();
+      case 'detailed-accounting':
+        return renderDetailedAccountingReport();
       case 'receiptAudit':
         return null;
       default: // Overview
@@ -1085,7 +1579,17 @@ export default function ReportsManagement() {
         </div>
         {/* Only show export buttons for standard reports */}
         {selectedReport !== 'receiptAudit' && reportData && ( // Only show if data exists
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+                {(user?.role === 'admin' || user?.role === 'accountant') && (
+                  <button
+                    onClick={exportDetailedAccountingReport}
+                    disabled={isExporting}
+                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
+                  >
+                    {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                    Accountant Export
+                  </button>
+                )}
                 <button
                   onClick={() => handleExport('excel')}
                   disabled={isLoading}
@@ -1200,9 +1704,15 @@ export default function ReportsManagement() {
               className="w-full flex items-center justify-between px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 text-sm font-medium text-gray-700"
             >
               <span className="flex items-center gap-2">
-                {reportTypes.find(t => t.id === selectedReport)?.icon && 
-                  React.createElement(reportTypes.find(t => t.id === selectedReport)!.icon, { className: "w-4 h-4" })}
-                {reportTypes.find(t => t.id === selectedReport)?.label || 'Select Report'}
+                {(() => {
+                  const selectedType = reportTypes.find(t => t.id === selectedReport);
+                  return (
+                    <>
+                      {selectedType?.icon && React.createElement(selectedType.icon, { className: "w-4 h-4" })}
+                      {selectedType?.label || 'Select Report'}
+                    </>
+                  );
+                })()}
               </span>
               <ChevronDown className={`w-4 h-4 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
             </button>

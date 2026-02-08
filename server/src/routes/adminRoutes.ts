@@ -4,9 +4,9 @@ import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = Router();
 
-// All admin routes require authentication and admin/manager privileges
+// All admin routes require authentication and admin/manager/accountant privileges
 router.use(authenticateToken);
-router.use(authorizeRoles('admin', 'manager'));
+router.use(authorizeRoles('admin', 'manager', 'accountant'));
 
 // Get active users
 router.get('/active-users', adminController.getActiveUsers);

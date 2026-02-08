@@ -44,7 +44,8 @@ export default function Header() {
       kitchen_staff: 'Kitchen Staff',
       delivery: 'Delivery',
       receptionist: 'Receptionist',
-      housekeeping: 'Housekeeping'
+      housekeeping: 'Housekeeping',
+      accountant: 'Accountant'
     };
     return roleMap[role] || role;
   };

@@ -96,7 +96,6 @@ interface OverviewStats {
 }
 
 interface ActiveUser {
-  is_active: any;
   [x: string]: any;
   staff_id: any;
   is_active: any;
@@ -303,22 +302,26 @@ export default function AdminDashboard() {
 
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'search', label: 'Global Search', icon: Search },
-    { id: 'staff', label: 'Staff Management', icon: Users },
-    { id: 'shifts', label: 'Shift Management', icon: Clock },
+    { id: 'search', label: 'Global Search', icon: Search, roles: ['admin', 'manager'] },
+    { id: 'staff', label: 'Staff Management', icon: Users, roles: ['admin', 'manager'] },
+    { id: 'shifts', label: 'Shift Management', icon: Clock, roles: ['admin', 'manager'] },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
-    { id: 'inventory', label: 'Inventory', icon: Package },
-    { id: 'menu', label: 'Menu Management', icon: Utensils },
-    { id: 'rooms', label: 'Room Management', icon: Bed },
+    { id: 'inventory', label: 'Inventory', icon: Package, roles: ['admin', 'manager'] },
+    { id: 'menu', label: 'Menu Management', icon: Utensils, roles: ['admin', 'manager'] },
+    { id: 'rooms', label: 'Room Management', icon: Bed, roles: ['admin', 'manager'] },
     { id: 'suppliers', label: 'Suppliers', icon: Truck },
-    { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
-    { id: 'invoices', label: 'Invoices', icon: FileText },
+    { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, roles: ['admin', 'manager'] },
+    { id: 'invoices', label: 'Invoices', icon: FileText, roles: ['admin', 'manager'] },
     { id: 'expenses', label: 'Expenses', icon: Receipt },
     { id: 'product-returns', label: 'Product Returns', icon: RotateCcw },
     { id: 'reports', label: 'Reports', icon: FileText },
     { id: 'sales-reports', label: 'Sales Reports', icon: DollarSign },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin'] },
   ];
+
+  const filteredMenuItems = menuItems.filter(item => 
+    !item.roles || (user && item.roles.includes(user.role))
+  );
 
   const INVENTORY_COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1'];
 
@@ -429,7 +432,7 @@ export default function AdminDashboard() {
         <span className="text-sm font-medium text-gray-900">System Status</span>
       </div>
       <p className="text-xs text-gray-600">All systems operational</p>
-      <p className="text-xs text-gray-600 mt-1">Access Level: {user?.role === 'admin' ? 'Full Admin' : 'Manager'}</p>
+      <p className="text-xs text-gray-600 mt-1">Access Level: {user?.role === 'admin' ? 'Full Admin' : user?.role === 'accountant' ? 'Accountant' : 'Manager'}</p>
     </div>
   );
 
@@ -839,22 +842,28 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
             <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
             <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
-                <button onClick={() => setActiveTab('staff')} className="flex flex-col items-center p-3 lg:p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
-                <Users className="w-6 h-6 lg:w-8 lg:h-8 text-blue-600 mb-2" />
-                <span className="text-xs lg:text-sm font-medium text-blue-900 text-center">Add Staff</span>
-                </button>
-                <button onClick={() => setActiveTab('inventory')} className="flex flex-col items-center p-3 lg:p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
-                <Package className="w-6 h-6 lg:w-8 lg:h-8 text-green-600 mb-2" />
-                <span className="text-xs lg:text-sm font-medium text-green-900 text-center">Update Inventory</span>
-                </button>
+                {user?.role !== 'accountant' && (
+                  <button onClick={() => setActiveTab('staff')} className="flex flex-col items-center p-3 lg:p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                    <Users className="w-6 h-6 lg:w-8 lg:h-8 text-blue-600 mb-2" />
+                    <span className="text-xs lg:text-sm font-medium text-blue-900 text-center">Add Staff</span>
+                  </button>
+                )}
+                {user?.role !== 'accountant' && (
+                  <button onClick={() => setActiveTab('inventory')} className="flex flex-col items-center p-3 lg:p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
+                    <Package className="w-6 h-6 lg:w-8 lg:h-8 text-green-600 mb-2" />
+                    <span className="text-xs lg:text-sm font-medium text-green-900 text-center">Update Inventory</span>
+                  </button>
+                )}
                 <button onClick={() => setActiveTab('reports')} className="flex flex-col items-center p-3 lg:p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
                 <FileText className="w-6 h-6 lg:w-8 lg:h-8 text-purple-600 mb-2" />
                 <span className="text-xs lg:text-sm font-medium text-purple-900 text-center">Generate Report</span>
                 </button>
-                <button onClick={() => setActiveTab('settings')} className="flex flex-col items-center p-3 lg:p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors">
-                <Settings className="w-6 h-6 lg:w-8 lg:h-8 text-yellow-600 mb-2" />
-                <span className="text-xs lg:text-sm font-medium text-yellow-900 text-center">System Settings</span>
-                </button>
+                {user?.role !== 'accountant' && (
+                  <button onClick={() => setActiveTab('settings')} className="flex flex-col items-center p-3 lg:p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors">
+                    <Settings className="w-6 h-6 lg:w-8 lg:h-8 text-yellow-600 mb-2" />
+                    <span className="text-xs lg:text-sm font-medium text-yellow-900 text-center">System Settings</span>
+                  </button>
+                )}
             </div>
             </div>
         </div>
@@ -1080,7 +1089,7 @@ export default function AdminDashboard() {
       <div className="flex flex-1">
         <Sidebar
           title="Admin Dashboard"
-          navItems={menuItems}
+          navItems={filteredMenuItems}
           activeItem={activeTab}
           onNavItemClick={setActiveTab}
           isSidebarOpen={isSidebarOpen}

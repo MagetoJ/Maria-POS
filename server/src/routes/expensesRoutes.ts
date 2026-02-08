@@ -7,8 +7,8 @@ const router = Router();
 // All expense routes require authentication
 router.use(authenticateToken);
 
-// Only admin and manager can access expense routes
-router.use(authorizeRoles('admin', 'manager'));
+// Only admin, manager and accountant can access expense routes
+router.use(authorizeRoles('admin', 'manager', 'accountant'));
 
 // Get expense summary - MUST be before /:id route
 router.get('/summary', expensesController.getExpenseSummary);

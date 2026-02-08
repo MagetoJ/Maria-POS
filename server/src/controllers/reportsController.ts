@@ -124,6 +124,7 @@ export const getOverviewReport = async (req: Request, res: Response) => {
     try {
       salesOverview = await db('orders')
         .whereBetween('created_at', [`${startDate} 00:00:00`, `${endDate} 23:59:59`])
+        .whereNot('status', 'cancelled')
         .select(
           db.raw('COUNT(*) as total_orders'),
           db.raw('COALESCE(SUM(total_amount), 0) as total_revenue'),
@@ -138,6 +139,59 @@ export const getOverviewReport = async (req: Request, res: Response) => {
       return res.status(500).json({ message: 'Sales overview query error', error: salesError.message });
     }
 
+    // Get COGS (Cost of Goods Sold)
+    console.log('💰 Fetching COGS...');
+    let cogsData;
+    try {
+      cogsData = await db('order_items')
+        .join('orders', 'order_items.order_id', 'orders.id')
+        .join('products', 'order_items.product_id', 'products.id')
+        .whereBetween('orders.created_at', [`${startDate} 00:00:00`, `${endDate} 23:59:59`])
+        .whereNot('orders.status', 'cancelled')
+        .select(
+          db.raw('COALESCE(SUM(order_items.quantity * products.cost), 0) as total_cogs')
+        )
+        .first();
+      console.log('✅ COGS result:', cogsData);
+    } catch (error) {
+      console.error('❌ COGS query failed:', error);
+      cogsData = { total_cogs: 0 };
+    }
+
+    // Get Total Expenses
+    console.log('💸 Fetching expenses...');
+    let expensesData;
+    try {
+      expensesData = await db('expenses')
+        .whereBetween('date', [startDate, endDate])
+        .select(
+          db.raw('COALESCE(SUM(amount), 0) as total_expenses')
+        )
+        .first();
+      console.log('✅ Expenses result:', expensesData);
+    } catch (error) {
+      console.error('❌ Expenses query failed:', error);
+      expensesData = { total_expenses: 0 };
+    }
+
+    // Get Revenue Trend (by date)
+    console.log('📈 Fetching revenue trend...');
+    let revenueTrend: any[] = [];
+    try {
+      revenueTrend = await db('orders')
+        .whereBetween('created_at', [`${startDate} 00:00:00`, `${endDate} 23:59:59`])
+        .whereNot('status', 'cancelled')
+        .select(
+          db.raw('DATE(created_at) as date'),
+          db.raw('COALESCE(SUM(total_amount), 0) as revenue')
+        )
+        .groupBy(db.raw('DATE(created_at)'))
+        .orderBy('date', 'asc');
+    } catch (error) {
+      console.error('❌ Revenue trend query failed:', error);
+      revenueTrend = [];
+    }
+
     // Get top performing staff
     console.log('👥 Fetching top staff...');
     let topStaff: any[] = [];
@@ -145,6 +199,7 @@ export const getOverviewReport = async (req: Request, res: Response) => {
       topStaff = await db('orders')
         .join('staff', 'orders.staff_id', 'staff.id')
         .whereBetween('orders.created_at', [`${startDate} 00:00:00`, `${endDate} 23:59:59`])
+        .whereNot('orders.status', 'cancelled')
         .select(
           'staff.name',
           'staff.role',
@@ -169,6 +224,7 @@ export const getOverviewReport = async (req: Request, res: Response) => {
         .join('products', 'order_items.product_id', 'products.id')
         .leftJoin('categories', 'products.category_id', 'categories.id')
         .whereBetween('orders.created_at', [`${startDate} 00:00:00`, `${endDate} 23:59:59`])
+        .whereNot('orders.status', 'cancelled')
         .select(
           'products.name',
           'categories.name as category',
@@ -187,10 +243,25 @@ export const getOverviewReport = async (req: Request, res: Response) => {
     console.log('📤 Sending response...');
     
     // Transform data to match frontend expectations
+    const totalRevenue = parseFloat(salesOverview?.total_revenue) || 0;
+    const totalCogs = parseFloat(cogsData?.total_cogs) || 0;
+    const totalExpenses = parseFloat(expensesData?.total_expenses) || 0;
+    const grossProfit = totalRevenue - totalCogs;
+    const netProfit = grossProfit - totalExpenses;
+
     const transformedResponse = {
       period: { start: startDate, end: endDate },
       sales: { 
-        monthly: parseFloat(salesOverview?.total_revenue) || 0 
+        monthly: totalRevenue,
+        total_revenue: totalRevenue,
+        total_cogs: totalCogs,
+        total_expenses: totalExpenses,
+        gross_profit: grossProfit,
+        net_profit: netProfit,
+        revenue_trend: revenueTrend.map(item => ({
+          date: item.date,
+          revenue: parseFloat(item.revenue) || 0
+        }))
       },
       orders: { 
         total: parseInt(salesOverview?.total_orders) || 0,
@@ -842,5 +913,219 @@ export const getWastageStats = async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Wastage stats error:', err);
     res.json([]);
+  }
+};
+
+// Get Price Variance Report
+export const getPriceVarianceReport = async (req: Request, res: Response) => {
+  try {
+    const { start, end } = req.query;
+    const startDate = start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const endDate = end || new Date().toISOString().split('T')[0];
+
+    const varianceData = await db('order_items')
+      .join('orders', 'order_items.order_id', 'orders.id')
+      .join('products', 'order_items.product_id', 'products.id')
+      .leftJoin('staff', 'orders.staff_id', 'staff.id')
+      .whereBetween('orders.created_at', [`${startDate} 00:00:00`, `${endDate} 23:59:59`])
+      .whereNot('orders.status', 'cancelled')
+      .whereRaw('order_items.unit_price < products.price')
+      .select(
+        'orders.order_number',
+        'orders.created_at',
+        'products.name as product_name',
+        'products.price as standard_price',
+        'order_items.unit_price as actual_price',
+        'order_items.quantity',
+        db.raw('(products.price - order_items.unit_price) * order_items.quantity as variance_amount'),
+        'staff.name as staff_name'
+      )
+      .orderBy('orders.created_at', 'desc');
+
+    res.json(varianceData);
+  } catch (err) {
+    console.error('Price variance report error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get Dead Stock Report
+export const getDeadStockReport = async (req: Request, res: Response) => {
+  try {
+    const { days = 90 } = req.query;
+    const daysInt = parseInt(days as string);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysInt);
+
+    // Products that haven't been sold in the last X days
+    const deadStock = await db('products')
+      .leftJoin('order_items', function() {
+        this.on('products.id', '=', 'order_items.product_id')
+          .andOn('order_items.created_at', '>', db.raw("NOW() - (? * INTERVAL '1 day')", [daysInt]));
+      })
+      .where('products.is_active', true)
+      .whereNull('order_items.id')
+      .select(
+        'products.id',
+        'products.name',
+        db.raw("'menu_item' as inventory_type"),
+        db.raw('0 as current_stock'),
+        'products.cost as cost_per_unit',
+        'products.updated_at as last_update'
+      )
+      .orderBy('products.name', 'asc');
+
+    res.json(deadStock);
+  } catch (err) {
+    console.error('Dead stock report error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get Detailed Accounting Report (Multi-sheet Excel data)
+export const getDetailedAccountingReport = async (req: Request, res: Response) => {
+  try {
+    const { start, end } = req.query;
+    const startDate = start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const endDate = end || new Date().toISOString().split('T')[0];
+
+    const dateFilter: [string, string] = [`${startDate} 00:00:00`, `${endDate} 23:59:59`];
+
+    // 1. Sales Register Data
+    const salesRegister = await db('orders')
+      .leftJoin('staff', 'orders.staff_id', 'staff.id')
+      .leftJoin('payments', 'orders.id', 'payments.order_id')
+      .whereBetween('orders.created_at', dateFilter)
+      .whereNot('orders.status', 'cancelled')
+      .select(
+        'orders.created_at',
+        'orders.order_number',
+        'orders.customer_name',
+        'orders.location',
+        'staff.name as staff_name',
+        'payments.payment_method',
+        'orders.total_amount',
+        'orders.status'
+      )
+      .orderBy('orders.created_at', 'desc');
+
+    // 2. Sales Detail Data
+    const salesDetail = await db('order_items')
+      .join('orders', 'order_items.order_id', 'orders.id')
+      .join('products', 'order_items.product_id', 'products.id')
+      .whereBetween('orders.created_at', dateFilter)
+      .whereNot('orders.status', 'cancelled')
+      .select(
+        'orders.created_at',
+        'orders.order_number',
+        'products.id as sku',
+        'products.name as product_name',
+        'order_items.quantity',
+        'order_items.unit_price',
+        'products.cost as buying_price'
+      )
+      .orderBy('orders.created_at', 'desc');
+
+    // 3. Payment Reconciliation Data
+    let paymentStats = [];
+    try {
+      paymentStats = await db('payments')
+        .join('orders', 'payments.order_id', 'orders.id')
+        .whereBetween('orders.created_at', dateFilter)
+        .whereNot('orders.status', 'cancelled')
+        .select('payments.payment_method as name')
+        .count('payments.id as count')
+        .sum('payments.amount as value')
+        .groupBy('payments.payment_method');
+    } catch (e) {
+      // Fallback if payments table has issues
+      paymentStats = await db('orders')
+        .whereBetween('created_at', dateFilter)
+        .whereNot('status', 'cancelled')
+        .select('payment_method as name')
+        .count('id as count')
+        .sum('total_amount as value')
+        .groupBy('payment_method');
+    }
+
+    // 4. VAT and Tax Summary (Calculated)
+    const totalSales = salesRegister.reduce((sum: number, s: any) => sum + (parseFloat(s.total_amount) || 0), 0);
+    const vatRate = 0.16; // Standard VAT rate 16%
+    const vatCollected = totalSales * (vatRate / (1 + vatRate)); // Assuming prices are VAT inclusive
+
+    // Get expenses for VAT on purchases
+    const expenseRecords = await db('expenses')
+      .whereBetween('date', [startDate, endDate])
+      .select('date', 'category', 'description', 'amount')
+      .orderBy('date', 'desc');
+    
+    const totalExpenses = expenseRecords.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0);
+    const vatPaid = totalExpenses * (vatRate / (1 + vatRate));
+
+    // 5. Credit Aging (Draft) - Any payment_method like 'credit'
+    const creditSales = await db('orders')
+      .leftJoin('payments', 'orders.id', 'payments.order_id')
+      .whereBetween('orders.created_at', dateFilter)
+      .where('orders.payment_method', 'credit')
+      .whereNot('orders.status', 'cancelled')
+      .select(
+        'orders.customer_name',
+        'orders.total_amount',
+        'orders.created_at',
+        'orders.order_number'
+      );
+
+    // 6. Wastage Data
+    const wastageRecords = await db('wastage_logs')
+      .whereBetween('created_at', dateFilter)
+      .select('created_at', 'reason', 'quantity_wasted as quantity', 'cost')
+      .orderBy('created_at', 'desc');
+
+    res.json({
+      sales: salesRegister,
+      items: salesDetail,
+      wastage: wastageRecords,
+      paymentStats: paymentStats.map((p: any) => ({
+        name: p.name || 'Unknown',
+        count: parseInt(p.count),
+        value: parseFloat(p.value) || 0
+      })),
+      expenses: expenseRecords,
+      taxSummary: {
+        vatCollected,
+        vatPaid,
+        netVat: vatCollected - vatPaid,
+        totalSales,
+        totalExpenses
+      },
+      creditAging: creditSales.map((c: any) => ({
+        customer: c.customer_name || 'Unknown',
+        amount: parseFloat(c.total_amount) || 0,
+        date: c.created_at,
+        order_number: c.order_number,
+        daysOutstanding: Math.floor((new Date().getTime() - new Date(c.created_at).getTime()) / (1000 * 3600 * 24))
+      })),
+      deadStock: await db('products')
+        .leftJoin('order_items', function() {
+          this.on('products.id', '=', 'order_items.product_id')
+            .andOn('order_items.created_at', '>', db.raw("NOW() - (90 * INTERVAL '1 day')"));
+        })
+        .where('products.is_active', true)
+        .whereNull('order_items.id')
+        .select(
+          'products.id',
+          'products.name',
+          db.raw("'menu_item' as inventory_type"),
+          db.raw('0 as current_stock'),
+          'products.cost as cost_per_unit',
+          'products.updated_at as last_update'
+        )
+        .orderBy('products.name', 'asc')
+        .limit(10)
+    });
+
+  } catch (err) {
+    console.error('Detailed accounting report error:', err);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

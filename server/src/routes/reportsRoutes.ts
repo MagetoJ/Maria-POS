@@ -6,12 +6,12 @@ import * as reportsController from '../controllers/reportsController';
 
 const router = express.Router();
 
-// --- ADD NEW ADMIN-ONLY ROUTE HERE ---
-// This route is checked first and is restricted to admins.
+// --- ADD NEW ADMIN/ACCOUNTANT ROUTE HERE ---
+// This route is checked first and is restricted to admins and accountants.
 router.get(
   '/receipts',
   authenticateToken,
-  authorizeRoles('admin'), // Ensures only admins can access
+  authorizeRoles('admin', 'accountant'), // Ensures only admins and accountants can access
   reportsController.getReceiptsByDate // The new controller function
 );
 
@@ -26,30 +26,35 @@ router.get('/personal-sales', reportsController.getPersonalSales);
 router.get('/waiter-sales', reportsController.getWaiterSales);
 
 // Overview report
-router.get('/overview', reportsController.getOverviewReport);
+router.get('/overview', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getOverviewReport);
 
 // Sales report
-router.get('/sales', reportsController.getSalesReport);
+router.get('/sales', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getSalesReport);
 
 // Inventory report
-router.get('/inventory', reportsController.getInventoryReport);
+router.get('/inventory', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getInventoryReport);
 
 // Staff report
-router.get('/staff', reportsController.getStaffReport);
+router.get('/staff', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getStaffReport);
 
 // Rooms report
-router.get('/rooms', reportsController.getRoomsReport);
+router.get('/rooms', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getRoomsReport);
 
 // Performance report
-router.get('/performance', reportsController.getPerformanceReport);
+router.get('/performance', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getPerformanceReport);
 
 // Annual report
-router.get('/annual', reportsController.getAnnualReport);
+router.get('/annual', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getAnnualReport);
 
 // New Analytics Features
-router.get('/hourly', reportsController.getHourlySales);
-router.get('/payments', reportsController.getPaymentStats);
-router.get('/menu-analysis', reportsController.getMenuAnalysis);
-router.get('/wastage', reportsController.getWastageStats);
+router.get('/hourly', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getHourlySales);
+router.get('/payments', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getPaymentStats);
+router.get('/menu-analysis', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getMenuAnalysis);
+router.get('/wastage', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getWastageStats);
+
+// Accountant specific reports
+router.get('/price-variance', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getPriceVarianceReport);
+router.get('/dead-stock', authorizeRoles('admin', 'manager', 'accountant'), reportsController.getDeadStockReport);
+router.get('/detailed-accounting', authorizeRoles('admin', 'accountant'), reportsController.getDetailedAccountingReport);
 
 export default router;
