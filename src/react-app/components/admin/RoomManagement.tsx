@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Bed, Plus, Edit3, Trash2, User, DollarSign, Calendar } from 'lucide-react';
-import { API_URL } from '@/config/api';  // ← ADD THIS
+import { API_URL } from '../../config/api';
 
 // ← ADD THIS FUNCTION
 const formatCurrency = (amount: number): string => {
@@ -49,7 +49,7 @@ export default function RoomManagement() {
 
   const fetchRooms = async () => {
     try {
-      const response = await fetch('/api/rooms', {
+      const response = await fetch(`${API_URL}/api/rooms`, {
         headers: { 'Authorization': `Bearer ${getToken()}` }
       });
       if (response.ok) {
@@ -110,7 +110,7 @@ export default function RoomManagement() {
     };
 
     try {
-        const response = await fetch('/api/rooms', {
+        const response = await fetch(`${API_URL}/api/rooms`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -159,7 +159,7 @@ export default function RoomManagement() {
     };
 
     try {
-        const response = await fetch(`/api/rooms/${editingRoom.id}`, {
+        const response = await fetch(`${API_URL}/api/rooms/${editingRoom.id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -185,7 +185,7 @@ export default function RoomManagement() {
   const handleDeleteRoom = async (id: number) => {
     if (confirm('Are you sure you want to delete this room?')) {
         try {
-            const response = await fetch(`/api/rooms/${id}`, {
+            const response = await fetch(`${API_URL}/api/rooms/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${getToken()}` }
             });
@@ -206,12 +206,14 @@ export default function RoomManagement() {
     // This is the data your 'checkInRoom' controller expects
     const checkInData = {
       guest_name: guestForm.guest_name,
-      guest_contact: '' // Add guest_contact if your form collects it
+      guest_contact: '', // Add guest_contact if your form collects it
+      check_in_date: guestForm.check_in_date,
+      check_out_date: guestForm.check_out_date
     };
 
     try {
       // Call the correct check-in endpoint
-      const response = await fetch(`/api/rooms/${selectedRoom.id}/check-in`, { // <-- FIXED endpoint
+      const response = await fetch(`${API_URL}/api/rooms/${selectedRoom.id}/check-in`, { // <-- FIXED endpoint
         method: 'POST', // <-- FIXED method
         headers: {
           'Content-Type': 'application/json',
@@ -239,7 +241,7 @@ export default function RoomManagement() {
     if (confirm('Confirm check out for this room?')) {
       try {
         // Call the correct check-out endpoint
-        const response = await fetch(`/api/rooms/${roomId}/check-out`, { // <-- FIXED endpoint
+        const response = await fetch(`${API_URL}/api/rooms/${roomId}/check-out`, { // <-- FIXED endpoint
           method: 'POST', // <-- FIXED method
           headers: {
             'Authorization': `Bearer ${getToken()}`
@@ -263,7 +265,7 @@ export default function RoomManagement() {
   const updateRoomStatus = async (roomId: number, newStatus: Room['status']) => {
     const updatedRoomData = { status: newStatus };
      try {
-        const response = await fetch(`/api/rooms/${roomId}`, {
+        const response = await fetch(`${API_URL}/api/rooms/${roomId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',

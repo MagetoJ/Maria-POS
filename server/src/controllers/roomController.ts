@@ -95,7 +95,7 @@ export const createRoom = async (req: Request, res: Response) => {
       .insert({
         room_number,
         room_type,
-        status: status || 'available',
+        status: status || 'vacant',
         rate: rate || 0,
         max_occupancy: max_occupancy || 1,
         amenities: amenities || '',
@@ -148,7 +148,7 @@ export const deleteRoom = async (req: Request, res: Response) => {
 // Check-in guest to room
 export const checkInRoom = async (req: Request, res: Response) => {
   const { roomId } = req.params;
-  const { guest_name, guest_contact } = req.body;
+  const { guest_name, guest_contact, check_in_date, check_out_date } = req.body;
   const staff_id = req.user!.id;
   
   if (!guest_name) {
@@ -159,7 +159,12 @@ export const checkInRoom = async (req: Request, res: Response) => {
     await db.transaction(async (trx) => {
       const [room] = await trx('rooms')
         .where({ id: roomId, status: 'vacant' })
-        .update({ status: 'occupied' })
+        .update({ 
+          status: 'occupied',
+          guest_name: guest_name,
+          check_in_date: check_in_date || new Date(),
+          check_out_date: check_out_date || null
+        })
         .returning('*');
       
       if (!room) {
@@ -172,7 +177,8 @@ export const checkInRoom = async (req: Request, res: Response) => {
         guest_name,
         guest_contact,
         status: 'active',
-        check_in_time: new Date()
+        check_in_time: check_in_date || new Date(),
+        check_out_time: check_out_date || null
       });
       
       res.json(room);
@@ -192,7 +198,12 @@ export const checkOutRoom = async (req: Request, res: Response) => {
     await db.transaction(async (trx) => {
       const [room] = await trx('rooms')
         .where({ id: roomId, status: 'occupied' })
-        .update({ status: 'cleaning' })
+        .update({ 
+          status: 'cleaning',
+          guest_name: null,
+          check_in_date: null,
+          check_out_date: null
+        })
         .returning('*');
       
       if (!room) {
@@ -222,8 +233,8 @@ export const getRoomStats = async (req: Request, res: Response) => {
       // Total rooms
       db('rooms').count('* as count').first(),
       
-      // Available rooms
-      db('rooms').where('status', 'available').count('* as count').first(),
+      // Vacant rooms
+      db('rooms').where('status', 'vacant').count('* as count').first(),
       
       // Occupied rooms
       db('rooms').where('status', 'occupied').count('* as count').first(),
@@ -239,7 +250,7 @@ export const getRoomStats = async (req: Request, res: Response) => {
         .first()
     ]);
 
-    const [totalRooms, availableRooms, occupiedRooms, maintenanceRooms, activeBookings] = stats;
+    const [totalRooms, vacantRooms, occupiedRooms, maintenanceRooms, activeBookings] = stats;
 
     const total = parseInt(totalRooms?.count as string) || 0;
     const occupied = parseInt(occupiedRooms?.count as string) || 0;
@@ -247,7 +258,7 @@ export const getRoomStats = async (req: Request, res: Response) => {
 
     res.json({
       totalRooms: total,
-      availableRooms: parseInt(availableRooms?.count as string) || 0,
+      vacantRooms: parseInt(vacantRooms?.count as string) || 0,
       occupiedRooms: occupied,
       maintenanceRooms: parseInt(maintenanceRooms?.count as string) || 0,
       occupancyRate,

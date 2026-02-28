@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './components/Toast';
+import { Layout } from './components/Layout';
 import Login from './pages/Login';
 import POS from './pages/POS';
 import AdminDashboard from './pages/AdminDashboard';
@@ -50,9 +52,8 @@ function App() {
   };
 
   return (
-    <>
+    <ToastProvider>
       <NetworkStatus />
-
       <PWAUpdateNotification />
       <Routes>
         <Route path="/login" element={<Login onQuickPOSAccess={handleQuickPOS} />} />
@@ -67,7 +68,9 @@ function App() {
           path="/pos" 
           element={
             <ProtectedRoute allowedRoles={['admin', 'manager', 'staff', 'waiter', 'cashier', 'delivery', 'kitchen_staff', 'receptionist', 'housekeeping']}>
-              <POS />
+              <Layout>
+                <POS />
+              </Layout>
             </ProtectedRoute>
           } 
         /> 
@@ -76,7 +79,9 @@ function App() {
           path="/admin"
           element={
             <ProtectedRoute allowedRoles={['admin', 'manager']}>
-              <AdminDashboard />
+              <Layout>
+                <AdminDashboard />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -85,8 +90,9 @@ function App() {
           path="/kitchen"
           element={
             <ProtectedRoute allowedRoles={['kitchen_staff', 'admin', 'manager']}>
-              {/* Using KitchenDashboard for consistency */}
-              <KitchenDashboard />
+              <Layout>
+                <KitchenDashboard />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -95,17 +101,20 @@ function App() {
           path="/housekeeping"
           element={
             <ProtectedRoute allowedRoles={['housekeeping', 'admin', 'manager']}>
-              <HousekeepingDashboard />
+              <Layout>
+                <HousekeepingDashboard />
+              </Layout>
             </ProtectedRoute>
           }
         />
 
-        {/* --- ADDED RECEPTIONIST ROUTE --- */}
         <Route
           path="/reception"
           element={
             <ProtectedRoute allowedRoles={['receptionist', 'admin', 'manager']}>
-              <ReceptionistDashboard />
+              <Layout>
+                <ReceptionistDashboard />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -114,7 +123,9 @@ function App() {
           path="/accountant"
           element={
             <ProtectedRoute allowedRoles={['accountant', 'admin', 'manager']}>
-              <AccountantDashboard />
+              <Layout>
+                <AccountantDashboard />
+              </Layout>
             </ProtectedRoute>
           }
         />
@@ -131,7 +142,7 @@ function App() {
           )
         } />
       </Routes>
-    </>
+    </ToastProvider>
   );
 }
 

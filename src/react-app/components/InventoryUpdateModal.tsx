@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { X, Plus, Minus, Save, Package } from 'lucide-react';
 interface InventoryItem {
   id: number;

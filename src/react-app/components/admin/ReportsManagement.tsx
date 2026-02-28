@@ -112,18 +112,21 @@ interface PaymentData {
   name: string;
   value: number;
   count: number;
+  [key: string]: any;
 }
 
 interface MenuData {
   name: string;
   popularity: number;
   revenue: number;
+  [key: string]: any;
 }
 
 interface WastageData {
   reason: string;
   count: number;
   loss: number;
+  [key: string]: any;
 }
 
 interface PriceVarianceData {
@@ -186,6 +189,23 @@ export default function ReportsManagement() {
   const [paymentData, setPaymentData] = useState<PaymentData[] | null>(null);
   const [menuData, setMenuData] = useState<MenuData[] | null>(null);
   const [wastageData, setWastageData] = useState<WastageData[] | null>(null);
+  const [settings, setSettings] = useState<any>({});
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await apiClient.get('/api/settings/public');
+      if (response.ok) {
+        const data = await response.json();
+        setSettings(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch settings:', err);
+    }
+  };
 
   useEffect(() => {
     if (selectedReport === 'receiptAudit') {
@@ -392,6 +412,127 @@ export default function ReportsManagement() {
     { id: 'dead-stock', label: 'Dead Stock', icon: Clock },
     { id: 'receiptAudit', label: 'Receipt Audit', icon: Printer }
   ].filter(type => !type.roles || (user && type.roles.includes(user.role)));
+
+  const handlePrintReportAsReceipt = () => {
+    if (!reportData) return;
+
+    const reportTitle = reportTypes.find(t => t.id === selectedReport)?.label || 'Business Report';
+    let content = '';
+
+    // Format content based on report type
+    if (selectedReport === 'overview') {
+      const data = reportData as OverviewReportData;
+      content = `
+        <div class="header">OVERVIEW REPORT</div>
+        <div class="divider"></div>
+        <div class="item-row"><div>Revenue:</div><div>${formatCurrency(data.sales?.total_revenue || 0)}</div></div>
+        <div class="item-row"><div>Gross Profit:</div><div>${formatCurrency(data.sales?.gross_profit || 0)}</div></div>
+        <div class="item-row"><div>Expenses:</div><div>${formatCurrency(data.sales?.total_expenses || 0)}</div></div>
+        <div class="item-row grand-total"><div>NET PROFIT:</div><div>${formatCurrency(data.sales?.net_profit || 0)}</div></div>
+        <div class="divider"></div>
+        <div class="subheader">TOP ITEMS</div>
+        ${(data.inventory?.topSellingItems || []).slice(0, 5).map(item => `
+          <div class="item-row">
+            <div>${item.name}</div>
+            <div>${item.quantity}x</div>
+          </div>
+        `).join('')}
+      `;
+    } else if (selectedReport === 'sales') {
+      const data = reportData as SalesReportData;
+      const total = data.salesByDay.reduce((sum, day) => sum + day.total, 0);
+      content = `
+        <div class="header">SALES REPORT</div>
+        <div class="divider"></div>
+        ${data.salesByDay.map(day => `
+          <div class="item-row">
+            <div>${new Date(day.date).toLocaleDateString()}</div>
+            <div>${formatCurrency(day.total)}</div>
+          </div>
+        `).join('')}
+        <div class="divider"></div>
+        <div class="item-row grand-total"><div>TOTAL:</div><div>${formatCurrency(total)}</div></div>
+      `;
+    } else if (selectedReport === 'inventory') {
+      const data = reportData as InventoryReportData;
+      content = `
+        <div class="header">INVENTORY SUMMARY</div>
+        <div class="divider"></div>
+        <div class="item-row"><div>Total Value:</div><div>${formatCurrency(data.totalValue || 0)}</div></div>
+        <div class="divider"></div>
+        <div class="subheader">LOW STOCK</div>
+        ${(data.lowStockItems || []).map(item => `
+          <div class="item-row">
+            <div>${item.name}</div>
+            <div>${item.current_stock} ${item.minimum_stock > 0 ? `(Min: ${item.minimum_stock})` : ''}</div>
+          </div>
+        `).join('')}
+      `;
+    } else if (selectedReport === 'detailed-accounting') {
+      const summary = reportData.taxSummary || {};
+      content = `
+        <div class="header">FINANCIAL SUMMARY</div>
+        <div class="divider"></div>
+        <div class="item-row"><div>Revenue:</div><div>${formatCurrency(summary.totalSales || 0)}</div></div>
+        <div class="item-row"><div>VAT Coll:</div><div>${formatCurrency(summary.vatCollected || 0)}</div></div>
+        <div class="item-row"><div>Expenses:</div><div>${formatCurrency(summary.totalExpenses || 0)}</div></div>
+        <div class="item-row"><div>VAT Paid:</div><div>${formatCurrency(summary.vatPaid || 0)}</div></div>
+        <div class="divider"></div>
+        <div class="item-row grand-total"><div>NET OBLIG:</div><div>${formatCurrency(summary.netVat || 0)}</div></div>
+      `;
+    } else {
+      // Generic fallback for other reports
+      content = `<div class="header">${reportTitle.toUpperCase()}</div><div class="divider"></div><p>Report data available in PDF/Excel formats.</p>`;
+    }
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${reportTitle}</title>
+        <style>
+          body { font-family: 'Courier New', monospace; width: 300px; margin: 0; padding: 10px; font-size: 12px; }
+          .receipt { text-align: center; }
+          .header { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+          .subheader { font-weight: bold; margin-top: 10px; margin-bottom: 5px; text-align: left; text-decoration: underline; }
+          .divider { border-top: 1px dashed #000; margin: 10px 0; }
+          .item-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+          .grand-total { font-weight: bold; font-size: 14px; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
+          .footer { margin-top: 20px; font-size: 10px; text-align: center; }
+          @media print { body { width: 80mm; } }
+        </style>
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="header">${settings.business_name || 'MARIA HAVENS'}</div>
+          <div>${settings.business_address || 'REPORTS DEPARTMENT'}</div>
+          <div class="divider"></div>
+          <div><strong>${reportTitle}</strong></div>
+          <div>Period: ${dateRange.start} to ${dateRange.end}</div>
+          <div class="divider"></div>
+          ${content}
+          <div class="divider"></div>
+          <div class="footer">
+            Printed on: ${new Date().toLocaleString()}<br>
+            Generated by POS System
+          </div>
+        </div>
+        <script>
+          window.onload = function() {
+            window.print();
+            setTimeout(function() { window.close(); }, 500);
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank', 'width=350,height=600');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+    }
+  };
 
   const exportToExcel = (data: any, reportName: string) => {
     let sheetData: any[] = [];
@@ -777,11 +918,11 @@ export default function ReportsManagement() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie 
-                      data={paymentData} 
+                      data={paymentData as any} 
                       cx="50%" 
                       cy="50%" 
                       labelLine={false} 
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }: any) => `${name}: ${(percent * 100).toFixed(0)}%`}
                       outerRadius={100} 
                       fill="#8884d8" 
                       dataKey="value"
@@ -1130,11 +1271,11 @@ export default function ReportsManagement() {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie 
-                data={data} 
+                data={data as any} 
                 cx="50%" 
                 cy="50%" 
                 labelLine={false} 
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }: any) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}
                 outerRadius={120} 
                 fill="#8884d8" 
                 dataKey="value"
@@ -1590,6 +1731,14 @@ export default function ReportsManagement() {
                     Accountant Export
                   </button>
                 )}
+                <button
+                  onClick={handlePrintReportAsReceipt}
+                  disabled={isLoading}
+                  className="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
+                >
+                  <Printer className="w-4 h-4" />
+                  Print Receipt
+                </button>
                 <button
                   onClick={() => handleExport('excel')}
                   disabled={isLoading}

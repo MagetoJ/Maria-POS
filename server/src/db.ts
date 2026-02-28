@@ -25,9 +25,12 @@ const getDatabaseConfig = () => {
       pool: {
         min: 2,
         max: 10,
-        acquireTimeoutMillis: 60000,
+        acquireTimeoutMillis: 30000,
+        createTimeoutMillis: 30000,
         idleTimeoutMillis: 30000,
-        reapIntervalMillis: 2000,
+        reapIntervalMillis: 1000,
+        createRetryIntervalMillis: 100,
+        propagateCreateError: false
       },
       debug: isDevelopment,
     };
@@ -44,9 +47,12 @@ const getDatabaseConfig = () => {
     pool: {
       min: 2,
       max: 10,
-      acquireTimeoutMillis: 60000,
+      acquireTimeoutMillis: 30000,
+      createTimeoutMillis: 30000,
       idleTimeoutMillis: 30000,
-      reapIntervalMillis: 2000,
+      reapIntervalMillis: 1000,
+      createRetryIntervalMillis: 100,
+      propagateCreateError: false
     },
     debug: isDevelopment,
     };
@@ -221,6 +227,24 @@ const ensureCriticalTables = async () => {
         table.timestamp('created_at').defaultTo(db.fn.now());
       });
       console.log('🛠️ Created missing inventory_log table');
+    }
+
+    // Ensure clearance columns for end-of-day clearing
+    const ensureClearanceForTable = async (tableName: string) => {
+      if (await db.schema.hasTable(tableName)) {
+        await ensureColumn(tableName, 'is_cleared', (table) => table.boolean('is_cleared').defaultTo(false).index(), `🛠️ Added ${tableName}.is_cleared column`);
+        await ensureColumn(tableName, 'cleared_at', (table) => table.timestamp('cleared_at').nullable(), `🛠️ Added ${tableName}.cleared_at column`);
+        await ensureColumn(tableName, 'cleared_by', (table) => table.integer('cleared_by').unsigned().references('id').inTable('staff').onDelete('SET NULL'), `🛠️ Added ${tableName}.cleared_by column`);
+      }
+    };
+
+    await ensureClearanceForTable('orders');
+    await ensureClearanceForTable('expenses');
+    await ensureClearanceForTable('room_transactions');
+    
+    // Ensure staff has requires_clearing column
+    if (await db.schema.hasTable('staff')) {
+      await ensureColumn('staff', 'requires_clearing', (table) => table.boolean('requires_clearing').defaultTo(true), '🛠️ Added staff.requires_clearing column');
     }
   } catch (err) {
     console.error('❌ Failed to ensure critical tables exist:', err);

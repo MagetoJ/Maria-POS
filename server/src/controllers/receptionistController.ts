@@ -27,7 +27,21 @@ export const sellBarItem = async (req: Request, res: Response) => {
 
     const newStock = item.current_stock - quantity;
     const total_amount = quantity * unit_price;
-    const order_number = `BAR-${Date.now()}`;
+    
+    // New Receipt Numbering System: BAR-YYYYMMDD-XXXX
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const countResult = await db('orders')
+      .where('created_at', '>=', startOfToday)
+      .count('* as count')
+      .first();
+      
+    const sequence = (parseInt(countResult?.count as string) || 0) + 1;
+    const paddedSequence = sequence.toString().padStart(4, '0');
+    const order_number = `MH-BAR-${dateStr}-${paddedSequence}`;
 
     await db.transaction(async (trx) => {
       // Update inventory stock
@@ -38,7 +52,7 @@ export const sellBarItem = async (req: Request, res: Response) => {
         });
 
       // Create order record
-      const [order] = await trx('orders').insert({
+      const [newOrder] = await trx('orders').insert({
         order_number,
         order_type: 'bar_sale',
         status: 'completed',
@@ -47,9 +61,23 @@ export const sellBarItem = async (req: Request, res: Response) => {
         payment_status: 'paid'
       }).returning('id');
 
+      const orderId = newOrder.id || newOrder;
+
+      // Log the inventory change
+      await trx('inventory_log').insert({
+        inventory_item_id,
+        action: 'sale',
+        quantity_change: -quantity,
+        reference_id: orderId,
+        reference_type: 'bar_sale',
+        logged_by: staff_id,
+        notes: `Bar sale ${order_number}`,
+        created_at: new Date()
+      });
+
       // Create payment record
       await trx('payments').insert({
-        order_id: order.id || order,
+        order_id: orderId,
         payment_method,
         amount: total_amount,
         status: 'completed'
@@ -57,7 +85,7 @@ export const sellBarItem = async (req: Request, res: Response) => {
 
       // Create order item record
       await trx('order_items').insert({
-        order_id: order.id || order,
+        order_id: orderId,
         product_id: inventory_item_id,
         quantity,
         unit_price,

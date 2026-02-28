@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../components/Toast';
 import { apiClient } from '../config/api';
 import { envLog, IS_DEVELOPMENT } from '../config/environment';
 import Header from '../components/Header';
@@ -12,6 +13,7 @@ import RoomManagement from '../components/admin/RoomManagement';
 import ReportsManagement from '../components/admin/ReportsManagement';
 import SettingsManagement from '../components/admin/SettingsManagement';
 import ShiftManagement from '../components/admin/ShiftManagement';
+import WaiterClearing from '../components/admin/WaiterClearing';
 import ExpensesManagement from '../components/admin/ExpensesManagement';
 import ProductReturnsManagement from '../components/admin/ProductReturnsManagement';
 import SuppliersManagement from '../components/admin/SuppliersManagement';
@@ -39,6 +41,7 @@ import {
   TrendingUp,
   Search,
   Receipt,
+  CheckCircle,
   RotateCcw,
   Truck,
   ShoppingCart,
@@ -117,6 +120,7 @@ interface LowStockItem {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const toast = useToast();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState('overview');
   const [overviewData, setOverviewData] = useState<OverviewStats | null>(null);
@@ -174,26 +178,29 @@ export default function AdminDashboard() {
     }
   }, [activeTab, location.hash]);
 
-  const fetchActiveUsers = async () => {
+  const fetchActiveUsers = async (signal?: AbortSignal) => {
     try {
       envLog.dev('👥 Fetching user sessions...');
-      const response = await apiClient.get('/api/admin/user-sessions');
+      const response = await apiClient.get('/api/admin/user-sessions', { signal });
       if (response.ok) {
         const data = await response.json();
+        if (signal?.aborted) return;
         setActiveUsers(data);
         envLog.dev('✅ User sessions loaded:', data);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
       envLog.error('❌ Error fetching user sessions:', error);
     }
   };
 
-  const fetchLowStockItems = async () => {
+  const fetchLowStockItems = async (signal?: AbortSignal) => {
     try {
       envLog.dev('📦 Fetching low stock items...');
-      const response = await apiClient.get('/api/admin/low-stock-alerts');
+      const response = await apiClient.get('/api/admin/low-stock-alerts', { signal });
       if (response.ok) {
         const data = await response.json();
+        if (signal?.aborted) return;
         setLowStockItems(data);
         // Prepare chart data
         const chartData = data.map((item: LowStockItem) => ({
@@ -204,21 +211,24 @@ export default function AdminDashboard() {
         setLowStockChartData(chartData);
         envLog.dev('✅ Low stock items loaded:', data);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
       envLog.error('❌ Error fetching low stock items:', error);
     }
   };
 
-  const fetchAllInventory = async () => {
+  const fetchAllInventory = async (signal?: AbortSignal) => {
     try {
       envLog.dev('📦 Fetching all inventory items...');
-      const response = await apiClient.get('/api/inventory');
+      const response = await apiClient.get('/api/inventory', { signal });
       if (response.ok) {
         const data = await response.json();
+        if (signal?.aborted) return;
         setAllInventory(data);
         envLog.dev('✅ Inventory items loaded:', data.length);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
       envLog.error('❌ Error fetching inventory items:', error);
     }
   };
@@ -237,16 +247,18 @@ export default function AdminDashboard() {
         if (data.invoice) {
           setSelectedInvoiceId(data.invoice.id);
         } else {
-          alert(data.message || 'Failed to generate invoice');
+          toast.error(data.message || 'Failed to generate invoice');
         }
       }
     } catch (err) {
       console.error('Error generating invoice:', err);
-      alert('Error generating invoice');
+      toast.error('Error generating invoice');
     }
   };
 
   useEffect(() => {
+      const controller = new AbortController();
+      
       const fetchOverviewData = async () => {
           if (activeTab === 'overview') {
               setIsLoading(true);
@@ -256,7 +268,10 @@ export default function AdminDashboard() {
                   envLog.dev('📊 Fetching overview stats...');
                   
                   // Use apiClient which automatically adds auth headers
-                  const response = await apiClient.get('/api/dashboard/overview-stats');
+                  // Note: apiClient needs to support signal or we use fetch directly
+                  // For now, let's assume apiClient.get accepts options or we use a flag
+                  
+                  const response = await apiClient.get('/api/dashboard/overview-stats', { signal: controller.signal });
                   
                   if (!response.ok) {
                       const errorText = await response.text();
@@ -266,17 +281,21 @@ export default function AdminDashboard() {
                   }
                   
                   const data = await response.json();
+                  if (controller.signal.aborted) return;
+                  
                   envLog.dev('✅ Overview stats loaded:', data);
                   
                   setOverviewData(data);
 
                   // Also fetch active users, low stock items, and inventory for the overview
                   await Promise.all([
-                    fetchActiveUsers(),
-                    fetchLowStockItems(),
-                    fetchAllInventory()
+                    fetchActiveUsers(controller.signal),
+                    fetchLowStockItems(controller.signal),
+                    fetchAllInventory(controller.signal)
                   ]);
               } catch (error: any) {
+                  if (error.name === 'AbortError') return;
+                  
                   if (IS_DEVELOPMENT) {
                       console.error("❌ Error fetching overview stats:", error);
                   }
@@ -292,12 +311,18 @@ export default function AdminDashboard() {
                       setError("Could not load dashboard data. Please try again later.");
                   }
               } finally {
-                  setIsLoading(false);
+                  if (!controller.signal.aborted) {
+                    setIsLoading(false);
+                  }
               }
           }
       };
 
       fetchOverviewData();
+      
+      return () => {
+        controller.abort();
+      };
   }, [activeTab]);
 
   const menuItems = [
@@ -305,6 +330,7 @@ export default function AdminDashboard() {
     { id: 'search', label: 'Global Search', icon: Search, roles: ['admin', 'manager'] },
     { id: 'staff', label: 'Staff Management', icon: Users, roles: ['admin', 'manager'] },
     { id: 'shifts', label: 'Shift Management', icon: Clock, roles: ['admin', 'manager'] },
+    { id: 'clearing', label: 'Waiter Clearing', icon: CheckCircle, roles: ['admin', 'manager', 'accountant'] },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'inventory', label: 'Inventory', icon: Package, roles: ['admin', 'manager'] },
     { id: 'menu', label: 'Menu Management', icon: Utensils, roles: ['admin', 'manager'] },
@@ -1053,6 +1079,8 @@ export default function AdminDashboard() {
         return <StaffManagement />;
       case 'shifts':
         return <ShiftManagement />;
+      case 'clearing':
+        return <WaiterClearing />;
       case 'performance':
         return <PerfomanceDashboard />;
       case 'inventory':

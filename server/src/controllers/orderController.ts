@@ -35,10 +35,50 @@ export const createOrder = async (req: Request, res: Response) => {
       staffId = validation.staffId;
       staffName = validation.staffName;
       console.log('PIN validated for order by:', staffName);
+      
+      // 8 AM Blocking Logic: Block orders if previous days have uncleared data
+      const now = new Date();
+      if (now.getHours() >= 8) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Check if this specific staff requires clearing
+        const staff = await db('staff').where({ id: staffId }).first();
+        
+        if (staff && staff.requires_clearing) {
+          const unclearedPreviousData = await db('orders')
+            .where('staff_id', staffId)
+            .where('created_at', '<', today)
+            .where('is_cleared', false)
+            .first();
+            
+          if (unclearedPreviousData) {
+            return res.status(403).json({ 
+              message: 'Action Blocked: Your previous shift receipts have not been cleared by Admin. Please see Admin to clear your previous shift receipts before proceeding.',
+              blocking_reason: 'uncleared_previous_data'
+            });
+          }
+        }
+      }
     }
 
-    // 1. Generate order number outside to keep it in scope
-    const orderNumber = `ORD-${Date.now()}`;
+    // New Receipt Numbering System: ORD-YYYYMMDD-XXXX
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD
+    
+    // Start of today
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    // Count existing orders from today to generate the sequential part
+    const countResult = await db('orders')
+      .where('created_at', '>=', startOfToday)
+      .count('* as count')
+      .first();
+      
+    const sequence = (parseInt(countResult?.count as string) || 0) + 1;
+    const paddedSequence = sequence.toString().padStart(4, '0');
+    const orderNumber = `MH-${dateStr}-${paddedSequence}`;
 
     let orderId: any;
 
@@ -94,6 +134,18 @@ export const createOrder = async (req: Request, res: Response) => {
                 await trx('inventory_items')
                   .where({ id: item.product_id })
                   .update({ current_stock: newStock, updated_at: new Date() });
+
+                // Log the inventory change
+                await trx('inventory_log').insert({
+                  inventory_item_id: item.product_id,
+                  action: 'sale',
+                  quantity_change: -Number(item.quantity),
+                  reference_id: orderId,
+                  reference_type: 'order',
+                  logged_by: staffId,
+                  notes: `Sale from order ${orderNumber}`,
+                  created_at: new Date()
+                });
              }
           }
         }

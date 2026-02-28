@@ -20,7 +20,7 @@ export const navigateToSearchResult = (
   navigate: NavigateFunction, 
   userRole?: string,
   setActiveTab?: (tab: string) => void,
-  setActiveView?: (view: string) => void
+  setActiveView?: (view: any) => void
 ) => {
   const { type } = result;
   

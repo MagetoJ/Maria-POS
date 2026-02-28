@@ -4,20 +4,21 @@ import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = Router();
 
-// All admin routes require authentication and admin/manager/accountant privileges
+// All admin routes require authentication
 router.use(authenticateToken);
-router.use(authorizeRoles('admin', 'manager', 'accountant'));
 
-// Get active users
-router.get('/active-users', adminController.getActiveUsers);
+// Routes for admin, manager, accountant
+router.get('/active-users', authorizeRoles('admin', 'manager', 'accountant'), adminController.getActiveUsers);
+router.get('/user-sessions', authorizeRoles('admin', 'manager', 'accountant'), adminController.getUserSessions);
+router.get('/low-stock-alerts', authorizeRoles('admin', 'manager', 'accountant'), adminController.getLowStockAlerts);
+router.get('/session-history', authorizeRoles('admin', 'manager', 'accountant'), adminController.getUserSessionHistory);
 
-// Get user sessions (both active and recent inactive)
-router.get('/user-sessions', adminController.getUserSessions);
+// Routes accessible to admin, manager, accountant, and waiter (viewing uncleared data)
+router.get('/uncleared-staff', authorizeRoles('admin', 'manager', 'accountant', 'waiter'), adminController.getUnclearedStaffSummary);
+router.get('/uncleared-receipts/:id', authorizeRoles('admin', 'manager', 'accountant', 'waiter'), adminController.getUnclearedStaffReceipts);
 
-// Get low stock alerts
-router.get('/low-stock-alerts', adminController.getLowStockAlerts);
-
-// Get user session history
-router.get('/session-history', adminController.getUserSessionHistory);
+// Routes strictly for clearing (admin/manager only as per requirements)
+router.post('/clear-previous-data', authorizeRoles('admin', 'manager'), adminController.clearPreviousData);
+router.post('/clear-staff/:id', authorizeRoles('admin', 'manager'), adminController.clearStaffData);
 
 export default router;

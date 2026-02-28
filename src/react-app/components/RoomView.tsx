@@ -7,8 +7,8 @@ interface Room {
   id: number;
   room_number: string;
   room_type: string;
-  status: 'available' | 'occupied' | 'dirty' | 'maintenance';
-  price_per_night: number | null;
+  status: 'vacant' | 'occupied' | 'cleaning' | 'maintenance' | 'reserved';
+  rate: number | null;
 }
 
 export default function RoomView() {
@@ -109,10 +109,11 @@ export default function RoomView() {
 
   const getStatusColor = (status: Room['status']) => {
     switch (status) {
-      case 'available': return 'bg-green-100 text-green-800 border-green-300';
+      case 'vacant': return 'bg-green-100 text-green-800 border-green-300';
       case 'occupied': return 'bg-red-100 text-red-800 border-red-300';
-      case 'dirty': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      case 'maintenance': return 'bg-gray-100 text-gray-800 border-gray-300';
+      case 'cleaning': return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'maintenance': return 'bg-red-100 text-red-800 border-red-300';
+      case 'reserved': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
       default: return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
@@ -138,7 +139,7 @@ export default function RoomView() {
                 </div>
                 <p className="text-sm font-medium capitalize">{room.room_type}</p>
                 <p className="text-lg font-bold mt-1">
-                  {typeof room.price_per_night === 'number' ? `KES ${room.price_per_night.toLocaleString()}` : 'Price not set'}
+                  {typeof room.rate === 'number' ? `KES ${room.rate.toLocaleString()}` : 'Rate not set'}
                 </p>
               </div>
               <div className="flex items-center gap-3 mt-4 text-xs border-t pt-3">
@@ -158,7 +159,7 @@ export default function RoomView() {
                 {/* Show buttons for authorized roles */}
                 {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'receptionist') ? (
                   <>
-                    {room.status === 'available' && (
+                    {room.status === 'vacant' && (
                       <button 
                         onClick={() => handleOpenCheckIn(room)} 
                         className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center gap-2 transition-colors"
@@ -181,9 +182,9 @@ export default function RoomView() {
                          )}
                       </button>
                     )}
-                    {(room.status === 'dirty' || room.status === 'maintenance') && (
+                    {(room.status === 'cleaning' || room.status === 'maintenance') && (
                       <div className="w-full text-center py-2 px-4 rounded bg-gray-200 text-gray-600 text-sm">
-                        {room.status === 'dirty' ? 'Needs Cleaning' : 'Under Maintenance'}
+                        {room.status === 'cleaning' ? 'Needs Cleaning' : 'Under Maintenance'}
                       </div>
                     )}
                   </>

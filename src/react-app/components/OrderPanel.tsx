@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePOS, OrderItem, Order, Table } from '../contexts/POSContext';
 import { useAuth, User } from '../contexts/AuthContext';
+import { useToast } from './Toast';
 import { API_URL, apiClient } from '../config/api';
 import { Trash2, UtensilsCrossed, Loader2, User as UserIcon, Printer, X, FileText } from 'lucide-react';
 import InvoiceModal from './admin/InvoiceModal';
@@ -32,6 +33,7 @@ interface OrderPanelProps {
 // --- Receipt Preview Component (Internal to OrderPanel) ---
 const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => void }> = ({ details, onClose }) => {
   const { order, staff, orderNumber, orderId, subtotal, total, orderType, locationDetail } = details;
+  const toast = useToast();
   const [settings, setSettings] = useState<any>({});
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
   const [activeInvoiceId, setActiveInvoiceId] = useState<number | null>(null);
@@ -53,7 +55,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
 
   const handleGenerateInvoice = async () => {
     if (!orderId) {
-      alert("Order ID missing. Cannot generate invoice.");
+      toast.error("Order ID missing. Cannot generate invoice.");
       return;
     }
 
@@ -67,7 +69,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
 
       const data = await response.json();
       if (response.ok) {
-        alert(`Invoice ${data.invoice_number} created!`);
+        toast.success(`Invoice ${data.invoice_number} created!`);
         
         // Automatically trigger the download
         window.open(`${API_URL}/api/quick-pos/download-invoice/${data.id}`, '_blank');
@@ -78,12 +80,12 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
           window.open(`${API_URL}/api/quick-pos/download-invoice/${data.invoice.id}`, '_blank');
           setActiveInvoiceId(data.invoice.id);
         } else {
-          alert(data.message || "Failed to generate invoice");
+          toast.error(data.message || "Failed to generate invoice");
         }
       }
     } catch (err) {
       console.error("Error generating invoice:", err);
-      alert("An error occurred while generating the invoice");
+      toast.error("An error occurred while generating the invoice");
     } finally {
       setIsGeneratingInvoice(false);
     }
@@ -304,6 +306,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
 export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: OrderPanelProps) { // <-- 2. USE THE PROP
   const { currentOrder, removeItemFromOrder, clearOrder, updateItemQuantity, setCurrentOrder } = usePOS();
   const { user, validateStaffPin } = useAuth();
+  const toast = useToast();
 
   const [waitersList, setWaitersList] = useState<User[]>([]);
   const [tablesList, setTablesList] = useState<Table[]>([]);
@@ -379,7 +382,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
 
   const handleFinalizeOrder = async () => {
     if (!currentOrder || currentOrder.items.length === 0) {
-      alert('Cannot process an empty order.');
+      toast.warning('Cannot process an empty order.');
       return;
     }
     

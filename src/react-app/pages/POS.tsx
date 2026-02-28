@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth, User } from '../contexts/AuthContext';
+import { useToast } from '../components/Toast';
 import { useNavigate } from 'react-router-dom';
 import { usePOS } from '../contexts/POSContext';
 import { apiClient } from '../config/api';
@@ -16,6 +17,7 @@ import TableManagementView from '../components/TableManagementView';
 import BarSales from '../components/BarSales';
 import QuickBarSalesPanel from '../components/QuickBarSalesPanel';
 import MyRecentOrders from '../components/MyRecentOrders';
+import WaiterClearing from '../components/admin/WaiterClearing';
 import {
   Building,
   Settings,
@@ -28,6 +30,7 @@ import {
   Search,
   User as UserIcon,
   Loader2,
+  CheckCircle,
 } from 'lucide-react';
 
 interface POSProps {
@@ -37,9 +40,10 @@ interface POSProps {
 
 export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) {
   const { user } = useAuth();
+  const toast = useToast();
   const { addItemToOrder } = usePOS();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'bar_sales' | 'quick_bar_sales' | 'sales_dashboard'>('menu');
+  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'bar_sales' | 'quick_bar_sales' | 'sales_dashboard' | 'clearing'>('menu');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   // State to manage order panel visibility on mobile
   const [isOrderPanelVisible, setOrderPanelVisible] = useState(false);
@@ -70,7 +74,7 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
       console.log('POS handling search result:', result, 'Type:', type);
       
       // Use the navigation utility with POS-specific context
-      navigateToSearchResult(result, navigate, userRole, undefined, setActiveView);
+      navigateToSearchResult(result, navigate, userRole, undefined, (view) => setActiveView(view as any));
     };
 
     const handlePOSAddToOrder = (event: CustomEvent) => {
@@ -201,6 +205,8 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
         return <QuickBarSalesPanel isQuickAccess={isQuickAccess} />;
       case 'sales_dashboard':
         return <SalesDashboard />;
+      case 'clearing':
+        return <WaiterClearing />;
       default:
         return <MenuGrid />;
     }
@@ -294,8 +300,19 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
                   <BarChart3 className="w-5 h-5" />
                 </button>
               )}
+              
+              {/* Waiter Clearing - accessible to waiters and accountants */}
+              {['waiter', 'accountant', 'manager', 'admin'].includes(user?.role ?? '') && (
+                <button 
+                  onClick={() => setActiveView('clearing')} 
+                  className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'clearing' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} 
+                  title="My Receipts / Clearing"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                </button>
+              )}
               {(user?.role === 'admin' || user?.role === 'manager') && (
-                <button onClick={() => alert('Admin settings access - functionality coming soon')} className="p-2 rounded-lg transition-colors text-gray-500 hover:bg-gray-100 flex-shrink-0" title="Settings">
+                <button onClick={() => toast.info('Admin settings access - functionality coming soon')} className="p-2 rounded-lg transition-colors text-gray-500 hover:bg-gray-100 flex-shrink-0" title="Settings">
                   <Settings className="w-5 h-5" />
                 </button>
               )}
