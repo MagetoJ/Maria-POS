@@ -6,7 +6,6 @@ import Sidebar from '../components/Sidebar';
 import ExpensesManagement from '../components/admin/ExpensesManagement';
 import ReportsManagement from '../components/admin/ReportsManagement';
 import SuppliersManagement from '../components/admin/SuppliersManagement';
-import WaiterClearing from '../components/admin/WaiterClearing';
 import { 
   BarChart3, 
   DollarSign, 
@@ -20,8 +19,7 @@ import {
   Download,
   Loader2,
   Calendar,
-  Truck,
-  CheckCircle
+  Truck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { 
@@ -91,7 +89,6 @@ export default function AccountantDashboard() {
     { id: 'expenses', label: 'Expenses', icon: Receipt },
     { id: 'suppliers', label: 'Suppliers', icon: Truck },
     { id: 'reports', label: 'Detailed Reports', icon: FileSpreadsheet },
-    { id: 'clearing', label: 'Waiter Clearing', icon: CheckCircle },
   ];
 
   const exportToExcel = () => {
@@ -176,8 +173,6 @@ export default function AccountantDashboard() {
         return <SuppliersManagement />;
       case 'reports':
         return <ReportsManagement />;
-      case 'clearing':
-        return <WaiterClearing />;
       default:
         return renderOverview();
     }

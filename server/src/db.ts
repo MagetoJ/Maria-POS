@@ -229,6 +229,19 @@ const ensureCriticalTables = async () => {
       console.log('🛠️ Created missing inventory_log table');
     }
 
+    const hasWaiterClearances = await db.schema.hasTable('waiter_clearances');
+    if (!hasWaiterClearances) {
+      await db.schema.createTable('waiter_clearances', (table) => {
+        table.increments('id').primary();
+        table.integer('staff_id').notNullable().references('staff.id');
+        table.integer('cleared_by').notNullable().references('staff.id');
+        table.timestamp('cleared_at').notNullable().defaultTo(db.fn.now());
+        table.decimal('total_amount_cleared', 12, 2).defaultTo(0);
+        table.text('notes');
+      });
+      console.log('🛠️ Created missing waiter_clearances table');
+    }
+
     // Ensure clearance columns for end-of-day clearing
     const ensureClearanceForTable = async (tableName: string) => {
       if (await db.schema.hasTable(tableName)) {
@@ -242,9 +255,29 @@ const ensureCriticalTables = async () => {
     await ensureClearanceForTable('expenses');
     await ensureClearanceForTable('room_transactions');
     
-    // Ensure staff has requires_clearing column
-    if (await db.schema.hasTable('staff')) {
-      await ensureColumn('staff', 'requires_clearing', (table) => table.boolean('requires_clearing').defaultTo(true), '🛠️ Added staff.requires_clearing column');
+    // One-time fix: Mark all data from before today as cleared if it's currently uncleared
+    // This prevents waiters from being blocked by old historical data when the clearance feature is first added.
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    
+    await db('orders').where('created_at', '<', startOfToday).where('is_cleared', false).update({ is_cleared: true, cleared_at: new Date(), notes: 'System: Historical data auto-clearance' }).catch(() => {});
+    await db('expenses').where('created_at', '<', startOfToday).where('is_cleared', false).update({ is_cleared: true, cleared_at: new Date(), notes: 'System: Historical data auto-clearance' }).catch(() => {});
+    await db('room_transactions').where('created_at', '<', startOfToday).where('is_cleared', false).update({ is_cleared: true, cleared_at: new Date() }).catch(() => {});
+    
+    // Ensure room_transactions has staff_id and total_amount
+    if (await db.schema.hasTable('room_transactions')) {
+      await ensureColumn('room_transactions', 'staff_id', (table) => table.integer('staff_id').unsigned().references('id').inTable('staff').onDelete('SET NULL'), '🛠️ Added room_transactions.staff_id column');
+      await ensureColumn('room_transactions', 'total_amount', (table) => table.decimal('total_amount', 12, 2).defaultTo(0), '🛠️ Added room_transactions.total_amount column');
+      await ensureColumn('room_transactions', 'total_price', (table) => table.decimal('total_price', 12, 2).defaultTo(0), '🛠️ Added room_transactions.total_price column');
+      await ensureColumn('room_transactions', 'nights', (table) => table.integer('nights').defaultTo(1), '🛠️ Added room_transactions.nights column');
+      await ensureColumn('room_transactions', 'rate_at_time', (table) => table.decimal('rate_at_time', 12, 2).defaultTo(0), '🛠️ Added room_transactions.rate_at_time column');
+    }
+    
+    // Ensure rooms table has all required columns
+    if (await db.schema.hasTable('rooms')) {
+      await ensureColumn('rooms', 'floor', (table) => table.integer('floor').defaultTo(1), '🛠️ Added rooms.floor column');
+      await ensureColumn('rooms', 'amenities', (table) => table.text('amenities').defaultTo(''), '🛠️ Added rooms.amenities column');
+      await ensureColumn('rooms', 'max_occupancy', (table) => table.integer('max_occupancy').defaultTo(1), '🛠️ Added rooms.max_occupancy column');
     }
   } catch (err) {
     console.error('❌ Failed to ensure critical tables exist:', err);

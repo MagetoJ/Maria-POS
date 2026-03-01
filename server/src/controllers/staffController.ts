@@ -354,3 +354,78 @@ export const getWaiters = async (req: Request, res: Response) => {
     });
   }
 };
+
+// Check if staff member is cleared for today (after 8 AM)
+export const checkClearance = async (req: Request, res: Response) => {
+  try {
+    const { id: staffId } = req.params;
+    
+    // Create a date object for today at 8:00:00 AM
+    const today8AM = new Date();
+    today8AM.setHours(8, 0, 0, 0);
+
+    // If currently before 8 AM, check against YESTERDAY'S 8 AM
+    if (new Date() < today8AM) {
+      today8AM.setDate(today8AM.getDate() - 1);
+    }
+
+    // Check if staff member requires clearing
+    const staff = await db('staff').where({ id: staffId }).first();
+    if (!staff) {
+      return res.status(404).json({ message: 'Staff member not found' });
+    }
+
+    // If staff doesn't require clearing (like admin), they are always "cleared"
+    if (staff.requires_clearing === false || ['admin', 'manager'].includes(staff.role)) {
+      return res.json({
+        clearedToday: true,
+        message: 'Clearing not required for this role'
+      });
+    }
+
+    // Strict check: Is there a clearance record for the current shift period?
+    const clearance = await db('waiter_clearances')
+      .where('staff_id', staffId)
+      .where('cleared_at', '>=', today8AM)
+      .first();
+
+    // Also check for uncleared data from PREVIOUS shift (before this shift's 8 AM anchor)
+    const unclearedOrder = await db('orders')
+      .where('staff_id', staffId)
+      .andWhere('is_cleared', false)
+      .andWhere('created_at', '<', today8AM)
+      .first();
+
+    const unclearedExpense = await db('expenses')
+      .where('created_by', staffId)
+      .andWhere('is_cleared', false)
+      .andWhere('created_at', '<', today8AM)
+      .first();
+
+    const unclearedRoomTx = await db('room_transactions')
+      .where('staff_id', staffId)
+      .andWhere('is_cleared', false)
+      .andWhere('created_at', '<', today8AM)
+      .first();
+
+    if (!clearance) {
+      return res.status(200).json({ 
+        clearedToday: false, 
+        message: "Clearance required after 8 AM",
+        hasUnclearedOrders: !!unclearedOrder,
+        hasUnclearedExpenses: !!unclearedExpense,
+        hasUnclearedRooms: !!unclearedRoomTx
+      });
+    }
+    
+    res.json({
+      clearedToday: !unclearedOrder && !unclearedExpense && !unclearedRoomTx,
+      hasUnclearedOrders: !!unclearedOrder,
+      hasUnclearedExpenses: !!unclearedExpense,
+      hasUnclearedRooms: !!unclearedRoomTx
+    });
+  } catch (err) {
+    console.error('Error checking clearance status:', err);
+    res.status(500).json({ message: 'Error checking clearance status' });
+  }
+};

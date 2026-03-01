@@ -148,11 +148,54 @@ export const deleteRoom = async (req: Request, res: Response) => {
 // Check-in guest to room
 export const checkInRoom = async (req: Request, res: Response) => {
   const { roomId } = req.params;
-  const { guest_name, guest_contact, check_in_date, check_out_date } = req.body;
-  const staff_id = req.user!.id;
+  const { 
+    guest_name, 
+    guest_contact, 
+    check_in_date, 
+    check_out_date, 
+    staffName, 
+    authPin,
+    nights,
+    rate,
+    total_price
+  } = req.body;
+  
+  let staff_id: number;
+  let staff_username: string;
+  
+  // If user is authenticated via token, use their ID
+  if (req.user) {
+    staff_id = req.user.id;
+    staff_username = req.user.username;
+  } else {
+    // Action-based validation (Name/PIN) for public access
+    if (!staffName || !authPin) {
+      return res.status(401).json({ message: 'Authentication required. Please provide Staff Name and PIN.' });
+    }
+
+    const user = await db('staff')
+      .where({ username: staffName, pin: authPin, is_active: true })
+      .first();
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid Staff Name or PIN.' });
+    }
+    staff_id = user.id;
+    staff_username = user.username;
+  }
   
   if (!guest_name) {
     return res.status(400).json({ message: 'Guest name is required.' });
+  }
+
+  // Calculate check_out_date if nights is provided
+  let calculated_check_out = check_out_date;
+  const effective_check_in = check_in_date || new Date();
+  
+  if (!calculated_check_out && nights) {
+    const checkIn = new Date(effective_check_in);
+    checkIn.setDate(checkIn.getDate() + parseInt(nights));
+    calculated_check_out = checkIn;
   }
   
   try {
@@ -162,8 +205,8 @@ export const checkInRoom = async (req: Request, res: Response) => {
         .update({ 
           status: 'occupied',
           guest_name: guest_name,
-          check_in_date: check_in_date || new Date(),
-          check_out_date: check_out_date || null
+          check_in_date: effective_check_in,
+          check_out_date: calculated_check_out || null
         })
         .returning('*');
       
@@ -177,8 +220,14 @@ export const checkInRoom = async (req: Request, res: Response) => {
         guest_name,
         guest_contact,
         status: 'active',
-        check_in_time: check_in_date || new Date(),
-        check_out_time: check_out_date || null
+        check_in_time: effective_check_in,
+        check_out_time: calculated_check_out || null,
+        nights: nights || 1,
+        rate_at_time: rate || room.rate || 0,
+        total_price: total_price || (room.rate * (nights || 1)) || 0,
+        total_amount: total_price || (room.rate * (nights || 1)) || 0, // Fill both columns for safety
+        checked_in_by: staff_username,
+        created_at: new Date()
       });
       
       res.json(room);
@@ -193,13 +242,43 @@ export const checkInRoom = async (req: Request, res: Response) => {
 // Check-out guest from room
 export const checkOutRoom = async (req: Request, res: Response) => {
   const { roomId } = req.params;
+  const { staffName, authPin } = req.body;
+  
+  let staff_id: number;
+  let clearedBy: string;
+  
+  // If user is authenticated via token, use their ID
+  if (req.user) {
+    staff_id = req.user.id;
+    clearedBy = req.user.username;
+  } else {
+    // Action-based validation (Name/PIN) for public access
+    if (!staffName || !authPin) {
+      return res.status(401).json({ message: 'Authentication required. Please provide Staff Name and PIN.' });
+    }
+
+    const user = await db('staff')
+      .where({ username: staffName, pin: authPin, is_active: true })
+      .first();
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid Staff Name or PIN.' });
+    }
+    staff_id = user.id;
+    clearedBy = user.username;
+  }
   
   try {
     await db.transaction(async (trx) => {
+      // Get the active transaction first to get the total amount
+      const transaction = await trx('room_transactions')
+        .where({ room_id: roomId, status: 'active' })
+        .first();
+
       const [room] = await trx('rooms')
         .where({ id: roomId, status: 'occupied' })
         .update({ 
-          status: 'cleaning',
+          status: 'cleaning', // This shows as "Dirty" in the frontend
           guest_name: null,
           check_in_date: null,
           check_out_date: null
@@ -217,7 +296,15 @@ export const checkOutRoom = async (req: Request, res: Response) => {
           check_out_time: new Date()
         });
       
-      res.json(room);
+      // Return data for receipt generation
+      res.json({
+        ...room,
+        clearedBy: clearedBy,
+        total: transaction ? (transaction.total_price || transaction.total_amount) : (room.rate || 0),
+        roomNumber: room.room_number,
+        roomType: room.room_type,
+        guestName: transaction?.guest_name || 'Guest'
+      });
     });
   } catch (err) {
     res.status(500).json({ 

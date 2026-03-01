@@ -119,19 +119,41 @@ export const getUserSessionHistory = async (req: Request, res: Response) => {
 // Clear previous days data (End of Day / Cash Up)
 export const clearPreviousData = async (req: Request, res: Response) => {
   try {
-    const staffId = (req as any).user?.id;
-    if (!staffId) {
+    const adminId = (req as any).user?.id;
+    if (!adminId) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
     await db.transaction(async (trx) => {
+      // Record clearance for each unique staff member with uncleared data
+      const staffWithUnclearedData = await trx('orders')
+        .where('is_cleared', false)
+        .select('staff_id')
+        .groupBy('staff_id');
+
+      for (const { staff_id } of staffWithUnclearedData) {
+        const summary = await trx('orders')
+          .where('staff_id', staff_id)
+          .where('is_cleared', false)
+          .sum('total_amount as total')
+          .first();
+
+        await trx('waiter_clearances').insert({
+          staff_id,
+          cleared_by: adminId,
+          cleared_at: new Date(),
+          total_amount_cleared: summary?.total || 0,
+          notes: 'Clear All Previous Data action'
+        });
+      }
+
       // Clear orders
       await trx('orders')
         .where('is_cleared', false)
         .update({
           is_cleared: true,
           cleared_at: new Date(),
-          cleared_by: staffId
+          cleared_by: adminId
         });
 
       // Clear expenses
@@ -140,7 +162,7 @@ export const clearPreviousData = async (req: Request, res: Response) => {
         .update({
           is_cleared: true,
           cleared_at: new Date(),
-          cleared_by: staffId
+          cleared_by: adminId
         });
 
       // Clear room transactions
@@ -149,7 +171,7 @@ export const clearPreviousData = async (req: Request, res: Response) => {
         .update({
           is_cleared: true,
           cleared_at: new Date(),
-          cleared_by: staffId
+          cleared_by: adminId
         });
     });
 
@@ -184,7 +206,16 @@ export const clearStaffData = async (req: Request, res: Response) => {
         .select('name')
         .first();
 
-      // 3. Update all pending records
+      // 3. Record in waiter_clearances
+      await trx('waiter_clearances').insert({
+        staff_id: staffIdToClear,
+        cleared_by: adminId,
+        cleared_at: new Date(),
+        total_amount_cleared: summary?.total || 0,
+        notes: `Individual clearance for ${staff?.name || 'staff'}`
+      });
+
+      // 4. Update all pending records
       await trx('orders')
         .where('staff_id', staffIdToClear)
         .where('is_cleared', false)
@@ -197,6 +228,16 @@ export const clearStaffData = async (req: Request, res: Response) => {
       // Also clear expenses if applicable
       await trx('expenses')
         .where('created_by', staffIdToClear)
+        .where('is_cleared', false)
+        .update({
+          is_cleared: true,
+          cleared_at: new Date(),
+          cleared_by: adminId
+        });
+
+      // Also clear room transactions if applicable
+      await trx('room_transactions')
+        .where('staff_id', staffIdToClear)
         .where('is_cleared', false)
         .update({
           is_cleared: true,
@@ -235,57 +276,112 @@ export const getUnclearedStaffReceipts = async (req: Request, res: Response) => 
 
     const today = new Date().toISOString().split('T')[0];
 
-    let query = db('orders')
-      .where('staff_id', staffId);
-
-    // Filter by clearing status if specified
-    if (includeCleared === 'true') {
-      // Show everything (both cleared and uncleared)
-    } else {
-      query = query.where('is_cleared', false);
+    // 1. Get Orders
+    let ordersQuery = db('orders').where('staff_id', staffId);
+    if (includeCleared !== 'true') {
+      ordersQuery = ordersQuery.where('is_cleared', false);
     }
-
-    // If dates are provided, use them. Otherwise default to all uncleared
     if (start && end) {
-      query = query.whereBetween('created_at', [start as string, end as string]);
-    } else if (includeCleared !== 'true') {
-      // If not including cleared, we already have .where('is_cleared', false) implicitly or explicitly
-      // No additional date constraint needed to show all currently uncleared
+      ordersQuery = ordersQuery.whereBetween('created_at', [start as string, end as string]);
     }
+    const orders = await ordersQuery.select('*').orderBy('created_at', 'desc');
 
-    const receipts = await query.select('*').orderBy('created_at', 'desc');
+    // 2. Get Expenses (formatted as pseudo-receipts)
+    let expensesQuery = db('expenses').where('created_by', staffId);
+    if (includeCleared !== 'true') {
+      expensesQuery = expensesQuery.where('is_cleared', false);
+    }
+    if (start && end) {
+      expensesQuery = expensesQuery.whereBetween('created_at', [start as string, end as string]);
+    }
+    const expenses = await expensesQuery.select('*').orderBy('created_at', 'desc');
 
-    if (receipts.length === 0) {
+    // 3. Get Room Transactions (formatted as pseudo-receipts)
+    let roomsQuery = db('room_transactions').where('staff_id', staffId);
+    if (includeCleared !== 'true') {
+      roomsQuery = roomsQuery.where('is_cleared', false);
+    }
+    if (start && end) {
+      roomsQuery = roomsQuery.whereBetween('created_at', [start as string, end as string]);
+    }
+    const rooms = await roomsQuery.select('*').orderBy('created_at', 'desc');
+
+    // Map everything to a consistent format for the frontend
+    const orderReceipts = orders.map(o => ({ ...o, items: [] })); // Items added later
+    
+    const expenseReceipts = expenses.map(e => ({
+      id: -e.id, // Negative ID to avoid collision with orders
+      order_number: `EXP-${e.receipt_number || e.id}`,
+      order_type: 'expense',
+      total_amount: e.amount,
+      payment_method: e.payment_method || 'cash',
+      status: 'completed',
+      created_at: e.created_at,
+      is_cleared: e.is_cleared,
+      items: [{
+        id: e.id,
+        product_name: `Expense: ${e.category} - ${e.description}`,
+        quantity: 1,
+        unit_price: e.amount,
+        total_price: e.amount
+      }]
+    }));
+
+    const roomReceipts = rooms.map(r => ({
+      id: -(r.id + 1000000), // Avoid collision
+      order_number: `ROOM-${r.id}`,
+      order_type: 'room_service',
+      total_amount: r.total_amount || r.total_price || 0,
+      payment_method: 'room_charge',
+      status: r.status === 'completed' ? 'completed' : 'pending',
+      created_at: r.created_at,
+      is_cleared: r.is_cleared,
+      items: [{
+        id: r.id,
+        product_name: `Room #${r.room_id} - ${r.guest_name}`,
+        quantity: r.nights || 1,
+        unit_price: r.rate_at_time || 0,
+        total_price: r.total_amount || r.total_price || 0
+      }]
+    }));
+
+    // Combine all
+    let allReceipts = [...orderReceipts, ...expenseReceipts, ...roomReceipts];
+    
+    // Sort by date
+    allReceipts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    if (allReceipts.length === 0) {
       return res.json([]);
     }
 
-    const receiptIds = receipts.map(r => r.id);
+    // Get order items for the actual orders
+    const actualOrderIds = orders.map(o => o.id);
+    if (actualOrderIds.length > 0) {
+      const allItems = await db('order_items')
+        .leftJoin('products', 'order_items.product_id', 'products.id')
+        .whereIn('order_id', actualOrderIds)
+        .select(
+          'order_items.*',
+          'products.name as product_name'
+        );
 
-    // Get order items for these receipts
-    const allItems = await db('order_items')
-      .leftJoin('products', 'order_items.product_id', 'products.id')
-      .whereIn('order_id', receiptIds)
-      .select(
-        'order_items.*',
-        'products.name as product_name'
-      );
+      const itemsByOrder = allItems.reduce((acc: any, item: any) => {
+        if (!acc[item.order_id]) acc[item.order_id] = [];
+        acc[item.order_id].push(item);
+        return acc;
+      }, {});
 
-    // Group items by order_id
-    const itemsByOrder = allItems.reduce((acc: any, item: any) => {
-      if (!acc[item.order_id]) {
-        acc[item.order_id] = [];
-      }
-      acc[item.order_id].push(item);
-      return acc;
-    }, {});
+      // Update the items for actual orders in allReceipts
+      allReceipts = allReceipts.map(receipt => {
+        if (receipt.id > 0) {
+          return { ...receipt, items: itemsByOrder[receipt.id] || [] };
+        }
+        return receipt;
+      });
+    }
 
-    // Attach items to receipts
-    const receiptsWithItems = receipts.map(receipt => ({
-      ...receipt,
-      items: itemsByOrder[receipt.id] || []
-    }));
-
-    res.json(receiptsWithItems);
+    res.json(allReceipts);
   } catch (error: any) {
     console.error('Get uncleared staff receipts error:', error);
     res.status(500).json({ 
@@ -300,27 +396,27 @@ export const getUnclearedStaffSummary = async (req: Request, res: Response) => {
   try {
     const currentUser = (req as any).user;
 
-    let query = db('orders')
-      .join('staff', 'orders.staff_id', 'staff.id')
-      .where('orders.is_cleared', false);
+    // Simplified query to find all staff who have uncleared data in ANY table
+    const ordersQuery = db('orders').where('is_cleared', false).select('staff_id as id', 'total_amount as amount', db.raw("'order' as type"));
+    const expensesQuery = db('expenses').where('is_cleared', false).select('created_by as id', 'amount', db.raw("'expense' as type"));
+    const roomsQuery = db('room_transactions').where('is_cleared', false).select('staff_id as id', 'total_amount as amount', db.raw("'room' as type"));
 
-    // Filter by staff_id if the user is a waiter
-    if (currentUser.role === 'waiter') {
-      query = query.where('staff.id', currentUser.id);
-    }
+    let combinedQuery = db.union([ordersQuery, expensesQuery, roomsQuery], true);
+    
+    // Wrap in a subquery to join with staff details
+    const unclearedStaff = await db.select('s.id', 's.name', 's.employee_id', 's.role')
+      .from('staff as s')
+      .join(combinedQuery.as('u'), 's.id', 'u.id')
+      .select(db.raw('COUNT(*) as uncleared_count'))
+      .select(db.raw('SUM(COALESCE(u.amount, 0)) as total_due'))
+      .where(function() {
+        if (currentUser.role === 'waiter') {
+          this.where('s.id', currentUser.id);
+        }
+      })
+      .groupBy('s.id', 's.name', 's.employee_id', 's.role');
 
-    const unclearedSummary = await query
-      .select(
-        'staff.id',
-        'staff.name',
-        'staff.employee_id',
-        'staff.role'
-      )
-      .select(db.raw('COUNT(orders.id) as uncleared_count'))
-      .select(db.raw('SUM(COALESCE(orders.total_amount, 0)) as total_due'))
-      .groupBy('staff.id', 'staff.name', 'staff.employee_id', 'staff.role');
-
-    res.json(unclearedSummary);
+    res.json(unclearedStaff);
   } catch (error: any) {
     console.error('Get uncleared staff summary error:', error);
     res.status(500).json({ 

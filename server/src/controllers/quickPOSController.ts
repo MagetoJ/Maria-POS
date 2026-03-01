@@ -135,8 +135,20 @@ export const sellBarItem = async (req: Request, res: Response) => {
       await trx('inventory_items')
         .where({ id: inventory_item_id })
         .update({
-          current_stock: newStock
+          current_stock: newStock,
+          updated_at: new Date()
         });
+
+      // Log inventory change
+      await trx('inventory_log').insert({
+        inventory_item_id: inventory_item_id,
+        action: 'sale',
+        quantity_change: -Number(quantity),
+        reference_type: 'order',
+        logged_by: staff_id,
+        notes: `Bar sale of ${item.name}`,
+        created_at: new Date()
+      });
 
       // Create order record
       const [order] = await trx('orders').insert({
@@ -260,17 +272,60 @@ export const generateQuickInvoice = async (req: Request, res: Response) => {
 
         finalOrderId = newOrder.id || newOrder;
 
-        // Insert items
-        const orderItems = items.map((item: any) => ({
-          order_id: finalOrderId,
-          product_id: item.product_id,
-          quantity: Number(item.quantity),
-          unit_price: Number(item.unit_price),
-          total_price: Number(item.total_price),
-          notes: item.notes || ''
-        }));
+      // Insert items and handle inventory deduction
+      const orderItems = [];
+      if (items && items.length > 0) {
+        for (const item of items) {
+          // 1. Find product to get its name
+          const product = await trx('products').where({ id: item.product_id }).first();
+          
+          if (product) {
+            // 2. Find matching inventory item
+            const inventoryItem = await trx('inventory_items')
+              .where(function() {
+                this.where({ name: product.name }).orWhere({ id: item.product_id });
+              })
+              .where({ is_active: true })
+              .first();
+
+            if (inventoryItem) {
+              const newStock = inventoryItem.current_stock - Number(item.quantity);
+              
+              // Enforce stock for bar items
+              if (newStock < 0 && inventoryItem.inventory_type === 'bar') {
+                throw new Error(`Insufficient stock for ${inventoryItem.name}. Available: ${inventoryItem.current_stock}`);
+              }
+
+              await trx('inventory_items')
+                .where({ id: inventoryItem.id })
+                .update({ current_stock: newStock, updated_at: new Date() });
+
+              // 3. Log inventory change
+              await trx('inventory_log').insert({
+                inventory_item_id: inventoryItem.id,
+                action: 'sale',
+                quantity_change: -Number(item.quantity),
+                reference_id: finalOrderId,
+                reference_type: 'order',
+                logged_by: staffId,
+                notes: `Quick POS sale of ${product.name}`,
+                created_at: new Date()
+              });
+            }
+          }
+
+          orderItems.push({
+            order_id: finalOrderId,
+            product_id: item.product_id,
+            quantity: Number(item.quantity),
+            unit_price: Number(item.unit_price),
+            total_price: Number(item.total_price),
+            notes: item.notes || ''
+          });
+        }
 
         await trx('order_items').insert(orderItems);
+      }
 
         // Insert initial payment record
         await trx('payments').insert({

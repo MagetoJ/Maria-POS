@@ -103,14 +103,24 @@ export const validatePin = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Invalid username or PIN' });
     }
 
-    // Return user data without generating a JWT token (for quick access)
+    // Generate a temporary JWT token for this quick access session
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role },
+      config.JWT_SECRET,
+      { expiresIn: '15m' } // Short expiry for PIN-validated actions
+    );
+
+    // Return user data with the token
     res.json({
-      id: user.id,
-      employee_id: user.employee_id,
-      username: user.username,
-      name: user.name,
-      role: user.role,
-      is_active: user.is_active
+      token,
+      user: {
+        id: user.id,
+        employee_id: user.employee_id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        is_active: user.is_active
+      }
     });
 
   } catch (error) {

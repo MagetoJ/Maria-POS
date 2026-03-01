@@ -330,7 +330,7 @@ export default function AdminDashboard() {
     { id: 'search', label: 'Global Search', icon: Search, roles: ['admin', 'manager'] },
     { id: 'staff', label: 'Staff Management', icon: Users, roles: ['admin', 'manager'] },
     { id: 'shifts', label: 'Shift Management', icon: Clock, roles: ['admin', 'manager'] },
-    { id: 'clearing', label: 'Waiter Clearing', icon: CheckCircle, roles: ['admin', 'manager', 'accountant'] },
+    { id: 'clearing', label: 'Waiter Clearing', icon: CheckCircle, roles: ['admin', 'manager'] },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'inventory', label: 'Inventory', icon: Package, roles: ['admin', 'manager'] },
     { id: 'menu', label: 'Menu Management', icon: Utensils, roles: ['admin', 'manager'] },

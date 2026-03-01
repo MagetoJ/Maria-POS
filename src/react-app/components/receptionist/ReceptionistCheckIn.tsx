@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   Bed, 
@@ -28,6 +28,76 @@ interface Room {
   price_per_night?: number | null;
 }
 
+const generateCheckInReceipt = (data: {
+  guestName: string;
+  roomNumber: string;
+  roomType: string;
+  nights: number;
+  rate: number;
+  totalAmount: number;
+  checkInDate: Date;
+  staffName: string;
+}) => {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('Please allow popups to print receipts');
+    return;
+  }
+  
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Receipt - ${data.roomNumber}</title>
+        <style>
+          body { font-family: 'Courier New', monospace; width: 80mm; padding: 5px; font-size: 13px; line-height: 1.4; }
+          .center { text-align: center; }
+          .divider { border-top: 1px dashed #000; margin: 10px 0; }
+          .flex { display: flex; justify-content: space-between; }
+          .total { font-size: 16px; font-weight: bold; margin-top: 10px; }
+          @media print {
+            body { width: 80mm; margin: 0; padding: 5px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="center">
+          <h2 style="margin: 0;">MARIA HAVENS</h2>
+          <p style="margin: 5px 0;">CHECK-IN RECEIPT</p>
+        </div>
+        <div class="divider"></div>
+        <p>Guest: ${data.guestName}</p>
+        <p>Room: ${data.roomNumber} (${data.roomType})</p>
+        <div class="divider"></div>
+        
+        <div class="flex">
+          <span>Rate (${data.nights} nights x KES ${data.rate.toLocaleString()})</span>
+          <span>KES ${data.totalAmount.toLocaleString()}</span>
+        </div>
+        
+        <div class="divider"></div>
+        <div class="flex total">
+          <span>TOTAL PAID:</span>
+          <span>KES ${data.totalAmount.toLocaleString()}</span>
+        </div>
+        
+        <div class="divider"></div>
+        <p>Check-In: ${data.checkInDate.toLocaleString()}</p>
+        <p>Staff: ${data.staffName}</p>
+        <div class="divider"></div>
+        <p class="center" style="margin-top:20px;">Safe Travels!</p>
+        <script>
+          window.onload = () => {
+            window.print();
+            window.close();
+          };
+        </script>
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+};
+
 export default function ReceptionistCheckIn() {
   const { user } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -39,7 +109,14 @@ export default function ReceptionistCheckIn() {
   const [isCheckInModalOpen, setCheckInModalOpen] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [guestContact, setGuestContact] = useState('');
+  const [nights, setNights] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Auto-calculate the total
+  const totalAmount = useMemo(() => {
+    if (!selectedRoom || !selectedRoom.rate) return 0;
+    return selectedRoom.rate * nights;
+  }, [selectedRoom, nights]);
 
   // Statistics
   const availableRooms = rooms.filter(room => room.status === 'vacant');
@@ -82,6 +159,7 @@ export default function ReceptionistCheckIn() {
     setSelectedRoom(room);
     setGuestName('');
     setGuestContact('');
+    setNights(1);
     setCheckInModalOpen(true);
   };
 
@@ -103,7 +181,11 @@ export default function ReceptionistCheckIn() {
         },
         body: JSON.stringify({ 
           guest_name: guestName.trim(), 
-          guest_contact: guestContact.trim() || null 
+          guest_contact: guestContact.trim() || null,
+          nights: nights,
+          rate: selectedRoom.rate,
+          total_price: totalAmount,
+          staffName: user?.username // Pass staff name for the receipt/transaction
         }),
       });
       
@@ -112,11 +194,24 @@ export default function ReceptionistCheckIn() {
         throw new Error(errorData.message || 'Check-in failed');
       }
       
+      // Generate and print receipt
+      generateCheckInReceipt({
+        guestName: guestName.trim(),
+        roomNumber: selectedRoom.room_number,
+        roomType: selectedRoom.room_type,
+        nights: nights,
+        rate: selectedRoom.rate || 0,
+        totalAmount: totalAmount,
+        checkInDate: new Date(),
+        staffName: user?.username || 'Staff'
+      });
+      
       setCheckInModalOpen(false);
       setGuestName('');
       setGuestContact('');
+      setNights(1);
       await fetchRooms(); // Refresh the room list to get latest data from room management
-      alert(`✅ Guest ${guestName} successfully checked into Room ${selectedRoom.room_number}`);
+      alert(`✅ Guest ${guestName} successfully checked into Room ${selectedRoom.room_number}. Receipt printed.`);
     } catch (err) {
       alert(`❌ Check-in failed: ${(err as Error).message}`);
     } finally {
@@ -456,6 +551,39 @@ export default function ReceptionistCheckIn() {
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Number of Nights
+                  </label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input 
+                      type="number" 
+                      min="1" 
+                      value={nights} 
+                      onChange={(e) => setNights(parseInt(e.target.value) || 1)} 
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Staff Attendant
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input 
+                      type="text" 
+                      value={user?.username || ''} 
+                      readOnly
+                      className="w-full pl-10 pr-4 py-3 border border-gray-200 bg-gray-50 rounded-lg text-gray-500 cursor-not-allowed" 
+                    />
+                  </div>
+                </div>
+              </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -471,6 +599,19 @@ export default function ReceptionistCheckIn() {
                     placeholder="Phone number or email"
                   />
                 </div>
+              </div>
+
+              {/* Total Calculation Display */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-blue-800 font-semibold uppercase tracking-wider text-sm">Grand Total:</span>
+                  <span className="text-2xl font-black text-blue-900">
+                    KES {totalAmount.toLocaleString()}
+                  </span>
+                </div>
+                <p className="text-xs text-blue-600 mt-1">
+                  Breakdown: {nights} night(s) × KES {(selectedRoom.rate || 0).toLocaleString()}
+                </p>
               </div>
             </div>
             

@@ -112,41 +112,48 @@ export const createOrder = async (req: Request, res: Response) => {
 
       if (!orderId) throw new Error('Failed to create order and get ID');
 
-      // Insert order items and handle bar item inventory deduction
+      // 115. Insert order items and handle inventory deduction
       if (items && items.length > 0) {
-        // Check which items are bar items (inventory items with type 'bar')
-        const barItemIds = new Set<number>();
-        for (const item of items) {
-          // Check inventory for ALL items if it's a self-service order to prevent ordering out-of-stock items
-          // Or just stick to BAR items logic for now to stay consistent with existing logic
-          const inventoryItem = await trx('inventory_items')
-            .where({ id: item.product_id, is_active: true })
-            .first();
-          
-          if (inventoryItem) {
-             // Logic for BAR items or generally tracking stock
-             if (inventoryItem.inventory_type === 'bar') {
-                barItemIds.add(item.product_id);
-                const newStock = inventoryItem.current_stock - Number(item.quantity);
-                if (newStock < 0) {
-                  throw new Error(`Insufficient stock for ${inventoryItem.name}. Available: ${inventoryItem.current_stock}`);
-                }
-                await trx('inventory_items')
-                  .where({ id: item.product_id })
-                  .update({ current_stock: newStock, updated_at: new Date() });
+        const productIds = items.map((i: any) => i.product_id);
+        const products = await trx('products').whereIn('id', productIds);
+        const productNames = products.map(p => p.name);
+        
+        const inventoryItems = await trx('inventory_items')
+          .whereIn('name', productNames)
+          .orWhereIn('id', productIds)
+          .where({ is_active: true });
 
-                // Log the inventory change
-                await trx('inventory_log').insert({
-                  inventory_item_id: item.product_id,
-                  action: 'sale',
-                  quantity_change: -Number(item.quantity),
-                  reference_id: orderId,
-                  reference_type: 'order',
-                  logged_by: staffId,
-                  notes: `Sale from order ${orderNumber}`,
-                  created_at: new Date()
+        for (const item of items) {
+          const product = products.find(p => p.id === item.product_id);
+          if (product) {
+            const inventoryItem = inventoryItems.find(inv => 
+              inv.name === product.name || inv.id === item.product_id
+            );
+            
+            if (inventoryItem) {
+              const newStock = inventoryItem.current_stock - Number(item.quantity);
+              if (newStock < 0 && inventoryItem.inventory_type === 'bar') {
+                throw new Error(`Insufficient stock for ${inventoryItem.name}. Available: ${inventoryItem.current_stock}`);
+              }
+
+              await trx('inventory_items')
+                .where({ id: inventoryItem.id })
+                .update({ 
+                  current_stock: newStock, 
+                  updated_at: new Date() 
                 });
-             }
+
+              await trx('inventory_log').insert({
+                inventory_item_id: inventoryItem.id,
+                action: 'sale',
+                quantity_change: -Number(item.quantity),
+                reference_id: orderId,
+                reference_type: 'order',
+                logged_by: staffId,
+                notes: `Sale of ${product.name} from order ${orderNumber}`,
+                created_at: new Date()
+              });
+            }
           }
         }
 

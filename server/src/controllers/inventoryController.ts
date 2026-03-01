@@ -179,8 +179,9 @@ export const updateInventoryItem = async (req: Request, res: Response) => {
 export const updateStock = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { current_stock } = req.body;
+    const { current_stock, reason, action = 'manual_adjustment' } = req.body;
     const userRole = req.user?.role;
+    const userId = req.user?.id;
 
     if (current_stock === undefined) {
       return res.status(400).json({ message: 'Current stock value is required' });
@@ -203,13 +204,31 @@ export const updateStock = async (req: Request, res: Response) => {
       });
     }
 
-    const [updatedItem] = await db('inventory_items')
-      .where({ id })
-      .update({ 
-        current_stock: Math.max(0, current_stock), 
-        updated_at: new Date() 
-      })
-      .returning('*');
+    const oldStock = inventoryItem.current_stock;
+    const newStock = Math.max(0, current_stock);
+    const quantityChange = newStock - oldStock;
+
+    const [updatedItem] = await db.transaction(async (trx) => {
+      const [item] = await trx('inventory_items')
+        .where({ id })
+        .update({ 
+          current_stock: newStock, 
+          updated_at: new Date() 
+        })
+        .returning('*');
+
+      // Log the inventory change
+      await trx('inventory_log').insert({
+        inventory_item_id: id,
+        action: action,
+        quantity_change: quantityChange,
+        logged_by: userId,
+        notes: reason || `Manual adjustment from ${oldStock} to ${newStock}`,
+        created_at: new Date()
+      });
+
+      return [item];
+    });
 
     res.json(updatedItem);
   } catch (err) {

@@ -20,8 +20,12 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   isLoading: boolean;
+  isCleared: boolean;
+  loadingClearance: boolean;
   isAuthenticated: boolean;
-  validateStaffPin: (username: string, pin: string) => Promise<User | null>;
+  validateStaffPin: (username: string, pin: string) => Promise<{ user: User, token: string } | null>;
+  verifyClearanceStatus: (userId: number, manualToken?: string) => Promise<void>;
+  checkClearanceStatus: (userId: number, manualToken?: string) => Promise<{ clearedToday: boolean; message?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,7 +35,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCleared, setIsCleared] = useState(true);
+  const [loadingClearance, setLoadingClearance] = useState(false);
   const navigate = useNavigate();
+
+  const checkClearanceStatus = async (userId: number, manualToken?: string) => {
+    const now = new Date();
+    // If it's between 12:00 AM and 8:00 AM, we allow them to finish the "night shift"
+    if (now.getHours() < 8) {
+      return { clearedToday: true, message: 'Within grace period' };
+    }
+
+    try {
+      const options: RequestInit = manualToken ? {
+        headers: {
+          'Authorization': `Bearer ${manualToken}`
+        }
+      } : {};
+
+      const response = await apiClient.get(`/api/staff/check-clearance/${userId}`, options);
+      if (response.ok) {
+        return await response.json();
+      }
+      return { clearedToday: false, message: 'Failed to verify clearance' };
+    } catch (error) {
+      console.error("Clearance check error:", error);
+      return { clearedToday: false, message: 'Connection error' };
+    }
+  };
+
+  const verifyClearanceStatus = async (userId: number, manualToken?: string) => {
+    setLoadingClearance(true);
+    const result = await checkClearanceStatus(userId, manualToken);
+    setIsCleared(result.clearedToday);
+    setLoadingClearance(false);
+  };
 
   useEffect(() => {
     try {
@@ -47,6 +85,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (IS_DEVELOPMENT) {
             console.log('✅ Restored session for:', parsedUser.username);
           }
+          
+          // Verify clearance when restoring session
+          verifyClearanceStatus(parsedUser.id, storedToken);
         } else {
           // Clear invalid data
           localStorage.removeItem('pos_user');
@@ -99,6 +140,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('pos_user', JSON.stringify(foundUser));
       localStorage.setItem('pos_token', newToken);
 
+      // Verify clearance status upon login
+      await verifyClearanceStatus(foundUser.id, newToken);
+
       if (IS_DEVELOPMENT) {
         console.log('✅ Login successful for user:', foundUser.username, 'Role:', foundUser.role);
         console.log('🔑 Token saved (first 30 chars):', newToken.substring(0, 30) + '...');
@@ -147,13 +191,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const validateStaffPin = async (username: string, pin: string): Promise<User | null> => {
+  const validateStaffPin = async (username: string, pin: string): Promise<{ user: User, token: string } | null> => {
     try {
       const response = await apiClient.post('/api/auth/validate-pin', { username, pin });
 
       if (response.ok) {
-        const userData: User = await response.json();
-        return userData;
+        const data = await response.json();
+        return { user: data.user, token: data.token };
       } else {
         return null; 
       }
@@ -182,6 +226,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     setUser(null);
     setToken(null);
+    setIsCleared(true); // Reset to default true for next user
     localStorage.removeItem('pos_user');
     localStorage.removeItem('pos_token');
     navigate('/login', { replace: true });
@@ -193,7 +238,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     logout,
     isLoading,
+    isCleared,
+    loadingClearance,
     validateStaffPin,
+    verifyClearanceStatus,
+    checkClearanceStatus,
     isAuthenticated: !!token,
   };
 

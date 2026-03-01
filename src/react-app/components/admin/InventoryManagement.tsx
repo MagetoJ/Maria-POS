@@ -22,6 +22,13 @@ export default function InventoryManagement() {
   const { user } = useAuth();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
+  const [adjustingItem, setAdjustingItem] = useState<InventoryItem | null>(null);
+  const [adjustmentData, setAdjustmentData] = useState({
+    new_stock: 0,
+    reason: '',
+    action: 'manual_adjustment' as 'manual_adjustment' | 'restock' | 'wastage' | 'correction'
+  });
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [selectedType, setSelectedType] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -236,6 +243,35 @@ export default function InventoryManagement() {
     }
   };
 
+  const handleAdjustStock = (item: InventoryItem) => {
+    setAdjustingItem(item);
+    setAdjustmentData({
+      new_stock: item.current_stock,
+      reason: '',
+      action: 'correction'
+    });
+    setShowAdjustmentModal(true);
+  };
+
+  const submitAdjustment = async () => {
+    if (!adjustingItem) return;
+    if (!adjustmentData.reason.trim()) {
+      setError('Please provide a reason for this adjustment');
+      return;
+    }
+
+    setLoading(true);
+    await updateStock(
+      adjustingItem.id, 
+      adjustmentData.new_stock, 
+      adjustmentData.reason, 
+      adjustmentData.action
+    );
+    setLoading(false);
+    setShowAdjustmentModal(false);
+    setAdjustingItem(null);
+  };
+
   const handleEdit = (item: InventoryItem) => {
     setEditingItem(item);
     setFormData({
@@ -317,7 +353,7 @@ export default function InventoryManagement() {
     }
   };
 
-  const updateStock = async (id: number, newStock: number) => {
+  const updateStock = async (id: number, newStock: number, reason?: string, action: string = 'manual_adjustment') => {
     setError(null);
     try {
       const token = localStorage.getItem('pos_token');
@@ -327,7 +363,11 @@ export default function InventoryManagement() {
           'Content-Type': 'application/json', 
           'Authorization': `Bearer ${token}` 
         },
-        body: JSON.stringify({ current_stock: Math.max(0, newStock) })
+        body: JSON.stringify({ 
+          current_stock: Math.max(0, newStock),
+          reason,
+          action
+        })
       });
 
       if (!response.ok) {
@@ -839,6 +879,14 @@ export default function InventoryManagement() {
                         {canManageType(item.inventory_type) ? (
                           <>
                             <button
+                              onClick={() => handleAdjustStock(item)}
+                              className="text-amber-600 hover:text-amber-900"
+                              disabled={loading}
+                              title="Adjust stock"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                            <button
                               onClick={() => handleEdit(item)}
                               className="text-blue-600 hover:text-blue-900"
                               disabled={loading}
@@ -1021,6 +1069,96 @@ export default function InventoryManagement() {
                 className="flex-1 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Saving...' : editingItem ? 'Update' : 'Add'} Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showAdjustmentModal && adjustingItem && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                <Plus className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Adjust Stock</h2>
+                <p className="text-sm text-gray-500">{adjustingItem.name}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Current Stock: <span className="font-bold">{adjustingItem.current_stock} {adjustingItem.unit}</span>
+                </label>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-sm text-gray-500">New Stock Level:</span>
+                  <input
+                    type="number"
+                    value={adjustmentData.new_stock}
+                    onChange={(e) => setAdjustmentData(prev => ({ ...prev, new_stock: parseFloat(e.target.value) || 0 }))}
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    min="0"
+                    disabled={loading}
+                  />
+                  <span className="text-sm text-gray-500">{adjustingItem.unit}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Adjustment Type</label>
+                <select
+                  value={adjustmentData.action}
+                  onChange={(e) => setAdjustmentData(prev => ({ ...prev, action: e.target.value as any }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  disabled={loading}
+                >
+                  <option value="correction">Correction</option>
+                  <option value="restock">Restock / Purchase</option>
+                  <option value="wastage">Wastage / Damage</option>
+                  <option value="manual_adjustment">Manual Adjustment</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Adjustment *</label>
+                <textarea
+                  value={adjustmentData.reason}
+                  onChange={(e) => setAdjustmentData(prev => ({ ...prev, reason: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  placeholder="Explain why this stock is being adjusted..."
+                  rows={3}
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              {error && (
+                <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-8">
+              <button
+                onClick={() => {
+                  setShowAdjustmentModal(false);
+                  setAdjustingItem(null);
+                }}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitAdjustment}
+                disabled={!adjustmentData.reason.trim() || loading}
+                className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Processing...' : 'Submit Adjustment'}
               </button>
             </div>
           </div>

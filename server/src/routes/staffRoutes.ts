@@ -10,6 +10,9 @@ router.get('/waiters', staffController.getWaiters);
 // Protected routes require authentication
 router.use(authenticateToken);
 
+// Check if staff member is cleared for today
+router.get('/check-clearance/:id', staffController.checkClearance);
+
 // Get all staff (admin and manager only)
 router.get('/', 
   authorizeRoles('admin', 'manager'), 

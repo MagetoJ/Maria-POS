@@ -4,17 +4,22 @@ import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = Router();
 
-// All room routes require authentication
-router.use(authenticateToken);
-
-// Get all rooms (available to all authenticated users)
+// PUBLIC ROUTES (No token required for viewing)
+// Get all rooms (available to all users)
 router.get('/', roomController.getRooms);
-
-// Get room statistics
-router.get('/stats', roomController.getRoomStats);
 
 // Get specific room by ID
 router.get('/:id', roomController.getRoomById);
+
+// Room check-in and check-out (Validated via Name/PIN if no token)
+router.post('/:roomId/check-in', roomController.checkInRoom);
+router.post('/:roomId/check-out', roomController.checkOutRoom);
+
+// PROTECTED ROUTES (Token required for sensitive actions)
+router.use(authenticateToken);
+
+// Get room statistics
+router.get('/stats', roomController.getRoomStats);
 
 // Create new room (admin and manager only)
 router.post('/', 
@@ -32,17 +37,6 @@ router.put('/:id',
 router.delete('/:id', 
   authorizeRoles('admin', 'manager'), 
   roomController.deleteRoom
-);
-
-// Room check-in and check-out (receptionist, admin, manager)
-router.post('/:roomId/check-in', 
-  authorizeRoles('receptionist', 'admin', 'manager'), 
-  roomController.checkInRoom
-);
-
-router.post('/:roomId/check-out', 
-  authorizeRoles('receptionist', 'admin', 'manager'), 
-  roomController.checkOutRoom
 );
 
 export default router;

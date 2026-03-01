@@ -39,7 +39,7 @@ interface POSProps {
 }
 
 export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) {
-  const { user } = useAuth();
+  const { user, isCleared, loadingClearance } = useAuth();
   const toast = useToast();
   const { addItemToOrder } = usePOS();
   const navigate = useNavigate();
@@ -60,6 +60,56 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
   const [pinError, setPinError] = useState('');
   const [isSubmittingPin, setIsSubmittingPin] = useState(false);
   const { validateStaffPin } = useAuth();
+
+  if (loadingClearance) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="text-center">
+          <Loader2 className="w-16 h-16 animate-spin text-yellow-500 mx-auto mb-6" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Verifying Daily Clearance...</h1>
+          <p className="text-gray-600">Please wait while we check your status.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle case where user is null (unless it's public Quick Access)
+  if (!user && !isQuickAccess) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <Loader2 className="w-12 h-12 animate-spin text-yellow-500 mb-4" />
+        <p className="text-gray-600 font-medium">Loading session...</p>
+      </div>
+    );
+  }
+
+  if (!isCleared && (user?.role === 'waiter' || isQuickAccess)) {
+    return (
+      <div className="min-h-screen bg-orange-50 flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl border-2 border-red-200 p-8 text-center">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <X className="w-12 h-12 text-red-600" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">Clearance Required</h1>
+          <div className="space-y-4 text-gray-600 mb-8">
+            <p className="text-lg">
+              Our records show you haven't been cleared since today's <strong>8:00 AM</strong> anchor.
+            </p>
+            <p className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-sm italic">
+              "To maintain strict financial accountability, all staff must be cleared daily after 8:00 AM before starting new orders."
+            </p>
+            <p>Please contact an <strong>Admin</strong> or <strong>Manager</strong> to perform your Daily Clearance check.</p>
+          </div>
+          <button 
+            onClick={onBackToLogin || (() => navigate('/login'))}
+            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+          >
+            Return to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const canAccessRooms = user?.role === 'receptionist' || user?.role === 'manager' || user?.role === 'admin' || isQuickAccess;
   const canAccessDelivery = user?.role === 'delivery' || user?.role === 'manager' || user?.role === 'admin' || isQuickAccess;
@@ -170,9 +220,9 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
         return;
       }
 
-      const isValid = await validateStaffPin(selectedWaiter.username, pin);
+      const result = await validateStaffPin(selectedWaiter.username, pin);
       
-      if (isValid) {
+      if (result) {
         setShowPinModal(false);
         setPin('');
         setSelectedWaiterId('');
@@ -302,7 +352,7 @@ export default function POS({ isQuickAccess = false, onBackToLogin }: POSProps) 
               )}
               
               {/* Waiter Clearing - accessible to waiters and accountants */}
-              {['waiter', 'accountant', 'manager', 'admin'].includes(user?.role ?? '') && (
+              {['waiter', 'manager', 'admin'].includes(user?.role ?? '') && (
                 <button 
                   onClick={() => setActiveView('clearing')} 
                   className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'clearing' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} 

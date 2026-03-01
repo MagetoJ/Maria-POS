@@ -305,7 +305,7 @@ const ReceiptPreviewModal: React.FC<{ details: ReceiptDetails; onClose: () => vo
 // --- OrderPanel Component ---
 export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: OrderPanelProps) { // <-- 2. USE THE PROP
   const { currentOrder, removeItemFromOrder, clearOrder, updateItemQuantity, setCurrentOrder } = usePOS();
-  const { user, validateStaffPin } = useAuth();
+  const { user, validateStaffPin, checkClearanceStatus } = useAuth();
   const toast = useToast();
 
   const [waitersList, setWaitersList] = useState<User[]>([]);
@@ -319,6 +319,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState('');
   const [currentOrderType, setCurrentOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   
   // New state for customer name and table selection
@@ -422,15 +423,29 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
     }
 
     setIsSubmitting(true);
+    setSubmissionStatus('Validating PIN...');
     setPinError('');
 
-    const validatedUser = await validateStaffPin(selectedWaiterUsername, pin);
+    const result = await validateStaffPin(selectedWaiterUsername, pin);
 
-    if (validatedUser) {
-      await submitOrder(validatedUser);
+    if (result) {
+      const { user: validatedUser, token: validatedToken } = result;
+      setSubmissionStatus('Checking shift clearance...');
+      // Check clearance status for the validated user using the temporary token
+      const clearance = await checkClearanceStatus(validatedUser.id, validatedToken);
+      if (!clearance.clearedToday) {
+        setPinError('You have to be cleared first before processing sales.');
+        setIsSubmitting(false);
+        setSubmissionStatus('');
+        return;
+      }
+      
+      setSubmissionStatus('Submitting order to server...');
+      await submitOrder(validatedUser, validatedToken);
     } else {
       setPinError('Invalid waiter selection or PIN. Please try again.');
       setIsSubmitting(false);
+      setSubmissionStatus('');
     }
   };
 
@@ -470,7 +485,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
     }
   };
 
-  const submitOrder = async (staff: User | null, retryCount = 0) => {
+  const submitOrder = async (staff: User | null, token?: string, retryCount = 0) => {
     if (!currentOrder) return;
     const { id, ...orderData } = currentOrder;
     const orderPayload: any = {
@@ -515,7 +530,14 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
         console.log(`Retrying order submission (attempt ${retryCount + 1}/${maxRetries + 1})`);
       }
 
+      const options: RequestInit = token ? {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      } : {};
+
       const response = await apiClient.post(endpoint, orderPayload, {
+        ...options,
         // Add timeout and better error handling
         signal: AbortSignal.timeout(30000), // 30 second timeout
       });
@@ -526,6 +548,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       if (response.ok) {
         const result = await response.json();
         console.log('Order submitted successfully:', result);
+        setSubmissionStatus('Order successful! Preparing receipt...');
         const orderId = result.order_id;
         const orderNumber = result.order_number || `ORD-${Date.now()}`;
         setShowPinModal(false);
@@ -535,9 +558,11 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
         setCustomerName('');
         setSelectedTableId('');
         setIsSubmitting(false);
+        setSubmissionStatus('');
         prepareAndShowReceiptModal(staff || { name: result.staff_name || 'Staff', id: 0 } as User, orderNumber, orderId);
         return;
       } else {
+        setSubmissionStatus('');
         let errorMessage = 'Order submission failed.';
         try {
           const error = await response.json();
@@ -569,13 +594,15 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       );
 
       if (isRetryableError && retryCount < maxRetries) {
+        setSubmissionStatus(`Connection slow... Retrying (attempt ${retryCount + 1}/${maxRetries})...`);
         console.log(`Network error detected, retrying in ${2 * (retryCount + 1)} seconds...`);
         setTimeout(() => {
-          submitOrder(staff, retryCount + 1);
+          submitOrder(staff, token, retryCount + 1);
         }, 2000 * (retryCount + 1)); // Exponential backoff: 2s, 4s
         return; // Don't set error yet, we're retrying
       }
 
+      setSubmissionStatus('');
       let errorMessage = 'An error occurred while submitting the order.';
       if (error instanceof Error) {
         if (error.name === 'TimeoutError') {
@@ -857,10 +884,15 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
                 className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-md font-semibold flex justify-center items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
-                  <>
-                    <Loader2 className="animate-spin mr-2" size={18} />
-                    Processing...
-                  </>
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center mb-1">
+                      <Loader2 className="animate-spin mr-2" size={18} />
+                      Processing...
+                    </div>
+                    {submissionStatus && (
+                      <span className="text-xs font-normal opacity-80">{submissionStatus}</span>
+                    )}
+                  </div>
                 ) : (
                   'Submit Order'
                 )}
