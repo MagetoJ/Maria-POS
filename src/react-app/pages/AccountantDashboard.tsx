@@ -5,12 +5,10 @@ import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import ExpensesManagement from '../components/admin/ExpensesManagement';
 import ReportsManagement from '../components/admin/ReportsManagement';
-import SuppliersManagement from '../components/admin/SuppliersManagement';
 import { 
   BarChart3, 
   DollarSign, 
   Users, 
-  Package, 
   FileSpreadsheet, 
   AlertTriangle, 
   Receipt, 
@@ -19,7 +17,6 @@ import {
   Download,
   Loader2,
   Calendar,
-  Truck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { 
@@ -87,7 +84,6 @@ export default function AccountantDashboard() {
   const menuItems = [
     { id: 'overview', label: 'Financial Overview', icon: BarChart3 },
     { id: 'expenses', label: 'Expenses', icon: Receipt },
-    { id: 'suppliers', label: 'Suppliers', icon: Truck },
     { id: 'reports', label: 'Detailed Reports', icon: FileSpreadsheet },
   ];
 
@@ -144,18 +140,6 @@ export default function AccountantDashboard() {
       const wsCredit = XLSX.utils.json_to_sheet(data.creditAging);
       XLSX.utils.book_append_sheet(wb, wsCredit, 'Credit Aging');
 
-      // 6. Wastage Sheet
-      if (data.wastage && data.wastage.length > 0) {
-        const wastageData = data.wastage.map((w: any) => ({
-          'Date': new Date(w.created_at).toLocaleString(),
-          'Reason': w.reason,
-          'Quantity': w.quantity,
-          'Loss Amount': w.cost
-        }));
-        const wsWastage = XLSX.utils.json_to_sheet(wastageData);
-        XLSX.utils.book_append_sheet(wb, wsWastage, 'Wastage');
-      }
-
       XLSX.writeFile(wb, `Accountant_Report_${dateRange.start}_to_${dateRange.end}.xlsx`);
     } catch (err) {
       console.error('Export failed:', err);
@@ -169,8 +153,6 @@ export default function AccountantDashboard() {
     switch (activeTab) {
       case 'expenses':
         return <ExpensesManagement />;
-      case 'suppliers':
-        return <SuppliersManagement />;
       case 'reports':
         return <ReportsManagement />;
       default:
@@ -341,40 +323,8 @@ export default function AccountantDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 3. Inventory & Profit Audit (Sales Detail) */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-gray-100">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Package className="w-5 h-5 text-orange-500" />
-                Top 5 Selling Products (Profit Audit)
-              </h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left font-semibold text-gray-600">Product</th>
-                    <th className="px-6 py-3 text-center font-semibold text-gray-600">Qty</th>
-                    <th className="px-6 py-3 text-right font-semibold text-gray-600">Profit</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {data?.items?.slice(0, 5).map((item: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 font-medium text-gray-900">{item.product_name}</td>
-                      <td className="px-6 py-4 text-center text-gray-600">{item.quantity}</td>
-                      <td className="px-6 py-4 text-right font-bold text-green-600">
-                        {formatCurrency(item.quantity * (item.unit_price - item.buying_price))}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-            {/* 5. Credit & Debt Tracking (Credit Aging) */}
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+          {/* 5. Credit & Debt Tracking (Credit Aging) */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-6 border-b border-gray-100">
                 <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -409,44 +359,7 @@ export default function AccountantDashboard() {
                 </table>
               </div>
             </div>
-
-            {/* Dead Stock Analysis */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-gray-100">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-gray-500" />
-                  Dead Stock Analysis (Not sold in 90 days)
-                </h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-3 text-left font-semibold text-gray-600">Product</th>
-                      <th className="px-6 py-3 text-left font-semibold text-gray-600">Type</th>
-                      <th className="px-6 py-3 text-center font-semibold text-gray-600">In Stock</th>
-                      <th className="px-6 py-3 text-right font-semibold text-gray-600">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {data?.deadStock?.slice(0, 5).map((item: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 font-medium text-gray-900">{item.name}</td>
-                        <td className="px-6 py-4 text-gray-600 capitalize">{item.inventory_type}</td>
-                        <td className="px-6 py-4 text-center text-gray-600">{item.current_stock}</td>
-                        <td className="px-6 py-4 text-right font-bold text-gray-900">{formatCurrency(item.current_stock * item.cost_per_unit)}</td>
-                      </tr>
-                    ))}
-                    {(!data?.deadStock || data.deadStock.length === 0) && (
-                      <tr>
-                        <td colSpan={4} className="px-6 py-10 text-center text-gray-500 italic">No dead stock found.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+        </div>
       </div>
     );
   };

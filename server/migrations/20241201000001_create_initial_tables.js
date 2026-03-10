@@ -5,7 +5,7 @@
 exports.up = function(knex) {
   return knex.raw(`
     -- Staff/Users table
-    CREATE TABLE staff (
+    CREATE TABLE IF NOT EXISTS staff (
       id SERIAL PRIMARY KEY,
       employee_id TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
@@ -17,7 +17,7 @@ exports.up = function(knex) {
     );
 
     -- Tables for restaurant
-    CREATE TABLE tables (
+    CREATE TABLE IF NOT EXISTS tables (
       id SERIAL PRIMARY KEY,
       table_number TEXT NOT NULL UNIQUE,
       capacity INTEGER NOT NULL,
@@ -29,7 +29,7 @@ exports.up = function(knex) {
     );
 
     -- Hotel rooms
-    CREATE TABLE rooms (
+    CREATE TABLE IF NOT EXISTS rooms (
       id SERIAL PRIMARY KEY,
       room_number TEXT NOT NULL UNIQUE,
       room_type TEXT NOT NULL,
@@ -43,7 +43,7 @@ exports.up = function(knex) {
     );
 
     -- Menu categories
-    CREATE TABLE categories (
+    CREATE TABLE IF NOT EXISTS categories (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       description TEXT,
@@ -54,7 +54,7 @@ exports.up = function(knex) {
     );
 
     -- Menu items/products
-    CREATE TABLE products (
+    CREATE TABLE IF NOT EXISTS products (
       id SERIAL PRIMARY KEY,
       category_id INTEGER,
       name TEXT NOT NULL,
@@ -70,7 +70,7 @@ exports.up = function(knex) {
     );
 
     -- Product variations (sizes, add-ons)
-    CREATE TABLE product_variations (
+    CREATE TABLE IF NOT EXISTS product_variations (
       id SERIAL PRIMARY KEY,
       product_id INTEGER NOT NULL,
       name TEXT NOT NULL,
@@ -80,11 +80,11 @@ exports.up = function(knex) {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE INDEX idx_products_category ON products(category_id);
-    CREATE INDEX idx_product_variations_product ON product_variations(product_id);
-    CREATE INDEX idx_staff_employee_id ON staff(employee_id);
-    CREATE INDEX idx_tables_status ON tables(status);
-    CREATE INDEX idx_rooms_status ON rooms(status);
+    CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+    CREATE INDEX IF NOT EXISTS idx_product_variations_product ON product_variations(product_id);
+    CREATE INDEX IF NOT EXISTS idx_staff_employee_id ON staff(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_tables_status ON tables(status);
+    CREATE INDEX IF NOT EXISTS idx_rooms_status ON rooms(status);
   `);
 };
 

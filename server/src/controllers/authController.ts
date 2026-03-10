@@ -7,7 +7,7 @@ import { sendResetEmail, generateResetCode } from '../utils/email';
 import { isValidEmail, isValidPassword } from '../utils/validation';
 
 // Login endpoint
-export const login = async (req: Request, res: Response) => {
+export const login = async (req: any, res: Response) => {
   try {
     const { username, password } = req.body;
 
@@ -86,7 +86,7 @@ export const login = async (req: Request, res: Response) => {
 };
 
 // PIN validation endpoint (for Quick POS Access)
-export const validatePin = async (req: Request, res: Response) => {
+export const validatePin = async (req: any, res: Response) => {
   try {
     const { username, pin } = req.body;
 
@@ -130,7 +130,7 @@ export const validatePin = async (req: Request, res: Response) => {
 };
 
 // Request password reset
-export const requestPasswordReset = async (req: Request, res: Response) => {
+export const requestPasswordReset = async (req: any, res: Response) => {
   try {
     const { username, email } = req.body;
 
@@ -186,7 +186,7 @@ export const requestPasswordReset = async (req: Request, res: Response) => {
 };
 
 // Reset password with code
-export const resetPassword = async (req: Request, res: Response) => {
+export const resetPassword = async (req: any, res: Response) => {
   try {
     const { username, email, resetCode, newPassword } = req.body;
 
@@ -251,7 +251,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 };
 
 // Get current user profile
-export const getProfile = async (req: Request, res: Response) => {
+export const getProfile = async (req: any, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: 'User not authenticated' });
@@ -275,7 +275,7 @@ export const getProfile = async (req: Request, res: Response) => {
 };
 
 // Logout endpoint
-export const logout = async (req: Request, res: Response) => {
+export const logout = async (req: any, res: Response) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -305,7 +305,7 @@ export const logout = async (req: Request, res: Response) => {
 };
 
 // Initiate password change for authenticated user
-export const initiatePasswordChange = async (req: Request, res: Response) => {
+export const initiatePasswordChange = async (req: any, res: Response) => {
   try {
     const userId = (req as any).user?.id;
     if (!userId) {
@@ -342,7 +342,7 @@ export const initiatePasswordChange = async (req: Request, res: Response) => {
 };
 
 // Confirm password change for authenticated user
-export const confirmPasswordChange = async (req: Request, res: Response) => {
+export const confirmPasswordChange = async (req: any, res: Response) => {
   try {
     const userId = (req as any).user?.id;
     const { code, newPassword } = req.body;

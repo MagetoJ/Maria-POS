@@ -20,7 +20,6 @@ import publicMenuRoutes from './routes/publicMenuRoutes';
 // Import routes
 import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
-import inventoryRoutes from './routes/inventoryRoutes';
 import kitchenRoutes from './routes/kitchenRoutes';
 import receptionistRoutes from './routes/receptionistRoutes';
 import roomRoutes from './routes/roomRoutes';
@@ -38,13 +37,6 @@ import performanceRoutes from './routes/performanceRoutes';
 import maintenanceRoutes from './routes/maintenanceRoutes';
 import expensesRoutes from './routes/expensesRoutes';
 import productReturnsRoutes from './routes/productReturnsRoutes';
-import suppliersRoutes from './routes/suppliersRoutes';
-import purchaseOrdersRoutes from './routes/purchaseOrdersRoutes';
-import quickPOSRoutes from './routes/quickPOSRoutes';
-import recipesRoutes from './routes/recipesRoutes';
-import wastageRoutes from './routes/wastageRoutes';
-import stockTransfersRoutes from './routes/stockTransfersRoutes';
-import inventoryAuditsRoutes from './routes/inventoryAuditsRoutes';
 import invoiceRoutes from './routes/invoiceRoutes';
 
 // --- Initialization ---
@@ -132,7 +124,6 @@ app.get('/api/health', (req, res) => {
 // --- API Routes ---
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/inventory', inventoryRoutes);
 app.use('/api/kitchen', kitchenRoutes);
 app.use('/api/receptionist', receptionistRoutes);
 app.use('/api/rooms', roomRoutes);
@@ -150,13 +141,6 @@ app.use('/api/performance', performanceRoutes);
 app.use('/api/maintenance-requests', maintenanceRoutes);
 app.use('/api/expenses', expensesRoutes);
 app.use('/api/product-returns', productReturnsRoutes);
-app.use('/api/suppliers', suppliersRoutes);
-app.use('/api/purchase-orders', purchaseOrdersRoutes);
-app.use('/api/quick-pos', quickPOSRoutes);
-app.use('/api/recipes', recipesRoutes);
-app.use('/api/wastage', wastageRoutes);
-app.use('/api/stock-transfers', stockTransfersRoutes);
-app.use('/api/inventory-audits', inventoryAuditsRoutes);
 app.use('/api/invoices', invoiceRoutes);
 
 // --- Search Endpoint ---
@@ -261,33 +245,6 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
-    // Search Inventory
-    if (!type || type === 'inventory') {
-      const inventoryResults = await db('inventory_items')
-        .whereRaw('LOWER(name) LIKE ?', [searchTerm])
-        .orWhereRaw('LOWER(supplier) LIKE ?', [searchTerm])
-        .limit(limitNum)
-        .select('id', 'name', 'unit', 'current_stock', 'minimum_stock', 'supplier', 'inventory_type', 'created_at');
-
-      for (const item of inventoryResults) {
-        searchResults.push({
-          id: item.id,
-          type: 'inventory',
-          title: item.name,
-          subtitle: `${item.inventory_type} - ${item.supplier}`,
-          description: `${item.current_stock} ${item.unit} (Min: ${item.minimum_stock})`,
-          metadata: {
-            unit: item.unit,
-            current_stock: item.current_stock,
-            minimum_stock: item.minimum_stock,
-            supplier: item.supplier,
-            inventory_type: item.inventory_type,
-            created_at: item.created_at
-          }
-        });
-      }
-    }
-
     // Search Orders
     if (!type || type === 'order') {
       const orderResults = await db('orders')
@@ -336,46 +293,6 @@ app.get('/api/search', async (req, res) => {
             status: room.status,
             rate: room.rate,
             created_at: room.created_at
-          }
-        });
-      }
-    }
-
-    // Search Purchase Orders
-    if (!type || type === 'purchase_order') {
-      const poResults = await db('purchase_orders')
-        .leftJoin('suppliers', 'purchase_orders.supplier_id', 'suppliers.id')
-        .whereRaw('LOWER(purchase_orders.po_number) LIKE ?', [searchTerm])
-        .orWhereRaw('LOWER(purchase_orders.order_number) LIKE ?', [searchTerm])
-        .orWhereRaw('LOWER(suppliers.name) LIKE ?', [searchTerm])
-        .limit(limitNum)
-        .select(
-          'purchase_orders.id',
-          'purchase_orders.po_number',
-          'purchase_orders.order_number',
-          'purchase_orders.status',
-          'purchase_orders.total_amount',
-          'purchase_orders.order_date',
-          'purchase_orders.expected_delivery_date',
-          'suppliers.name as supplier_name'
-        );
-
-      for (const po of poResults) {
-        searchResults.push({
-          id: po.id,
-          type: 'purchase_order',
-          title: po.po_number || po.order_number || `PO-${po.id}`,
-          subtitle: `${po.supplier_name || 'No Supplier'} - ${po.status}`,
-          description: `Total: KES ${po.total_amount || 0} - Ordered: ${po.order_date ? new Date(po.order_date).toLocaleDateString() : 'N/A'}`,
-          metadata: {
-            po_number: po.po_number,
-            order_number: po.order_number,
-            supplier_name: po.supplier_name,
-            status: po.status,
-            total_amount: po.total_amount,
-            order_date: po.order_date,
-            expected_delivery_date: po.expected_delivery_date,
-            created_at: po.order_date
           }
         });
       }

@@ -1,6 +1,6 @@
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User, Clock, Search, Lock } from 'lucide-react';
+import { LogOut, User, Clock, Search, Lock, UtensilsCrossed } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import SearchComponent from './SearchComponent';
 import ChangePasswordModal from './ChangePasswordModal';
@@ -20,6 +20,10 @@ export default function Header() {
     }, 60000);
     return () => clearInterval(timer);
   }, []);
+
+  const handleQuickPOS = () => {
+    navigate('/pos');
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -108,7 +112,7 @@ export default function Header() {
             <SearchComponent
               onSelectResult={handleSearchSelect}
               onClose={handleSearchClose}
-              placeholder="Search staff, inventory, orders..."
+              placeholder="Search staff, orders, products..."
               autoFocus={true}
               onAddToOrder={window.location.pathname === '/pos' ? handleAddToOrder : undefined}
             />
@@ -141,6 +145,15 @@ export default function Header() {
               hour12: true
             })}
           </div>
+
+          <button
+            onClick={handleQuickPOS}
+            className="flex items-center gap-1 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-lg transition-colors border border-yellow-200"
+            title="Quick Food & Drinks POS"
+          >
+            <UtensilsCrossed className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-xs sm:text-sm font-semibold whitespace-nowrap">Quick POS</span>
+          </button>
 
           <button
             onClick={() => logout()}
@@ -200,7 +213,7 @@ export default function Header() {
               <SearchComponent
                 onSelectResult={handleSearchSelect}
                 onClose={handleSearchClose}
-                placeholder="Search staff, inventory, orders..."
+                placeholder="Search staff, orders, products..."
                 autoFocus={true}
                 onAddToOrder={window.location.pathname === '/pos' ? handleAddToOrder : undefined}
               />

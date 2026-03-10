@@ -43,10 +43,6 @@ function App() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const handleQuickPOS = () => {
-    navigate('/quick-pos');
-  };
-
   const handleBackToLogin = () => {
     navigate('/login');
   };
@@ -56,10 +52,7 @@ function App() {
       <NetworkStatus />
       <PWAUpdateNotification />
       <Routes>
-        <Route path="/login" element={<Login onQuickPOSAccess={handleQuickPOS} />} />
-        
-        {/* Public Quick POS Route */}
-        <Route path="/quick-pos" element={<POS isQuickAccess={true} onBackToLogin={handleBackToLogin} />} />
+        <Route path="/login" element={<Login />} />
         
         {/* Public QR Menu Ordering Route */}
         <Route path="/qr/menu" element={<QRMenuOrdering />} />

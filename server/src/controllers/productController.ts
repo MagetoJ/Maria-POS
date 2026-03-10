@@ -93,12 +93,13 @@ export const createProduct = async (req: Request, res: Response) => {
   try {
     const {
       name,
-      category_id, // <-- FIX
+      category_id,
       price,
-      cost, // <-- ADD THIS
+      cost,
+      inventory_item_id, // <-- NEW
       description,
-      preparation_time, // <-- ADD THIS
-      image_url, // <-- FIX (matches frontend)
+      preparation_time,
+      image_url,
       is_available
     } = req.body;
 
@@ -120,19 +121,18 @@ export const createProduct = async (req: Request, res: Response) => {
       });
     }
 
-  const [newProduct] = await db('products')
+    const [newProduct] = await db('products')
       .insert({
         name,
-        category_id, // <-- FIX
+        category_id,
         price,
-        cost: cost || 0, // <-- ADD THIS
+        cost: cost || 0,
+        inventory_item_id: inventory_item_id || null, // <-- NEW
         description: description || '',
-        preparation_time: preparation_time || 0, // <-- ADD THIS
-        image_url: image_url || null, // <-- FIX
-        // 'ingredients' is not in your frontend or DB schema, so it's removed.
+        preparation_time: preparation_time || 0,
+        image_url: image_url || null,
         is_available: is_available !== undefined ? is_available : true,
         is_active: true,
-        // created_at and updated_at are usually handled by the database
       })
       .returning('*');
 
@@ -148,7 +148,17 @@ export const createProduct = async (req: Request, res: Response) => {
 export const updateProduct = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, category_id, price, description, is_available, cost, preparation_time, image_url } = req.body;
+    const { 
+      name, 
+      category_id, 
+      price, 
+      description, 
+      is_available, 
+      cost, 
+      preparation_time, 
+      image_url,
+      inventory_item_id // <-- NEW
+    } = req.body;
 
     // Check if product exists
     const existingProduct = await db('products').where({ id }).first();
@@ -169,6 +179,7 @@ export const updateProduct = async (req: Request, res: Response) => {
     if (image_url !== undefined) updateData.image_url = image_url;
     if (cost !== undefined) updateData.cost = cost;
     if (preparation_time !== undefined) updateData.preparation_time = preparation_time;
+    if (inventory_item_id !== undefined) updateData.inventory_item_id = inventory_item_id; // <-- NEW
 
     // If updating name/category_id, check for duplicates
     if (updateData.name || updateData.category_id) {
@@ -347,6 +358,7 @@ export const uploadProducts = async (req: Request, res: Response) => {
       const categoryName = getVal('Category');
       const price = parseFloat(getVal('Price') || '0');
       const cost = parseFloat(getVal('Cost') || '0');
+      const inventory_item_id = parseInt(getVal('Inventory ID') || getVal('Inventory Item ID') || '0');
       
       if (!name) continue;
 
@@ -363,6 +375,7 @@ export const uploadProducts = async (req: Request, res: Response) => {
           id: existingId,
           price: price || undefined,
           cost: cost || undefined,
+          inventory_item_id: inventory_item_id || undefined,
           category_id: categoryId,
           updated_at: new Date()
         });
@@ -372,6 +385,7 @@ export const uploadProducts = async (req: Request, res: Response) => {
           category_id: categoryId,
           price: price,
           cost: cost,
+          inventory_item_id: inventory_item_id || null,
           description: getVal('Description') || '',
           preparation_time: parseInt(getVal('PrepTime') || '0'),
           is_active: true,

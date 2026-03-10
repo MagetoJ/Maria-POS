@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import Header from '../components/Header';
-import ReceptionistBarSales from '../components/receptionist/ReceptionistBarSales';
-import ReceptionistInventory from '../components/receptionist/ReceptionistInventory';
 import ReceptionistCheckIn from '../components/receptionist/ReceptionistCheckIn';
 import PerformanceDashboardView from '../components/PerfomanceDashboardView';
 import Sidebar from '../components/Sidebar';
 import RoomView from '../components/RoomView'; // <-- Re-importing the original RoomView
 import TableManagementView from '../components/TableManagementView'; // <-- Re-importing the original TableManagementView
-import { BarChart3, ShoppingCart, Package, Bed, LayoutGrid, UserPlus } from 'lucide-react';
+import { BarChart3, Bed, LayoutGrid, UserPlus } from 'lucide-react';
 
 export default function ReceptionistDashboard() {
   const [activeView, setActiveView] = useState('check-in'); // Default to Guest Check-In
@@ -17,8 +15,6 @@ export default function ReceptionistDashboard() {
     { id: 'check-in', label: 'Guest Check-In', icon: UserPlus },
     { id: 'rooms', label: 'Room Management', icon: Bed },
     { id: 'tables', label: 'Table Management', icon: LayoutGrid },
-    { id: 'sales', label: 'Bar Sales', icon: ShoppingCart },
-    { id: 'inventory', label: 'Manage Inventory', icon: Package },
     { id: 'performance', label: 'Performance', icon: BarChart3 },
   ];
 
@@ -30,10 +26,6 @@ export default function ReceptionistDashboard() {
       case 'tables':
         // Render the original TableManagementView component
         return <TableManagementView />;
-      case 'sales':
-        return <ReceptionistBarSales />;
-      case 'inventory':
-        return <ReceptionistInventory />;
       case 'performance':
         return <PerformanceDashboardView />;
       case 'rooms':

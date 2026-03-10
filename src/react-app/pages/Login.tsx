@@ -5,13 +5,13 @@ import { User, Lock, AlertCircle, Loader2, UtensilsCrossed, Eye, EyeOff, RotateC
 import PasswordResetModal from '../components/PasswordResetModal';
 import PWAInstallBanner from '../components/PWAInstallBanner';
 import { pwaService } from '../utils/pwaService';
+import { useNavigate } from 'react-router-dom';
 
 
 interface LoginProps {
-  onQuickPOSAccess?: () => void;
 }
 
-export default function Login({ onQuickPOSAccess }: LoginProps) {
+export default function Login({ }: LoginProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -19,6 +19,7 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [isOnline, setIsOnline] = useState(pwaService.isOnline());
   const { login, isLoading } = useAuth();
+  const navigate = useNavigate();
 
   // Online/Offline status
   useEffect(() => {
@@ -80,6 +81,14 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
         setUsername('');
         setPassword('');
         setError(''); // Ensure error is cleared
+
+        // If the URL has view=quick_pos, we don't need to do anything as AuthContext
+        // will trigger a state update and the current page (Login) will be unmounted
+        // and App.tsx will handle the routing. However, to be safe:
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('view') === 'quick_pos') {
+          navigate('/pos?view=quick_pos', { replace: true });
+        }
       }
     } catch (error) {
       console.error('Login exception:', error);
@@ -115,6 +124,7 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
           <h2 className="text-xl sm:text-2xl font-semibold text-center text-gray-800 mb-6">Staff Login</h2>
           
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Form fields ... */}
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
                 Username
@@ -196,32 +206,19 @@ export default function Login({ onQuickPOSAccess }: LoginProps) {
             </div>
           </form>
 
-          {onQuickPOSAccess && (
-            <div className="mt-4">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">or</span>
-                </div>
-              </div>
-              
-              <button
-                onClick={onQuickPOSAccess}
-                disabled={isLoading}
-                className="w-full mt-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-2.5 sm:py-3 px-4 rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 text-base"
-              >
-                <UtensilsCrossed className="w-5 h-5" />
-                Quick POS Access
-              </button>
-              <p className="text-xs text-center text-gray-500 mt-2">
-                Direct access for waiters - PIN required for orders
-              </p>
-            </div>
-          )}
-
-         
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <p className="text-xs text-center text-gray-500 mb-4 uppercase tracking-wider font-semibold">Quick Access</p>
+            <button
+              onClick={() => navigate('/')}
+              className="w-full bg-white border-2 border-amber-200 text-amber-700 py-3 px-4 rounded-xl font-bold hover:bg-amber-50 hover:border-amber-300 transition-all flex items-center justify-center gap-3 shadow-sm active:scale-[0.98]"
+            >
+              <UtensilsCrossed className="w-5 h-5" />
+              Quick POS Access
+            </button>
+            <p className="mt-3 text-[10px] text-center text-gray-400 italic">
+              Access food & drinks menu
+            </p>
+          </div>
         </div>
         
         {/* Enhanced Password Reset Modal */}

@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import Header from '../components/Header';
 import KitchenOrderView from '../components/kitchen/KitchenOrderView';
-import KitchenInventoryView from '../components/kitchen/KitchenInventoryView';
 import Sidebar from '../components/Sidebar'; // <-- Import the new Sidebar component
-import { Utensils, Package } from 'lucide-react';
+import { Utensils } from 'lucide-react';
 
 export default function KitchenDashboard() {
   const [activeView, setActiveView] = useState('orders');
@@ -11,17 +10,10 @@ export default function KitchenDashboard() {
   // Define the navigation items for the kitchen sidebar
   const navItems = [
     { id: 'orders', label: 'Live Orders', icon: Utensils },
-    { id: 'inventory', label: 'Kitchen Inventory', icon: Package },
   ];
 
   const renderContent = () => {
-    switch (activeView) {
-      case 'inventory':
-        return <KitchenInventoryView onClose={() => setActiveView('orders')} />;
-      case 'orders':
-      default:
-        return <KitchenOrderView />;
-    }
+    return <KitchenOrderView />;
   };
 
   return (

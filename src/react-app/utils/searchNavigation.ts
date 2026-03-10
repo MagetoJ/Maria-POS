@@ -2,7 +2,7 @@ import { NavigateFunction } from 'react-router-dom';
 
 export interface SearchResult {
   id: number;
-  type: 'staff' | 'inventory' | 'menu' | 'order' | 'room' | 'purchase_order';
+  type: 'staff' | 'menu' | 'order' | 'room';
   title: string;
   subtitle: string;
   description?: string;
@@ -32,9 +32,6 @@ export const navigateToSearchResult = (
         case 'staff':
           setActiveTab('staff');
           break;
-        case 'inventory':
-          setActiveTab('inventory');
-          break;
         case 'menu':
           setActiveTab('menu');
           break;
@@ -43,9 +40,6 @@ export const navigateToSearchResult = (
           break;
         case 'room':
           setActiveTab('rooms');
-          break;
-        case 'purchase_order':
-          setActiveTab('purchase-orders');
           break;
         default:
           setActiveTab('search');
@@ -91,14 +85,6 @@ export const navigateToSearchResult = (
         // Only admins can access staff management
         console.warn('Staff management requires admin access');
         break;
-      case 'inventory':
-        // Kitchen staff might access inventory through kitchen dashboard
-        if (userRole === 'kitchen_staff') {
-          navigate('/kitchen');
-        } else {
-          console.warn('Inventory management requires appropriate access');
-        }
-        break;
       case 'menu':
         // Prioritize staying within POS interface if already there
         if (currentPath === '/pos' && setActiveView) {
@@ -129,24 +115,6 @@ export const navigateToSearchResult = (
           console.warn('Room management requires appropriate access');
         }
         break;
-      case 'purchase_order':
-        // Purchase orders are typically managed by admin/manager
-        if (userRole === 'admin' || userRole === 'manager') {
-          // Navigate to admin dashboard first, then use a custom event to set the tab
-          // This avoids potential issues with hash-based navigation in production
-          navigate('/admin');
-
-          // Use a timeout to ensure navigation completes before setting the tab
-          setTimeout(() => {
-            const event = new CustomEvent('adminSearchNavigate', {
-              detail: { tab: 'purchase-orders' }
-            });
-            window.dispatchEvent(event);
-          }, 100);
-        } else {
-          console.warn('Purchase order management requires admin access');
-        }
-        break;
       default:
         // Default to POS for general access
         navigate('/pos');
@@ -161,11 +129,9 @@ export const navigateToSearchResult = (
 const getTabForType = (type: string): string => {
   const tabMap: { [key: string]: string } = {
     staff: 'staff',
-    inventory: 'inventory',
     menu: 'menu',
     order: 'reports',
     room: 'rooms',
-    purchase_order: 'purchase-orders'
   };
   return tabMap[type] || 'search';
 };
@@ -188,16 +154,12 @@ export const canAccessResultType = (type: string, userRole?: string): boolean =>
   switch (type) {
     case 'staff':
       return false; // Only admins can access staff management
-    case 'inventory':
-      return userRole === 'kitchen_staff';
     case 'menu':
       return true; // Most users can see menu items
     case 'order':
       return true; // Most users can see orders
     case 'room':
       return canAccessRooms(userRole);
-    case 'purchase_order':
-      return userRole === 'admin' || userRole === 'manager'; // Only admins and managers can access purchase orders
     default:
       return true;
   }

@@ -7,7 +7,6 @@ import { envLog, IS_DEVELOPMENT } from '../config/environment';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import StaffManagement from '../components/admin/StaffManagement';
-import InventoryManagement from '../components/admin/InventoryManagement';
 import MenuManagement from '../components/admin/MenuManagement';
 import RoomManagement from '../components/admin/RoomManagement';
 import ReportsManagement from '../components/admin/ReportsManagement';
@@ -15,21 +14,17 @@ import SettingsManagement from '../components/admin/SettingsManagement';
 import ShiftManagement from '../components/admin/ShiftManagement';
 import WaiterClearing from '../components/admin/WaiterClearing';
 import ExpensesManagement from '../components/admin/ExpensesManagement';
-import ProductReturnsManagement from '../components/admin/ProductReturnsManagement';
-import SuppliersManagement from '../components/admin/SuppliersManagement';
-import PurchaseOrdersManagement from '../components/admin/PurchaseOrdersManagement';
 import InvoicesManagement from '../components/admin/InvoicesManagement';
 import InvoiceModal from '../components/admin/InvoiceModal';
 import PerfomanceDashboard from '../components/PerfomanceDashboardView';
 import PersonalSalesReport from '../components/PersonalSalesReport';
 import SearchComponent from '../components/SearchComponent';
 import { navigateToSearchResult } from '../utils/searchNavigation';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 
 import {
   BarChart3,
   Users,
-  Package,
   Settings,
   FileText,
   Utensils,
@@ -42,9 +37,6 @@ import {
   Search,
   Receipt,
   CheckCircle,
-  RotateCcw,
-  Truck,
-  ShoppingCart,
 } from 'lucide-react';
 
 // --- Helper Functions ---
@@ -88,7 +80,6 @@ interface OverviewStats {
     todaysRevenue: number;
     ordersToday: number;
     activeStaff: number;
-    lowStockItems: number;
     recentOrders: {
         id: number;
         order_number: string;
@@ -109,15 +100,6 @@ interface ActiveUser {
   login_time: string;
 }
 
-interface LowStockItem {
-  id: number;
-  name: string;
-  current_stock: number;
-  minimum_stock: number;
-  inventory_type: string;
-  unit: string;
-}
-
 export default function AdminDashboard() {
   const { user } = useAuth();
   const toast = useToast();
@@ -127,9 +109,7 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
-  const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [allInventory, setAllInventory] = useState<any[]>([]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
   
   // Chart data state
@@ -143,8 +123,6 @@ export default function AdminDashboard() {
     { date: 'Sun', revenue: 6500 },
   ]);
   
-  const [lowStockChartData, setLowStockChartData] = useState<Array<{ name: string; current: number; minimum: number }>>([]);
-
   // Handle navigation from URL hash (for search result navigation)
   useEffect(() => {
     if (location.hash) {
@@ -153,28 +131,29 @@ export default function AdminDashboard() {
         setActiveTab(tab);
       }
     }
-  }, [location.hash]);
+  }, [location.hash, activeTab]);
 
   // Handle custom search navigation events
   useEffect(() => {
     const handleAdminSearchNavigate = (event: CustomEvent) => {
       const { tab } = event.detail;
-      if (tab && tab !== activeTab) {
+      if (tab) {
         setActiveTab(tab);
       }
     };
 
     window.addEventListener('adminSearchNavigate', handleAdminSearchNavigate as EventListener);
     return () => window.removeEventListener('adminSearchNavigate', handleAdminSearchNavigate as EventListener);
-  }, [activeTab]);
+  }, []);
 
   // Clear hash after navigation to prevent issues with back button
   useEffect(() => {
     if (location.hash && activeTab !== 'overview') {
       // Clear the hash after a short delay
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         window.history.replaceState(null, '', '/admin');
       }, 100);
+      return () => clearTimeout(timer);
     }
   }, [activeTab, location.hash]);
 
@@ -191,45 +170,6 @@ export default function AdminDashboard() {
     } catch (error: any) {
       if (error.name === 'AbortError') return;
       envLog.error('❌ Error fetching user sessions:', error);
-    }
-  };
-
-  const fetchLowStockItems = async (signal?: AbortSignal) => {
-    try {
-      envLog.dev('📦 Fetching low stock items...');
-      const response = await apiClient.get('/api/admin/low-stock-alerts', { signal });
-      if (response.ok) {
-        const data = await response.json();
-        if (signal?.aborted) return;
-        setLowStockItems(data);
-        // Prepare chart data
-        const chartData = data.map((item: LowStockItem) => ({
-          name: item.name.substring(0, 12), // Truncate for better chart display
-          current: item.current_stock,
-          minimum: item.minimum_stock,
-        }));
-        setLowStockChartData(chartData);
-        envLog.dev('✅ Low stock items loaded:', data);
-      }
-    } catch (error: any) {
-      if (error.name === 'AbortError') return;
-      envLog.error('❌ Error fetching low stock items:', error);
-    }
-  };
-
-  const fetchAllInventory = async (signal?: AbortSignal) => {
-    try {
-      envLog.dev('📦 Fetching all inventory items...');
-      const response = await apiClient.get('/api/inventory', { signal });
-      if (response.ok) {
-        const data = await response.json();
-        if (signal?.aborted) return;
-        setAllInventory(data);
-        envLog.dev('✅ Inventory items loaded:', data.length);
-      }
-    } catch (error: any) {
-      if (error.name === 'AbortError') return;
-      envLog.error('❌ Error fetching inventory items:', error);
     }
   };
 
@@ -266,49 +206,24 @@ export default function AdminDashboard() {
               
               try {
                   envLog.dev('📊 Fetching overview stats...');
-                  
-                  // Use apiClient which automatically adds auth headers
-                  // Note: apiClient needs to support signal or we use fetch directly
-                  // For now, let's assume apiClient.get accepts options or we use a flag
-                  
                   const response = await apiClient.get('/api/dashboard/overview-stats', { signal: controller.signal });
                   
                   if (!response.ok) {
-                      const errorText = await response.text();
-                      envLog.error('❌ API Error:', response.status, errorText);
-                      
                       throw new Error(`Failed to fetch overview stats. Status: ${response.status}`);
                   }
                   
                   const data = await response.json();
                   if (controller.signal.aborted) return;
                   
-                  envLog.dev('✅ Overview stats loaded:', data);
-                  
                   setOverviewData(data);
-
-                  // Also fetch active users, low stock items, and inventory for the overview
-                  await Promise.all([
-                    fetchActiveUsers(controller.signal),
-                    fetchLowStockItems(controller.signal),
-                    fetchAllInventory(controller.signal)
-                  ]);
+                  await fetchActiveUsers(controller.signal);
               } catch (error: any) {
                   if (error.name === 'AbortError') return;
-                  
+                  envLog.error("❌ Error fetching overview stats:", error);
                   if (IS_DEVELOPMENT) {
-                      console.error("❌ Error fetching overview stats:", error);
-                  }
-                  
-                  // Provide more specific error messages
-                  if (error.message?.includes('403')) {
-                      setError("Access denied. Please log in again.");
-                  } else if (error.message?.includes('401')) {
-                      setError("Authentication required. Please log in.");
-                  } else if (error.message?.includes('fetch')) {
-                      setError("Cannot connect to server. Please check your connection.");
+                    setError("Could not load dashboard data. Please check your connection.");
                   } else {
-                      setError("Could not load dashboard data. Please try again later.");
+                    setError("An error occurred while loading dashboard data.");
                   }
               } finally {
                   if (!controller.signal.aborted) {
@@ -320,8 +235,13 @@ export default function AdminDashboard() {
 
       fetchOverviewData();
       
+      const intervalId = setInterval(() => {
+        if (activeTab === 'overview') fetchActiveUsers();
+      }, 30000);
+      
       return () => {
         controller.abort();
+        clearInterval(intervalId);
       };
   }, [activeTab]);
 
@@ -332,14 +252,10 @@ export default function AdminDashboard() {
     { id: 'shifts', label: 'Shift Management', icon: Clock, roles: ['admin', 'manager'] },
     { id: 'clearing', label: 'Waiter Clearing', icon: CheckCircle, roles: ['admin', 'manager'] },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
-    { id: 'inventory', label: 'Inventory', icon: Package, roles: ['admin', 'manager'] },
     { id: 'menu', label: 'Menu Management', icon: Utensils, roles: ['admin', 'manager'] },
     { id: 'rooms', label: 'Room Management', icon: Bed, roles: ['admin', 'manager'] },
-    { id: 'suppliers', label: 'Suppliers', icon: Truck },
-    { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, roles: ['admin', 'manager'] },
     { id: 'invoices', label: 'Invoices', icon: FileText, roles: ['admin', 'manager'] },
     { id: 'expenses', label: 'Expenses', icon: Receipt },
-    { id: 'product-returns', label: 'Product Returns', icon: RotateCcw },
     { id: 'reports', label: 'Reports', icon: FileText },
     { id: 'sales-reports', label: 'Sales Reports', icon: DollarSign },
     { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin'] },
@@ -347,119 +263,6 @@ export default function AdminDashboard() {
 
   const filteredMenuItems = menuItems.filter(item => 
     !item.roles || (user && item.roles.includes(user.role))
-  );
-
-  const INVENTORY_COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1'];
-
-  const getStockByTypeData = () => {
-    const typeMap: { [key: string]: number } = {};
-    allInventory.forEach(item => {
-      typeMap[item.inventory_type] = (typeMap[item.inventory_type] || 0) + item.current_stock;
-    });
-    return Object.entries(typeMap).map(([type, stock]) => ({
-      name: type.charAt(0).toUpperCase() + type.slice(1),
-      stock: stock,
-      value: stock
-    }));
-  };
-
-  const getStockHealthData = () => {
-    const statusMap = {
-      'Optimal': 0,
-      'Low Stock': 0,
-      'Out of Stock': 0
-    };
-    allInventory.forEach(item => {
-      if (item.current_stock === 0) {
-        statusMap['Out of Stock']++;
-      } else if (item.current_stock <= item.minimum_stock) {
-        statusMap['Low Stock']++;
-      } else {
-        statusMap['Optimal']++;
-      }
-    });
-    return Object.entries(statusMap).map(([status, count]) => ({
-      name: status,
-      value: count
-    }));
-  };
-
-  const getValueDistributionData = () => {
-    const typeMap: { [key: string]: number } = {};
-    allInventory.forEach(item => {
-      const itemValue = item.current_stock * item.cost_per_unit;
-      typeMap[item.inventory_type] = (typeMap[item.inventory_type] || 0) + itemValue;
-    });
-    return Object.entries(typeMap).map(([type, value]) => ({
-      name: type.charAt(0).toUpperCase() + type.slice(1),
-      value: Math.round(value),
-      displayValue: formatCurrency(value)
-    }));
-  };
-
-  const getTopItemsData = () => {
-    return allInventory
-      .sort((a, b) => (b.current_stock * b.cost_per_unit) - (a.current_stock * a.cost_per_unit))
-      .slice(0, 8)
-      .map(item => ({
-        name: item.name.length > 15 ? item.name.substring(0, 15) + '...' : item.name,
-        value: Math.round(item.current_stock * item.cost_per_unit),
-        stock: item.current_stock
-      }));
-  };
-
-  const getProfitMarginData = () => {
-    return allInventory
-      .filter(item => item.buying_price && item.cost_per_unit && item.cost_per_unit > 0)
-      .map(item => {
-        const margin = ((item.cost_per_unit - item.buying_price) / item.cost_per_unit) * 100;
-        return {
-          name: item.name.length > 12 ? item.name.substring(0, 12) + '...' : item.name,
-          margin: Math.round(margin * 10) / 10,
-          buyPrice: item.buying_price,
-          sellPrice: item.cost_per_unit
-        };
-      })
-      .sort((a, b) => b.margin - a.margin)
-      .slice(0, 10);
-  };
-
-  const getSalesTrackingData = () => {
-    const typeMap: { [key: string]: { quantity: number; revenue: number } } = {};
-    allInventory.forEach(item => {
-      if (!typeMap[item.inventory_type]) {
-        typeMap[item.inventory_type] = { quantity: 0, revenue: 0 };
-      }
-      typeMap[item.inventory_type].quantity += item.current_stock;
-      typeMap[item.inventory_type].revenue += item.current_stock * item.cost_per_unit;
-    });
-    return Object.entries(typeMap).map(([type, data]) => ({
-      name: type.charAt(0).toUpperCase() + type.slice(1),
-      quantity: data.quantity,
-      revenue: Math.round(data.revenue)
-    }));
-  };
-
-  const getMarginTrendData = () => {
-    const margins = getProfitMarginData();
-    const avgMargin = margins.length > 0 ? 
-      Math.round((margins.reduce((sum, item) => sum + item.margin, 0) / margins.length) * 10) / 10 
-      : 0;
-    return {
-      average: avgMargin,
-      items: margins
-    };
-  };
-
-  const sidebarStatusCard = (
-    <div className="mt-8 p-4 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-        <span className="text-sm font-medium text-gray-900">System Status</span>
-      </div>
-      <p className="text-xs text-gray-600">All systems operational</p>
-      <p className="text-xs text-gray-600 mt-1">Access Level: {user?.role === 'admin' ? 'Full Admin' : user?.role === 'accountant' ? 'Accountant' : 'Manager'}</p>
-    </div>
   );
 
   const activeTabLabel = menuItems.find(item => item.id === activeTab)?.label || 'Admin';
@@ -531,21 +334,9 @@ export default function AdminDashboard() {
                 </div>
             </div>
             </div>
-
-            <div className="bg-white rounded-lg p-3 lg:p-6 border border-gray-200">
-            <div className="flex items-center">
-                <div className="p-1.5 lg:p-2 bg-yellow-100 rounded-lg">
-                <AlertTriangle className="w-4 h-4 lg:w-6 lg:h-6 text-yellow-600" />
-                </div>
-                <div className="ml-2 lg:ml-4 min-w-0">
-                <p className="text-xs lg:text-sm font-medium text-gray-600 truncate">Low Stock Items</p>
-                <p className="text-sm lg:text-2xl font-bold text-gray-900 truncate">{overviewData.lowStockItems}</p>
-                </div>
-            </div>
-            </div>
         </div>
 
-        {/* Charts Section - Revenue Over Time and Low Stock Visualization */}
+        {/* Charts Section - Revenue Over Time and Inventory Summary Placeholder */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Revenue Chart */}
             <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
@@ -553,11 +344,10 @@ export default function AdminDashboard() {
               <div className="w-full h-64 lg:h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={revenueData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
                     <YAxis stroke="#6b7280" fontSize={12} />
                     <Tooltip
-                      formatter={(value) => `KES ${value.toLocaleString('en-KE')}`}
+                      formatter={(value: any) => `KES ${value.toLocaleString('en-KE')}`}
                       contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
                     />
                     <Legend />
@@ -575,262 +365,14 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Low Stock Items Chart */}
-            {lowStockChartData.length > 0 && (
-              <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
-                <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">Low Stock Items - Current vs Minimum</h3>
-                <div className="w-full h-64 lg:h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={lowStockChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="name" stroke="#6b7280" fontSize={10} />
-                      <YAxis stroke="#6b7280" fontSize={12} />
-                      <Tooltip
-                        formatter={(value) => value}
-                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                      />
-                      <Legend />
-                      <Bar dataKey="current" fill="#10b981" name="Current Stock" />
-                      <Bar dataKey="minimum" fill="#ef4444" name="Minimum Required" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+            {/* Inventory Summary Placeholder */}
+            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
+              <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">Inventory Summary</h3>
+              <div className="flex items-center justify-center h-64 lg:h-80 text-gray-400 italic">
+                Low stock alerts visualization coming soon
               </div>
-            )}
+            </div>
         </div>
-
-        {/* Inventory Overview Charts */}
-        {allInventory.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Stock by Type Bar Chart */}
-            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart3 className="w-5 h-5 text-blue-600" />
-                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Stock Levels by Type</h3>
-              </div>
-              {getStockByTypeData().length > 0 ? (
-                <div className="w-full h-64 lg:h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={getStockByTypeData()}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
-                      <YAxis stroke="#6b7280" fontSize={12} />
-                      <Tooltip formatter={(value) => value.toLocaleString()} contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
-                      <Bar dataKey="stock" fill="#3b82f6" name="Stock Units" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-64 flex items-center justify-center text-gray-500">No inventory data</div>
-              )}
-            </div>
-
-            {/* Stock Health Pie Chart */}
-            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle className="w-5 h-5 text-yellow-600" />
-                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Stock Health</h3>
-              </div>
-              {getStockHealthData().some(d => d.value > 0) ? (
-                <div className="w-full h-64 lg:h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={getStockHealthData()}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, value }) => `${name}: ${value}`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {getStockHealthData().map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={INVENTORY_COLORS[index % INVENTORY_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-64 flex items-center justify-center text-gray-500">No inventory data</div>
-              )}
-            </div>
-
-            {/* Inventory Value Distribution */}
-            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-5 h-5 text-green-600" />
-                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Value Distribution</h3>
-              </div>
-              {getValueDistributionData().length > 0 ? (
-                <div className="w-full h-64 lg:h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={getValueDistributionData()}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, value }) => `${name}: KES ${value.toLocaleString()}`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {getValueDistributionData().map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={INVENTORY_COLORS[index % INVENTORY_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => `KES ${value.toLocaleString()}`} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-64 flex items-center justify-center text-gray-500">No inventory data</div>
-              )}
-            </div>
-
-            {/* Top Items by Value */}
-            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
-              <div className="flex items-center gap-2 mb-4">
-                <Package className="w-5 h-5 text-purple-600" />
-                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Top Items by Value</h3>
-              </div>
-              {getTopItemsData().length > 0 ? (
-                <div className="w-full h-64 lg:h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={getTopItemsData()} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis type="number" stroke="#6b7280" fontSize={12} />
-                      <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} stroke="#6b7280" />
-                      <Tooltip formatter={(value) => `KES ${value.toLocaleString()}`} contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
-                      <Bar dataKey="value" fill="#8b5cf6" name="Value (KES)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-64 flex items-center justify-center text-gray-500">No inventory data</div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Profit Margin & Sales Tracking Charts */}
-        {getProfitMarginData().length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Profit Margins Bar Chart */}
-            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-5 h-5 text-green-600" />
-                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Top 10 Profit Margins</h3>
-              </div>
-              <div className="w-full h-64 lg:h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={getProfitMarginData()}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="name" stroke="#6b7280" fontSize={10} />
-                    <YAxis stroke="#6b7280" fontSize={12} label={{ value: 'Margin %', angle: -90, position: 'insideLeft' }} />
-                    <Tooltip 
-                      formatter={(value) => `${value}%`} 
-                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                    />
-                    <Bar dataKey="margin" fill="#10b981" name="Profit Margin %" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-4 p-3 bg-green-50 rounded-lg">
-                <p className="text-sm text-green-900">
-                  <span className="font-semibold">Average Margin:</span> {getMarginTrendData().average}%
-                </p>
-              </div>
-            </div>
-
-            {/* Sales Tracking by Category */}
-            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
-              <div className="flex items-center gap-2 mb-4">
-                <DollarSign className="w-5 h-5 text-blue-600" />
-                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Sales Tracking by Category</h3>
-              </div>
-              <div className="w-full h-64 lg:h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={getSalesTrackingData()}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
-                    <YAxis stroke="#6b7280" fontSize={12} />
-                    <Tooltip 
-                      formatter={(value) => value.toLocaleString()} 
-                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                    />
-                    <Legend />
-                    <Bar dataKey="quantity" fill="#3b82f6" name="Units" />
-                    <Bar dataKey="revenue" fill="#fbbf24" name="Revenue (KES)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Price Comparison Chart */}
-            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart3 className="w-5 h-5 text-purple-600" />
-                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Buying vs Selling Price (Top 8)</h3>
-              </div>
-              <div className="w-full h-64 lg:h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={getProfitMarginData().slice(0, 8)}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="name" stroke="#6b7280" fontSize={10} />
-                    <YAxis stroke="#6b7280" fontSize={12} label={{ value: 'Price (KES)', angle: -90, position: 'insideLeft' }} />
-                    <Tooltip 
-                      formatter={(value) => `KES ${value.toLocaleString()}`} 
-                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                    />
-                    <Legend />
-                    <Bar dataKey="buyPrice" fill="#ef4444" name="Buying Price" />
-                    <Bar dataKey="sellPrice" fill="#10b981" name="Selling Price" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Margin Distribution Pie Chart */}
-            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
-              <div className="flex items-center gap-2 mb-4">
-                <Package className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-base lg:text-lg font-semibold text-gray-900">Margin Distribution</h3>
-              </div>
-              {getProfitMarginData().length > 0 ? (
-                <div className="w-full h-64 lg:h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={getProfitMarginData().slice(0, 6).map(item => ({
-                          name: item.name,
-                          value: Math.round(item.margin)
-                        }))}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, value }) => `${name}: ${value}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {getProfitMarginData().slice(0, 6).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={INVENTORY_COLORS[index % INVENTORY_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => `${value}%`} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-64 flex items-center justify-center text-gray-500">No margin data available</div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Recent Activity & Quick Actions */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -874,12 +416,6 @@ export default function AdminDashboard() {
                     <span className="text-xs lg:text-sm font-medium text-blue-900 text-center">Add Staff</span>
                   </button>
                 )}
-                {user?.role !== 'accountant' && (
-                  <button onClick={() => setActiveTab('inventory')} className="flex flex-col items-center p-3 lg:p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
-                    <Package className="w-6 h-6 lg:w-8 lg:h-8 text-green-600 mb-2" />
-                    <span className="text-xs lg:text-sm font-medium text-green-900 text-center">Update Inventory</span>
-                  </button>
-                )}
                 <button onClick={() => setActiveTab('reports')} className="flex flex-col items-center p-3 lg:p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
                 <FileText className="w-6 h-6 lg:w-8 lg:h-8 text-purple-600 mb-2" />
                 <span className="text-xs lg:text-sm font-medium text-purple-900 text-center">Generate Report</span>
@@ -894,7 +430,7 @@ export default function AdminDashboard() {
             </div>
         </div>
 
-        {/* Active Users & Low Stock Alerts */}
+        {/* Active Users Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Active Users & Sessions */}
             <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
@@ -953,42 +489,9 @@ export default function AdminDashboard() {
                     )}
                 </div>
             </div>
-
-            {/* Low Stock Alerts */}
-            <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
-                <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 lg:w-5 lg:h-5 text-red-600" />
-                    Low Stock Alerts ({lowStockItems.length})
-                </h3>
-                <div className="space-y-3 max-h-48 lg:max-h-64 overflow-y-auto">
-                    {lowStockItems && lowStockItems.length > 0 ? (
-                        lowStockItems.map((item) => (
-                            <div key={item.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-red-50 rounded-lg border border-red-100 gap-2">
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-gray-900 truncate">{item.name}</p>
-                                    <p className="text-sm text-gray-600 capitalize truncate">
-                                        {item.inventory_type} • {item.unit}
-                                    </p>
-                                </div>
-                                <div className="text-left sm:text-right flex-shrink-0">
-                                    <p className="text-sm text-red-600 font-medium">
-                                        {item.current_stock} / {item.minimum_stock}
-                                    </p>
-                                    <p className="text-xs text-gray-500">Current / Min</p>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="text-center py-4">
-                            <Package className="w-6 h-6 lg:w-8 lg:h-8 text-green-500 mx-auto mb-2" />
-                            <p className="text-sm text-green-600 font-medium">All items well stocked!</p>
-                        </div>
-                    )}
-                </div>
-            </div>
         </div>
-        </div>
-      );
+      </div>
+    );
   };
 
   const handleSearchSelect = (result: any, type: string) => {
@@ -1015,21 +518,13 @@ export default function AdminDashboard() {
             autoFocus={false}
           />
           
-          <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="mt-6 grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 bg-blue-100 rounded-lg">
                 <Users className="w-6 h-6 text-blue-600" />
               </div>
               <h3 className="text-sm font-medium text-gray-900">Staff</h3>
               <p className="text-xs text-gray-500">Search employees</p>
-            </div>
-
-            <div className="text-center">
-              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 bg-green-100 rounded-lg">
-                <Package className="w-6 h-6 text-green-600" />
-              </div>
-              <h3 className="text-sm font-medium text-gray-900">Inventory</h3>
-              <p className="text-xs text-gray-500">Find items</p>
             </div>
 
             <div className="text-center">
@@ -1055,14 +550,6 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-medium text-gray-900">Rooms</h3>
               <p className="text-xs text-gray-500">Search rooms</p>
             </div>
-
-            <div className="text-center">
-              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 bg-indigo-100 rounded-lg">
-                <ShoppingCart className="w-6 h-6 text-indigo-600" />
-              </div>
-              <h3 className="text-sm font-medium text-gray-900">Purchase Orders</h3>
-              <p className="text-xs text-gray-500">Find POs</p>
-            </div>
           </div>
         </div>
       </div>
@@ -1083,22 +570,14 @@ export default function AdminDashboard() {
         return <WaiterClearing />;
       case 'performance':
         return <PerfomanceDashboard />;
-      case 'inventory':
-        return <InventoryManagement />;
       case 'menu':
         return <MenuManagement />;
       case 'rooms':
         return <RoomManagement />;
-      case 'suppliers':
-        return <SuppliersManagement />;
-      case 'purchase-orders':
-        return <PurchaseOrdersManagement />;
       case 'invoices':
         return <InvoicesManagement />;
       case 'expenses':
         return <ExpensesManagement />;
-      case 'product-returns':
-        return <ProductReturnsManagement />;
       case 'reports':
         return <ReportsManagement />;
       case 'sales-reports':
@@ -1109,6 +588,17 @@ export default function AdminDashboard() {
         return renderOverview();
     }
   };
+
+  const sidebarStatusCard = (
+    <div className="mt-8 p-4 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+        <span className="text-sm font-medium text-gray-900">System Status</span>
+      </div>
+      <p className="text-xs text-gray-600">All systems operational</p>
+      <p className="text-xs text-gray-600 mt-1">Access Level: {user?.role === 'admin' ? 'Full Admin' : user?.role === 'accountant' ? 'Accountant' : 'Manager'}</p>
+    </div>
+  );
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">

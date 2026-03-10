@@ -114,25 +114,38 @@ export const createOrder = async (req: Request, res: Response) => {
 
       // 115. Insert order items and handle inventory deduction
       if (items && items.length > 0) {
-        const productIds = items.map((i: any) => i.product_id);
-        const products = await trx('products').whereIn('id', productIds);
-        const productNames = products.map(p => p.name);
+        const orderItems = [];
         
-        const inventoryItems = await trx('inventory_items')
-          .whereIn('name', productNames)
-          .orWhereIn('id', productIds)
-          .where({ is_active: true });
-
         for (const item of items) {
-          const product = products.find(p => p.id === item.product_id);
+          // 1. Find product to get its inventory_item_id
+          const product = await trx('products').where({ id: item.product_id }).first();
+          
+          let costPrice = 0;
+          let inventoryItemId = null;
+
           if (product) {
-            const inventoryItem = inventoryItems.find(inv => 
-              inv.name === product.name || inv.id === item.product_id
-            );
+            // 2. Find matching inventory item: 1. By inventory_item_id, 2. By Name (case-insensitive)
+            const inventoryItem = await trx('inventory_items')
+              .where(function() {
+                if (product.inventory_item_id) {
+                  this.where('id', product.inventory_item_id);
+                } else {
+                  this.whereRaw('TRIM(LOWER(name)) = ?', [product.name.trim().toLowerCase()]);
+                }
+              })
+              .where({ is_active: true })
+              .forUpdate() // Lock the row for stock deduction
+              .first();
             
             if (inventoryItem) {
-              const newStock = inventoryItem.current_stock - Number(item.quantity);
-              if (newStock < 0 && inventoryItem.inventory_type === 'bar') {
+              costPrice = inventoryItem.cost_per_unit || 0;
+              inventoryItemId = inventoryItem.id;
+
+              const newStock = Number(inventoryItem.current_stock) - Number(item.quantity);
+              
+              // BLOCK for ANY item linked to inventory if stock is insufficient
+              // (Waiters/Staff should not be able to sell what isn't there)
+              if (newStock < 0) {
                 throw new Error(`Insufficient stock for ${inventoryItem.name}. Available: ${inventoryItem.current_stock}`);
               }
 
@@ -140,9 +153,10 @@ export const createOrder = async (req: Request, res: Response) => {
                 .where({ id: inventoryItem.id })
                 .update({ 
                   current_stock: newStock, 
-                  updated_at: new Date() 
+                  updated_at: new Date()
                 });
 
+              // 3. Log inventory change
               await trx('inventory_log').insert({
                 inventory_item_id: inventoryItem.id,
                 action: 'sale',
@@ -150,21 +164,25 @@ export const createOrder = async (req: Request, res: Response) => {
                 reference_id: orderId,
                 reference_type: 'order',
                 logged_by: staffId,
-                notes: `Sale of ${product.name} from order ${orderNumber}`,
+                notes: `Sale: ${product.name} (Order: ${orderNumber})`,
                 created_at: new Date()
               });
+            } else {
+              console.warn(`⚠️ No matching active inventory item found for product: "${product.name}" (ID: ${product.id})`);
             }
           }
-        }
 
-        const orderItems = items.map((item: any) => ({
-          order_id: orderId,
-          product_id: item.product_id,
-          quantity: Number(item.quantity),
-          unit_price: Number(item.unit_price),
-          total_price: Number(item.total_price),
-          notes: item.notes,
-        }));
+          orderItems.push({
+            order_id: orderId,
+            product_id: item.product_id,
+            inventory_item_id: inventoryItemId,
+            quantity: Number(item.quantity),
+            unit_price: Number(item.unit_price),
+            cost_price: costPrice,
+            total_price: Number(item.total_price),
+            notes: item.notes || '',
+          });
+        }
 
         await trx('order_items').insert(orderItems);
       }

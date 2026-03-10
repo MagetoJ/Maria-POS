@@ -5,7 +5,7 @@
 exports.up = function(knex) {
   return knex.raw(`
     -- Orders table
-    CREATE TABLE orders (
+    CREATE TABLE IF NOT EXISTS orders (
       id SERIAL PRIMARY KEY,
       order_number TEXT NOT NULL UNIQUE,
       order_type TEXT NOT NULL, -- dine_in, takeaway, delivery, room_service
@@ -27,7 +27,7 @@ exports.up = function(knex) {
     );
 
     -- Order items
-    CREATE TABLE order_items (
+    CREATE TABLE IF NOT EXISTS order_items (
       id SERIAL PRIMARY KEY,
       order_id INTEGER NOT NULL,
       product_id INTEGER NOT NULL,
@@ -41,7 +41,7 @@ exports.up = function(knex) {
     );
 
     -- Order item variations
-    CREATE TABLE order_item_variations (
+    CREATE TABLE IF NOT EXISTS order_item_variations (
       id SERIAL PRIMARY KEY,
       order_item_id INTEGER NOT NULL,
       variation_id INTEGER NOT NULL,
@@ -51,7 +51,7 @@ exports.up = function(knex) {
     );
 
     -- Payments
-    CREATE TABLE payments (
+    CREATE TABLE IF NOT EXISTS payments (
       id SERIAL PRIMARY KEY,
       order_id INTEGER NOT NULL,
       payment_method TEXT NOT NULL, -- cash, card, mobile_money, room_charge
@@ -63,7 +63,7 @@ exports.up = function(knex) {
     );
 
     -- Inventory
-    CREATE TABLE inventory_items (
+    CREATE TABLE IF NOT EXISTS inventory_items (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       unit TEXT NOT NULL,
@@ -78,7 +78,7 @@ exports.up = function(knex) {
     );
 
     -- Maintenance requests table
-    CREATE TABLE maintenance_requests (
+    CREATE TABLE IF NOT EXISTS maintenance_requests (
       id SERIAL PRIMARY KEY,
       room_id INTEGER,
       description TEXT NOT NULL,
@@ -89,15 +89,15 @@ exports.up = function(knex) {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE INDEX idx_orders_status ON orders(status);
-    CREATE INDEX idx_orders_staff ON orders(staff_id);
-    CREATE INDEX idx_orders_created_at ON orders(created_at);
-    CREATE INDEX idx_order_items_order ON order_items(order_id);
-    CREATE INDEX idx_order_items_status ON order_items(status);
-    CREATE INDEX idx_payments_order ON payments(order_id);
-    CREATE INDEX idx_inventory_type ON inventory_items(inventory_type);
-    CREATE INDEX idx_maintenance_requests_room ON maintenance_requests(room_id);
-    CREATE INDEX idx_maintenance_requests_status ON maintenance_requests(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_staff ON orders(staff_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+    CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+    CREATE INDEX IF NOT EXISTS idx_order_items_status ON order_items(status);
+    CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);
+    CREATE INDEX IF NOT EXISTS idx_inventory_type ON inventory_items(inventory_type);
+    CREATE INDEX IF NOT EXISTS idx_maintenance_requests_room ON maintenance_requests(room_id);
+    CREATE INDEX IF NOT EXISTS idx_maintenance_requests_status ON maintenance_requests(status);
   `);
 };
 

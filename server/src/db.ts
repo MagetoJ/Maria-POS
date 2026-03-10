@@ -32,17 +32,18 @@ const getDatabaseConfig = () => {
         createRetryIntervalMillis: 100,
         propagateCreateError: false
       },
-      debug: isDevelopment,
+      debug: true, // Verbose SQL logging enabled for debugging inventory issues
     };
   }
     return {
     client: 'pg',
     connection: {
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
-      database: process.env.DB_NAME || 'pos_mocha_dev',
-      port: parseInt(process.env.DB_PORT || '5432'),
+      host: process.env.DATABASE_HOST || process.env.DB_HOST || 'localhost',
+      user: process.env.DATABASE_USER || process.env.DB_USER || 'postgres',
+      password: process.env.DATABASE_PASSWORD || process.env.DB_PASSWORD || 'postgres',
+      database: process.env.DATABASE_NAME || process.env.DB_NAME || 'pos_mocha_dev',
+      port: parseInt(process.env.DATABASE_PORT || process.env.DB_PORT || '5432'),
+      ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
     },
     pool: {
       min: 2,
@@ -54,7 +55,7 @@ const getDatabaseConfig = () => {
       createRetryIntervalMillis: 100,
       propagateCreateError: false
     },
-    debug: isDevelopment,
+    debug: true, // Verbose SQL logging enabled for debugging inventory issues
     };
 };
 
@@ -251,6 +252,23 @@ const ensureCriticalTables = async () => {
       }
     };
 
+    // Ensure inventory_item_id on products for better stock tracking
+    if (await db.schema.hasTable('products')) {
+      await ensureColumn('products', 'inventory_item_id', (table) => table.integer('inventory_item_id').unsigned().references('id').inTable('inventory_items').onDelete('SET NULL'), '🛠️ Added products.inventory_item_id column');
+      await ensureColumn('products', 'sku', (table) => table.text('sku').unique(), '🛠️ Added products.sku column');
+    }
+
+    // Ensure reorder_level on inventory_items for stock management
+    if (await db.schema.hasTable('inventory_items')) {
+      await ensureColumn('inventory_items', 'reorder_level', (table) => table.integer('reorder_level').defaultTo(10), '🛠️ Added inventory_items.reorder_level column');
+    }
+
+    // Ensure cost_price on order_items for accurate profit tracking
+    if (await db.schema.hasTable('order_items')) {
+      await ensureColumn('order_items', 'cost_price', (table) => table.decimal('cost_price', 12, 2).defaultTo(0), '🛠️ Added order_items.cost_price column');
+      await ensureColumn('order_items', 'inventory_item_id', (table) => table.integer('inventory_item_id').unsigned().references('id').inTable('inventory_items').onDelete('SET NULL'), '🛠️ Added order_items.inventory_item_id column');
+    }
+
     await ensureClearanceForTable('orders');
     await ensureClearanceForTable('expenses');
     await ensureClearanceForTable('room_transactions');
@@ -264,6 +282,31 @@ const ensureCriticalTables = async () => {
     await db('expenses').where('created_at', '<', startOfToday).where('is_cleared', false).update({ is_cleared: true, cleared_at: new Date(), notes: 'System: Historical data auto-clearance' }).catch(() => {});
     await db('room_transactions').where('created_at', '<', startOfToday).where('is_cleared', false).update({ is_cleared: true, cleared_at: new Date() }).catch(() => {});
     
+    // Proactive link: Map products to inventory items by name if inventory_item_id is null
+    try {
+      if (await db.schema.hasTable('products') && await db.schema.hasColumn('products', 'inventory_item_id')) {
+        const productsToLink = await db('products')
+          .whereNull('inventory_item_id')
+          .select('id', 'name');
+        
+        for (const product of productsToLink) {
+          const matchingInventory = await db('inventory_items')
+            .whereRaw('TRIM(LOWER(name)) = ?', [product.name.trim().toLowerCase()])
+            .where('is_active', true)
+            .first();
+          
+          if (matchingInventory) {
+            await db('products')
+              .where({ id: product.id })
+              .update({ inventory_item_id: matchingInventory.id });
+            console.log(`🔗 Auto-linked product "${product.name}" to inventory item ID: ${matchingInventory.id}`);
+          }
+        }
+      }
+    } catch (linkErr) {
+      console.error('⚠️ Error during auto-linking products to inventory:', linkErr);
+    }
+
     // Ensure room_transactions has staff_id and total_amount
     if (await db.schema.hasTable('room_transactions')) {
       await ensureColumn('room_transactions', 'staff_id', (table) => table.integer('staff_id').unsigned().references('id').inTable('staff').onDelete('SET NULL'), '🛠️ Added room_transactions.staff_id column');

@@ -50,15 +50,23 @@ const getAuthHeaders = (): Record<string, string> => {
 };
 
 // API Client with environment-aware logging
+const DEFAULT_TIMEOUT = 10000; // 10 seconds
+
 export const apiClient = {
   get: async (endpoint: string, options?: RequestInit) => {
     envLog.dev('📡 GET Request to:', `${API_URL}${endpoint}`);
     
     const headers = getAuthHeaders();
     
+    // Merge options with default timeout if no signal is provided
+    const mergedOptions = {
+      ...options,
+      signal: options?.signal || AbortSignal.timeout(DEFAULT_TIMEOUT)
+    };
+    
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'GET',
-      ...options,
+      ...mergedOptions,
       headers: {
         ...headers,
         ...options?.headers,
@@ -80,9 +88,15 @@ export const apiClient = {
     
     const headers = getAuthHeaders();
     
+    // Merge options with default timeout if no signal is provided
+    const mergedOptions = {
+      ...options,
+      signal: options?.signal || AbortSignal.timeout(DEFAULT_TIMEOUT)
+    };
+    
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'POST',
-      ...options,
+      ...mergedOptions,
       headers: {
         ...headers,
         ...options?.headers,
@@ -101,9 +115,15 @@ export const apiClient = {
     
     const headers = getAuthHeaders();
     
+    // Merge options with default timeout if no signal is provided
+    const mergedOptions = {
+      ...options,
+      signal: options?.signal || AbortSignal.timeout(DEFAULT_TIMEOUT)
+    };
+    
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'PUT',
-      ...options,
+      ...mergedOptions,
       headers: {
         ...headers,
         ...options?.headers,
@@ -122,9 +142,15 @@ export const apiClient = {
     
     const headers = getAuthHeaders();
     
+    // Merge options with default timeout if no signal is provided
+    const mergedOptions = {
+      ...options,
+      signal: options?.signal || AbortSignal.timeout(DEFAULT_TIMEOUT)
+    };
+    
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'DELETE',
-      ...options,
+      ...mergedOptions,
       headers: {
         ...headers,
         ...options?.headers,
@@ -142,9 +168,15 @@ export const apiClient = {
 
     const headers = getAuthHeaders();
 
+    // Merge options with default timeout if no signal is provided
+    const mergedOptions = {
+      ...options,
+      signal: options?.signal || AbortSignal.timeout(DEFAULT_TIMEOUT)
+    };
+
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: 'PATCH',
-      ...options,
+      ...mergedOptions,
       headers: {
         ...headers,
         ...options?.headers,
