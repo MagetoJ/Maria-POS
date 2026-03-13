@@ -91,8 +91,13 @@ app.use(express.static(clientBuildPath, {
 }));
 
 // Serve public files (including images) from public directory for development
-const publicPath = path.resolve(__dirname, '../../public');
+const publicPath = path.resolve(__dirname, '../../src/react-app/public');
+const uploadsPath = path.resolve(__dirname, '../../uploads');
 console.log('📁 Serving public files from:', publicPath);
+console.log('📁 Serving uploads from:', uploadsPath);
+
+// Serve uploads directory - public access for product images
+app.use('/uploads', express.static(uploadsPath));
 
 // In development, serve public assets directly
 if (process.env.NODE_ENV !== 'production') {
@@ -142,6 +147,7 @@ app.use('/api/maintenance-requests', maintenanceRoutes);
 app.use('/api/expenses', expensesRoutes);
 app.use('/api/product-returns', productReturnsRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/quick-pos', receptionistRoutes); // Add alias for quick-pos routes used by frontend
 
 // --- Search Endpoint ---
 app.get('/api/search', async (req, res) => {

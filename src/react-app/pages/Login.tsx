@@ -98,8 +98,8 @@ export default function Login({ }: LoginProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-100 flex items-center justify-center p-4">
-      {/* PWA Install Banner */}
-      <PWAInstallBanner showOnLogin={true} />
+      {/* PWA Install Banner - Set showOnLogin to false to prevent automatic appearance as requested */}
+      <PWAInstallBanner showOnLogin={false} />
       
       {/* Offline indicator */}
       {!isOnline && (
@@ -219,6 +219,21 @@ export default function Login({ }: LoginProps) {
               Access food & drinks menu
             </p>
           </div>
+
+          {/* Manual PWA Install Button */}
+          {pwaService.getAppInfo().canInstall && (
+            <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+              <button
+                onClick={() => pwaService.showInstallPrompt()}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-2 mx-auto"
+              >
+                <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                  <RotateCcw className="w-3.5 h-3.5" /> {/* Using RotateCcw as a placeholder for download/install icon */}
+                </div>
+                Install Maria Havens App
+              </button>
+            </div>
+          )}
         </div>
         
         {/* Enhanced Password Reset Modal */}

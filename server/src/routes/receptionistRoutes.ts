@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as receptionistController from '../controllers/receptionistController';
+import * as invoiceController from '../controllers/invoiceController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = Router();
@@ -17,6 +18,17 @@ router.post('/sell-item',
 
 // All receptionist routes require authentication and specific roles
 router.use(authenticateToken);
+
+// Invoice routes (aliased for quick-pos)
+router.post('/create-invoice',
+  authorizeRoles('admin', 'manager', 'waiter', 'cashier', 'receptionist', 'bar'),
+  invoiceController.createInvoice
+);
+
+router.get('/download-invoice/:id',
+  authorizeRoles('admin', 'manager', 'waiter', 'cashier', 'receptionist', 'bar'),
+  invoiceController.downloadInvoice
+);
 
 // Get bar inventory items - allow same roles as sell-item
 router.get('/bar-inventory', 

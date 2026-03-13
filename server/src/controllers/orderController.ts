@@ -116,26 +116,52 @@ export const createOrder = async (req: Request, res: Response) => {
       if (items && items.length > 0) {
         const orderItems = [];
         
+        // 1. Fetch all products in one query
+        const productIds = items.map((i: any) => i.product_id);
+        const orderProducts = await trx('products').whereIn('id', productIds);
+        const productMap = new Map(orderProducts.map(p => [p.id, p]));
+
+        // 2. Fetch all potentially matching inventory items in one query
+        const inventoryIds = orderProducts
+          .map(p => p.inventory_item_id)
+          .filter(id => id !== null);
+        
+        const productNames = orderProducts
+          .filter(p => !p.inventory_item_id)
+          .map(p => p.name.trim().toLowerCase());
+
+        let inventoryItems: any[] = [];
+        if (inventoryIds.length > 0 || productNames.length > 0) {
+          inventoryItems = await trx('inventory_items')
+            .where(function() {
+              if (inventoryIds.length > 0) {
+                this.whereIn('id', inventoryIds);
+              }
+              if (productNames.length > 0) {
+                this.orWhereRaw('TRIM(LOWER(name)) IN (?)', [productNames]);
+              }
+            })
+            .where({ is_active: true })
+            .forUpdate();
+        }
+
+        const invById = new Map(inventoryItems.map(i => [i.id, i]));
+        const invByName = new Map(inventoryItems.map(i => [i.name.trim().toLowerCase(), i]));
+
         for (const item of items) {
-          // 1. Find product to get its inventory_item_id
-          const product = await trx('products').where({ id: item.product_id }).first();
+          const product = productMap.get(item.product_id);
           
           let costPrice = 0;
           let inventoryItemId = null;
 
           if (product) {
-            // 2. Find matching inventory item: 1. By inventory_item_id, 2. By Name (case-insensitive)
-            const inventoryItem = await trx('inventory_items')
-              .where(function() {
-                if (product.inventory_item_id) {
-                  this.where('id', product.inventory_item_id);
-                } else {
-                  this.whereRaw('TRIM(LOWER(name)) = ?', [product.name.trim().toLowerCase()]);
-                }
-              })
-              .where({ is_active: true })
-              .forUpdate() // Lock the row for stock deduction
-              .first();
+            // Find matching inventory item
+            let inventoryItem = null;
+            if (product.inventory_item_id) {
+              inventoryItem = invById.get(product.inventory_item_id);
+            } else {
+              inventoryItem = invByName.get(product.name.trim().toLowerCase());
+            }
             
             if (inventoryItem) {
               costPrice = inventoryItem.cost_per_unit || 0;
@@ -143,8 +169,6 @@ export const createOrder = async (req: Request, res: Response) => {
 
               const newStock = Number(inventoryItem.current_stock) - Number(item.quantity);
               
-              // BLOCK for ANY item linked to inventory if stock is insufficient
-              // (Waiters/Staff should not be able to sell what isn't there)
               if (newStock < 0) {
                 throw new Error(`Insufficient stock for ${inventoryItem.name}. Available: ${inventoryItem.current_stock}`);
               }
@@ -156,7 +180,9 @@ export const createOrder = async (req: Request, res: Response) => {
                   updated_at: new Date()
                 });
 
-              // 3. Log inventory change
+              // Note: We still do individual updates and logs for now, 
+              // but we saved the 50 initial SELECT queries.
+              
               await trx('inventory_log').insert({
                 inventory_item_id: inventoryItem.id,
                 action: 'sale',
@@ -167,6 +193,9 @@ export const createOrder = async (req: Request, res: Response) => {
                 notes: `Sale: ${product.name} (Order: ${orderNumber})`,
                 created_at: new Date()
               });
+              
+              // Update local map to reflect deduction for other items in same order
+              inventoryItem.current_stock = newStock;
             } else {
               console.warn(`⚠️ No matching active inventory item found for product: "${product.name}" (ID: ${product.id})`);
             }

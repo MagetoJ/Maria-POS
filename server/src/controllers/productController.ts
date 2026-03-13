@@ -44,18 +44,23 @@ export const getPublicProducts = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Error fetching public products' });
   }
 };
-// Get all products
+// Get all products with inventory status
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const { category_id } = req.query;
     
     let query = db('products')
-      .select('*')
-      .where('is_active', true)
-      .orderBy('name', 'asc');
+      .leftJoin('inventory_items', 'products.inventory_item_id', 'inventory_items.id')
+      .select(
+        'products.*', 
+        'inventory_items.current_stock', 
+        'inventory_items.name as inventory_name'
+      )
+      .where('products.is_active', true)
+      .orderBy('products.name', 'asc');
 
     if (category_id && category_id !== 'all') {
-      query = query.where('category_id', category_id);
+      query = query.where('products.category_id', category_id);
     }
 
     const products = await query;
