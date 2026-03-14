@@ -396,32 +396,47 @@ export const getUnclearedStaffSummary = async (req: Request, res: Response) => {
   try {
     const currentUser = (req as any).user;
 
-    // Simplified query to find all staff who have uncleared data in ANY table
-    const ordersQuery = db('orders').where('is_cleared', false).select('staff_id as id', 'total_amount as amount', db.raw("'order' as type"));
-    const expensesQuery = db('expenses').where('is_cleared', false).select('created_by as id', 'amount', db.raw("'expense' as type"));
-    const roomsQuery = db('room_transactions').where('is_cleared', false).select('staff_id as id', 'total_amount as amount', db.raw("'room' as type"));
+    // Subqueries for different transaction types
+    const ordersQuery = db('orders').where('is_cleared', false).select('staff_id', 'total_amount', db.raw("'order' as type"));
+    const expensesQuery = db('expenses').where('is_cleared', false).select('created_by as staff_id', 'amount as total_amount', db.raw("'expense' as type"));
+    const roomsQuery = db('room_transactions').where('is_cleared', false).select('staff_id', 'total_amount', db.raw("'room' as type"));
 
-    let combinedQuery = db.union([ordersQuery, expensesQuery, roomsQuery], true);
+    // Combine all uncleared records
+    const combinedTransactions = db.union([ordersQuery, expensesQuery, roomsQuery], true).as('u');
     
-    // Wrap in a subquery to join with staff details
-    const unclearedStaff = await db.select('s.id', 's.name', 's.employee_id', 's.role')
-      .from('staff as s')
-      .join(combinedQuery.as('u'), 's.id', 'u.id')
-      .select(db.raw('COUNT(*) as uncleared_count'))
-      .select(db.raw('SUM(COALESCE(u.amount, 0)) as total_due'))
+    // Join staff table with the combined transactions to ensure all waiters appear
+    const staffSummary = await db('staff as s')
+      .leftJoin(combinedTransactions, 's.id', 'u.staff_id')
+      .select(
+        's.id', 
+        's.name', 
+        's.employee_id', 
+        's.role',
+        db.raw('COUNT(u.type) as uncleared_count'), // Count actual records, not staff rows
+        db.raw('SUM(COALESCE(u.total_amount, 0)) as total_due')
+      )
       .where(function() {
-        if (currentUser.role === 'waiter') {
-          this.where('s.id', currentUser.id);
+        // Always show all active waiters
+        this.where(function() {
+          this.where('s.role', 'waiter').andWhere('s.is_active', true);
+        });
+        
+        // plus any other staff member (active or not) that happens to have uncleared data
+        if (currentUser.role !== 'waiter') {
+          this.orWhereNotNull('u.staff_id'); 
         }
       })
-      .groupBy('s.id', 's.name', 's.employee_id', 's.role');
+      .modify((queryBuilder) => {
+        if (currentUser.role === 'waiter') {
+          queryBuilder.where('s.id', currentUser.id);
+        }
+      })
+      .groupBy('s.id', 's.name', 's.employee_id', 's.role')
+      .orderBy('s.name', 'asc');
 
-    res.json(unclearedStaff);
+    res.json(staffSummary);
   } catch (error: any) {
     console.error('Get uncleared staff summary error:', error);
-    res.status(500).json({ 
-      message: 'Failed to fetch uncleared staff summary',
-      error: error.message 
-    });
+    res.status(500).json({ message: 'Failed to fetch staff summary', error: error.message });
   }
 };

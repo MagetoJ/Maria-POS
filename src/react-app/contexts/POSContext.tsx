@@ -12,6 +12,7 @@ export interface Product {
   preparation_time: number;
   source?: 'kitchen' | 'bar';
   current_stock?: number;
+  inventory_item_id?: number | null; // <-- ADDED
 }
 
 export interface Category {
@@ -46,12 +47,13 @@ export interface OrderItem {
   price: number;
   notes?: string;
   source?: 'kitchen' | 'bar';
+  inventory_item_id?: number | null; // <-- ADDED
 }
 
 export interface Order {
   id?: string | number;
   order_number?: string;
-  order_type: 'dine_in' | 'takeaway' | 'delivery' | 'room_service';
+  order_type: 'dine_in' | 'takeaway' | 'delivery' | 'room_service' | 'bar_sale' | 'self_service';
   customer_name?: string;
   items: OrderItem[];
   table_id?: number;
@@ -62,7 +64,12 @@ export interface Order {
 interface POSContextType {
   currentOrder: Order | null;
   setCurrentOrder: (order: Order | null) => void;
-  addItemToOrder: (product: Product, quantity?: number, orderType?: 'dine_in' | 'takeaway' | 'delivery' | 'room_service') => void;
+  addItemToOrder: (
+    product: Product, 
+    quantity?: number, 
+    orderType?: Order['order_type'],
+    roomId?: number | string
+  ) => void;
   removeItemFromOrder: (itemId: number) => void;
   updateItemQuantity: (itemId: number, newQuantity: number) => void;
   clearOrder: () => void;
@@ -74,7 +81,12 @@ const POSContext = createContext<POSContextType | undefined>(undefined);
 export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
-  const addItemToOrder = (product: Product, quantity: number = 1, orderType: 'dine_in' | 'takeaway' | 'delivery' | 'room_service' = 'dine_in') => {
+  const addItemToOrder = (
+    product: Product, 
+    quantity: number = 1, 
+    orderType: Order['order_type'] = 'dine_in',
+    roomId?: number | string
+  ) => {
     const newItem: OrderItem = {
       id: Date.now(),
       product_id: product.id,
@@ -82,6 +94,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       quantity,
       price: product.price,
       source: product.source || 'kitchen',
+      inventory_item_id: product.inventory_item_id, // <-- ADDED
     };
 
     if (!currentOrder) {
@@ -89,6 +102,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `temp-${Date.now()}`,
         order_type: orderType,
         items: [newItem],
+        room_id: roomId ? Number(roomId) : undefined
       };
       setCurrentOrder(newOrder);
     } else {
@@ -103,7 +117,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         updatedItems = [...currentOrder.items, newItem];
       }
-      setCurrentOrder({ ...currentOrder, items: updatedItems });
+      
+      const updatedOrder: Order = { 
+        ...currentOrder, 
+        items: updatedItems,
+        order_type: orderType || currentOrder.order_type,
+        room_id: roomId ? Number(roomId) : (currentOrder.room_id)
+      };
+      setCurrentOrder(updatedOrder);
     }
   };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { usePOS, OrderItem, Order, Table } from '../contexts/POSContext';
+import { usePOS, OrderItem, Order, Table, Room } from '../contexts/POSContext';
 import { useAuth, User } from '../contexts/AuthContext';
 import { useToast } from './Toast';
 import { API_URL, apiClient } from '../config/api';
@@ -20,7 +20,7 @@ interface ReceiptDetails {
   orderId?: number;
   subtotal: number;
   total: number;
-  orderType: 'dine_in' | 'takeaway' | 'delivery' | 'room_service';
+  orderType: Order['order_type'];
   locationDetail?: string;
 }
 
@@ -310,6 +310,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
 
   const [waitersList, setWaitersList] = useState<User[]>([]);
   const [tablesList, setTablesList] = useState<Table[]>([]);
+  const [roomsList, setRoomsList] = useState<Room[]>([]);
   const [showPinModal, setShowPinModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [receiptDetails, setReceiptDetails] = useState<ReceiptDetails | null>(null);
@@ -320,7 +321,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
   const [pinError, setPinError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState('');
-  const [currentOrderType, setCurrentOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
+  const [currentOrderType, setCurrentOrderType] = useState<Order['order_type']>('dine_in');
   
   // New state for customer name and table selection
   const [customerName, setCustomerName] = useState('');
@@ -332,12 +333,16 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
   useEffect(() => {
     if (currentOrder && currentOrder.order_type) {
       setCurrentOrderType(currentOrder.order_type);
+      if (currentOrder.order_type === 'room_service') {
+        setPaymentMethod('room_charge');
+      }
     }
   }, [currentOrder?.order_type]);
 
   useEffect(() => {
     fetchWaiters();
     fetchTables();
+    fetchRooms();
   }, []);
 
   const fetchWaiters = async () => {
@@ -365,6 +370,20 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       }
     } catch (error) {
       console.error('Failed to fetch tables:', error);
+    }
+  };
+
+  const fetchRooms = async () => {
+    try {
+      const response = await apiClient.get('/api/rooms');
+      if (response.ok) {
+        const data = await response.json();
+        setRoomsList(data);
+      } else {
+        console.error('Failed to fetch rooms. Status:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to fetch rooms:', error);
     }
   };
 
@@ -452,12 +471,17 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
   const prepareAndShowReceiptModal = (staff: User, orderNumber: string, orderId?: number) => {
     if (!currentOrder) return;
     
-    // Get table details for receipt
+    // Get table details or room details for receipt
     let locationDetail = currentOrder.location_detail;
     if (currentOrderType === 'dine_in' && selectedTableId) {
       const selectedTable = tablesList.find(table => table.id === selectedTableId);
       if (selectedTable) {
         locationDetail = `Table ${selectedTable.table_number}`;
+      }
+    } else if (currentOrderType === 'room_service' && currentOrder.room_id) {
+      const selectedRoom = roomsList.find(room => room.id === currentOrder.room_id);
+      if (selectedRoom) {
+        locationDetail = `Room ${selectedRoom.room_number}`;
       }
     }
     
@@ -493,8 +517,10 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       order_type: isQuickAccess ? 'quick_sale' : currentOrderType,
       customer_name: customerName.trim() || null,
       table_id: currentOrderType === 'dine_in' && selectedTableId ? selectedTableId : null,
+      room_id: currentOrder.room_id || null, // <-- ADDED
       items: currentOrder.items.map((item) => ({
         product_id: item.product_id,
+        inventory_item_id: item.inventory_item_id, // <-- ADDED
         quantity: item.quantity,
         unit_price: item.price,
         total_price: item.price * item.quantity,
@@ -718,22 +744,32 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
             {currentOrderType === 'room_service' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Room Number
+                  Select Room
                 </label>
-                <input
-                  type="text"
-                  value={currentOrder?.location_detail || ''}
+                <select
+                  value={currentOrder?.room_id || ''}
                   onChange={(e) => {
                     if (currentOrder) {
+                      const roomId = e.target.value === '' ? undefined : parseInt(e.target.value);
+                      const selectedRoom = roomsList.find(r => r.id === roomId);
                       setCurrentOrder({
                         ...currentOrder,
-                        location_detail: e.target.value
+                        room_id: roomId,
+                        location_detail: selectedRoom ? `Room ${selectedRoom.room_number}` : undefined
                       });
                     }
                   }}
-                  placeholder="Enter room number"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                />
+                >
+                  <option value="">-- Select a room --</option>
+                  {roomsList
+                    .filter(room => room.status === 'occupied')
+                    .map((room) => (
+                      <option key={room.id} value={room.id}>
+                        Room {room.room_number} ({room.guest_name})
+                      </option>
+                    ))}
+                </select>
               </div>
             )}
             

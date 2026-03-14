@@ -11,7 +11,7 @@ export const setWebSocketService = (wsService: WebSocketService) => {
 
 // Create new order with PIN validation
 export const createOrder = async (req: Request, res: Response) => {
-  const { items, staff_username, pin, payment_method = 'cash', ...orderData } = req.body;
+  const { items, staff_username, pin, payment_method = 'cash', room_id, ...orderData } = req.body;
 
   try {
     let staffId = null;
@@ -88,7 +88,7 @@ export const createOrder = async (req: Request, res: Response) => {
       const { id, ...orderToInsert } = orderData;
 
       // Ensure numeric fields and add order_number
-      const safeOrder = {
+      const safeOrder: any = {
         ...orderToInsert,
         staff_id: staffId,
         order_number: orderNumber, // Use the variable from outer scope
@@ -100,6 +100,17 @@ export const createOrder = async (req: Request, res: Response) => {
         created_at: new Date(),
         updated_at: new Date()
       };
+
+      // If it's a room service order from Quick POS
+      if (orderData.order_type === 'room_service' && room_id) {
+        // Add logic to ensure the room is actually occupied
+        const room = await trx('rooms').where({ id: room_id, status: 'occupied' }).first();
+        if (!room) throw new Error('Selected room is no longer occupied');
+        
+        // The order should be marked with the room_id
+        safeOrder.room_id = room_id;
+        safeOrder.payment_method = 'room_charge'; 
+      }
 
       console.log('Inserting order:', safeOrder);
 
@@ -155,10 +166,12 @@ export const createOrder = async (req: Request, res: Response) => {
           let inventoryItemId = null;
 
           if (product) {
-            // Find matching inventory item
+            // Find matching inventory item: 1. From item payload, 2. From product table, 3. By Name
             let inventoryItem = null;
-            if (product.inventory_item_id) {
-              inventoryItem = invById.get(product.inventory_item_id);
+            const targetInventoryId = item.inventory_item_id || product.inventory_item_id;
+            
+            if (targetInventoryId) {
+              inventoryItem = invById.get(targetInventoryId);
             } else {
               inventoryItem = invByName.get(product.name.trim().toLowerCase());
             }
@@ -180,9 +193,6 @@ export const createOrder = async (req: Request, res: Response) => {
                   updated_at: new Date()
                 });
 
-              // Note: We still do individual updates and logs for now, 
-              // but we saved the 50 initial SELECT queries.
-              
               await trx('inventory_log').insert({
                 inventory_item_id: inventoryItem.id,
                 action: 'sale',
@@ -197,7 +207,10 @@ export const createOrder = async (req: Request, res: Response) => {
               // Update local map to reflect deduction for other items in same order
               inventoryItem.current_stock = newStock;
             } else {
-              console.warn(`⚠️ No matching active inventory item found for product: "${product.name}" (ID: ${product.id})`);
+              // CHANGE: Log a warning instead of throwing an error for non-tracked items
+              console.warn(`⚠️ Non-inventory item sold: "${product.name}". Skipping stock deduction.`);
+              costPrice = 0;
+              inventoryItemId = null;
             }
           }
 
@@ -217,12 +230,12 @@ export const createOrder = async (req: Request, res: Response) => {
       }
 
       // Create payment record
-      if (payment_method) {
+      if (safeOrder.payment_method) {
         await trx('payments').insert({
           order_id: orderId,
-          payment_method: payment_method,
+          payment_method: safeOrder.payment_method,
           amount: Number(orderToInsert.total_amount || 0),
-          status: 'pending' // Payments for QR orders might be pending initially
+          status: safeOrder.payment_method === 'room_charge' ? 'completed' : 'pending' // Room charges are "completed" in terms of order payment
         });
       }
     });

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { usePOS, Product } from '../contexts/POSContext';
 import { apiClient, IS_DEVELOPMENT } from '../config/api';
-import { Plus, Loader2, AlertCircle, Wine } from 'lucide-react';
+import { Plus, Loader2, AlertCircle, Wine, Bed } from 'lucide-react';
 
 // Extended product interface to support bar items
 interface BarProduct extends Product {
@@ -34,10 +34,26 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
   // Always set isLoading to true on mount to ensure fetchBarItems runs and completes
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('');
 
   useEffect(() => {
     fetchBarItems();
+    fetchActiveRooms();
   }, []);
+
+  const fetchActiveRooms = async () => {
+    try {
+      const response = await apiClient.get('/api/rooms');
+      if (response.ok) {
+        const data = await response.json();
+        // Only show occupied rooms for charging
+        setRooms(data.filter((r: any) => r.status === 'occupied'));
+      }
+    } catch (err) {
+      console.error("Failed to fetch rooms", err);
+    }
+  };
 
   const fetchBarItems = async (force = false) => {
     if (!force && barItemsCache) {
@@ -108,26 +124,50 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
       price: item.price,
       is_available: item.is_available,
       preparation_time: item.preparation_time,
-      image_url: item.image_url
+      image_url: item.image_url,
+      inventory_item_id: item.inventory_item_id || item.id, // Ensure ID is passed
+      source: 'bar'
     };
 
-    addItemToOrder(productToAdd, 1, 'bar_sale');
+    // If a room is selected, we change the order type to room_service
+    const orderType = selectedRoomId ? 'room_service' : 'bar_sale';
+
+    addItemToOrder(productToAdd, 1, orderType, selectedRoomId || undefined);
   };
 
   const hasData = barItems.length > 0;
 
   return (
     <div className="flex-1 p-2 sm:p-3 lg:p-5">
-      {/* Search Bar */}
-      <div className="mb-4 sm:mb-6">
-        <input
-          type="text"
-          placeholder="Search bar items..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-          disabled={isLoading && !hasData}
-        />
+      {/* Search Bar & Room Selector */}
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search bar items..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+            disabled={isLoading && !hasData}
+          />
+        </div>
+
+        {/* Room Selector */}
+        <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-1.5 min-w-[200px]">
+          <Bed className="w-4 h-4 text-gray-500" />
+          <select 
+            className="text-sm bg-transparent border-none focus:ring-0 flex-1 cursor-pointer"
+            value={selectedRoomId}
+            onChange={(e) => setSelectedRoomId(e.target.value)}
+          >
+            <option value="">Direct Sale (Cash/Mpesa)</option>
+            {rooms.map(room => (
+              <option key={room.id} value={room.id}>
+                Room {room.room_number} - {room.guest_name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {isLoading && !hasData && (

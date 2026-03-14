@@ -24,9 +24,9 @@ const getDatabaseConfig = () => {
       },
       pool: {
         min: 2,
-        max: 10,
-        acquireTimeoutMillis: 30000,
-        createTimeoutMillis: 30000,
+        max: 20,
+        acquireTimeoutMillis: 60000,
+        createTimeoutMillis: 60000,
         idleTimeoutMillis: 30000,
         reapIntervalMillis: 1000,
         createRetryIntervalMillis: 100,
@@ -284,24 +284,16 @@ const ensureCriticalTables = async () => {
     
     // Proactive link: Map products to inventory items by name if inventory_item_id is null
     try {
-      if (await db.schema.hasTable('products') && await db.schema.hasColumn('products', 'inventory_item_id')) {
-        const productsToLink = await db('products')
-          .whereNull('inventory_item_id')
-          .select('id', 'name');
-        
-        for (const product of productsToLink) {
-          const matchingInventory = await db('inventory_items')
-            .whereRaw('TRIM(LOWER(name)) = ?', [product.name.trim().toLowerCase()])
-            .where('is_active', true)
-            .first();
-          
-          if (matchingInventory) {
-            await db('products')
-              .where({ id: product.id })
-              .update({ inventory_item_id: matchingInventory.id });
-            console.log(`🔗 Auto-linked product "${product.name}" to inventory item ID: ${matchingInventory.id}`);
-          }
-        }
+      if (await db.schema.hasTable('products') && await db.schema.hasTable('inventory_items') && await db.schema.hasColumn('products', 'inventory_item_id')) {
+        // Use a single SQL query to auto-link items instead of a loop
+        await db.raw(`
+          UPDATE products 
+          SET inventory_item_id = inventory_items.id 
+          FROM inventory_items 
+          WHERE products.inventory_item_id IS NULL 
+          AND TRIM(LOWER(products.name)) = TRIM(LOWER(inventory_items.name))
+          AND inventory_items.is_active = true
+        `);
       }
     } catch (linkErr) {
       console.error('⚠️ Error during auto-linking products to inventory:', linkErr);

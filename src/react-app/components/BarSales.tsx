@@ -81,7 +81,9 @@ export default function BarSales() {
       price: item.price,
       is_available: item.is_available,
       preparation_time: item.preparation_time,
-      image_url: item.image_url
+      image_url: item.image_url,
+      inventory_item_id: item.inventory_item_id || item.id, // Ensure ID is passed
+      source: 'bar'
     };
 
     addItemToOrder(productToAdd, 1, 'dine_in');

@@ -34,12 +34,34 @@ interface POSProps {
 export default function POS({ onBackToLogin }: POSProps) {
   const { user, isCleared, loadingClearance } = useAuth();
   const toast = useToast();
-  const { addItemToOrder } = usePOS();
+  const { addItemToOrder, currentOrder, setCurrentOrder } = usePOS();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'sales_dashboard' | 'clearing'>('menu');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   const [isOrderPanelVisible, setOrderPanelVisible] = useState(false);
   const [showRecentOrders, setShowRecentOrders] = useState(false);
+
+  const handleRoomSelect = (room: any) => {
+    if (orderType === 'room_service') {
+      if (currentOrder) {
+        setCurrentOrder({ 
+          ...currentOrder, 
+          room_id: room.id, 
+          order_type: 'room_service',
+          location_detail: `Room ${room.room_number}` 
+        });
+      } else {
+        setCurrentOrder({ 
+          items: [], 
+          order_type: 'room_service', 
+          room_id: room.id,
+          location_detail: `Room ${room.room_number}` 
+        });
+      }
+      setActiveView('menu');
+      toast.success(`Selected Room ${room.room_number}`);
+    }
+  };
 
   // Only show full-page loading for waiters who MUST have clearance 
   // before doing anything. For others, let them see the UI.
@@ -95,7 +117,7 @@ export default function POS({ onBackToLogin }: POSProps) {
     );
   }
 
-  const canAccessRooms = user?.role === 'receptionist' || user?.role === 'manager' || user?.role === 'admin';
+  const canAccessRooms = ['receptionist', 'manager', 'admin', 'waiter', 'cashier'].includes(user?.role ?? '');
   const canAccessDelivery = user?.role === 'delivery' || user?.role === 'manager' || user?.role === 'admin';
   const canAccessDashboard = ['waiter', 'cashier', 'delivery', 'receptionist', 'manager', 'admin'].includes(user?.role ?? '');
   const canManageTables = user?.role === 'receptionist';
@@ -133,7 +155,10 @@ export default function POS({ onBackToLogin }: POSProps) {
   const renderMainContent = () => {
     switch (activeView) {
       case 'rooms':
-        return <RoomView />;
+        return <RoomView 
+          isSelectionMode={orderType === 'room_service'} 
+          onSelect={handleRoomSelect} 
+        />;
       case 'delivery':
         return <DeliveryManagement />;
       case 'dashboard':

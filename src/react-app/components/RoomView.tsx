@@ -14,7 +14,12 @@ interface Room {
   check_in_date?: string | null;
 }
 
-export default function RoomView() {
+interface RoomViewProps {
+  onSelect?: (room: Room) => void;
+  isSelectionMode?: boolean;
+}
+
+export default function RoomView({ onSelect, isSelectionMode = false }: RoomViewProps) {
   const { user } = useAuth(); // <-- ADD THIS LINE
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -307,6 +312,10 @@ export default function RoomView() {
               key={room.id} 
               className={`rounded-xl border-2 shadow-sm p-4 flex flex-col transition-all hover:scale-105 cursor-pointer ${getStatusColor(room.status)}`}
               onClick={() => {
+                if (isSelectionMode && onSelect && room.status === 'occupied') {
+                  onSelect(room);
+                  return;
+                }
                 if (room.status === 'vacant') handleOpenCheckIn(room);
                 else if (room.status === 'occupied') handleOpenCheckOut(room);
               }}

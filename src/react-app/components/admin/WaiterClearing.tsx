@@ -122,7 +122,7 @@ export default function WaiterClearing() {
       if (!response.ok) throw new Error('Failed to clear staff data');
       
       setSuccess(`Successfully cleared data for ${staffName}`);
-      setUnclearedStaff(prev => prev.filter(s => s.id !== staffId));
+      fetchUnclearedStaff(); // Re-fetch to show updated balances (waiters will stay with 0)
       
       // Close modal if it was open for this staff
       if (selectedStaff?.id === staffId) {
@@ -217,7 +217,7 @@ export default function WaiterClearing() {
       if (!response.ok) throw new Error('Failed to clear all data');
       
       setSuccess('Successfully cleared all previous day data');
-      setUnclearedStaff([]);
+      fetchUnclearedStaff(); // Re-fetch to show all waiters with 0
       
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
