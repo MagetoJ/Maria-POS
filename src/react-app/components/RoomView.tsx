@@ -259,7 +259,7 @@ export default function RoomView({ onSelect, isSelectionMode = false }: RoomView
         method: 'POST',
         headers,
         body: JSON.stringify({
-          staffName: logoutDetails.staffName,
+          staffName: user?.username || logoutDetails.staffName,
           authPin: logoutDetails.pin
         })
       });
@@ -270,7 +270,7 @@ export default function RoomView({ onSelect, isSelectionMode = false }: RoomView
       }
 
       const receiptData = await response.json();
-      generateThermalReceipt(receiptData);
+      generateCheckOutReceipt(receiptData);
       
       setCheckOutModalOpen(false);
       await fetchRooms(); // Refresh the room list

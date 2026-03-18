@@ -211,7 +211,7 @@ export const checkInRoom = async (req: Request, res: Response) => {
         .returning('*');
       
       if (!room) {
-        throw new Error('Room is not vacant or available for check-in.');
+        return res.status(400).json({ message: 'Room is not vacant or available for check-in.' });
       }
       
       await trx('room_transactions').insert({
@@ -233,6 +233,7 @@ export const checkInRoom = async (req: Request, res: Response) => {
       res.json(room);
     });
   } catch (err) {
+    console.error('Error during check-in:', err);
     res.status(500).json({ 
       message: (err as Error).message || 'Failed to check-in guest.' 
     });
@@ -286,7 +287,7 @@ export const checkOutRoom = async (req: Request, res: Response) => {
         .returning('*');
       
       if (!room) {
-        throw new Error('Room is not occupied or does not exist.');
+        return res.status(400).json({ message: 'Room is not occupied or does not exist.' });
       }
       
       await trx('room_transactions')
@@ -307,6 +308,7 @@ export const checkOutRoom = async (req: Request, res: Response) => {
       });
     });
   } catch (err) {
+    console.error('Error during check-out:', err);
     res.status(500).json({ 
       message: (err as Error).message || 'Failed to check-out guest.' 
     });
