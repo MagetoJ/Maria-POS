@@ -108,6 +108,86 @@ export const sellBarItem = async (req: Request, res: Response) => {
   }
 };
 
+// Immediate stock deduction for bar items (called when added to cart)
+export const deductStockImmediate = async (req: Request, res: Response) => {
+  const { inventory_item_id, quantity } = req.body;
+
+  if (!inventory_item_id || !quantity) {
+    return res.status(400).json({ message: 'Item ID and quantity are required.' });
+  }
+
+  try {
+    const item = await db('inventory_items')
+      .where({ id: inventory_item_id, inventory_type: 'bar', is_active: true })
+      .first();
+
+    if (!item) {
+      return res.status(404).json({ message: 'Bar inventory item not found.' });
+    }
+
+    if (item.current_stock < quantity) {
+      return res.status(400).json({ message: `Not enough stock. Only ${item.current_stock} available.` });
+    }
+
+    const newStock = Number(item.current_stock) - Number(quantity);
+
+    await db('inventory_items')
+      .where({ id: inventory_item_id })
+      .update({ 
+        current_stock: newStock,
+        updated_at: new Date()
+      });
+
+    // We don't log to inventory_log here yet because it's just a cart action.
+    // However, if we want full traceability, we could log it as 'reservation'.
+    // User requested deduction, so we do it.
+
+    res.status(200).json({ 
+      message: 'Stock deducted successfully.',
+      new_stock: newStock
+    });
+  } catch (err) {
+    console.error('Immediate stock deduction error:', err);
+    res.status(500).json({ message: 'Failed to deduct stock.' });
+  }
+};
+
+// Immediate stock restoration for bar items (called when removed from cart or decreased)
+export const restoreStockImmediate = async (req: Request, res: Response) => {
+  const { inventory_item_id, quantity } = req.body;
+
+  if (!inventory_item_id || !quantity) {
+    return res.status(400).json({ message: 'Item ID and quantity are required.' });
+  }
+
+  try {
+    const item = await db('inventory_items')
+      .where({ id: inventory_item_id, inventory_type: 'bar', is_active: true })
+      .first();
+
+    if (!item) {
+      return res.status(404).json({ message: 'Bar inventory item not found.' });
+    }
+
+    const newStock = Number(item.current_stock) + Number(quantity);
+
+    await db('inventory_items')
+      .where({ id: inventory_item_id })
+      .update({ 
+        current_stock: newStock,
+        updated_at: new Date()
+      });
+
+    res.status(200).json({ 
+      message: 'Stock restored successfully.',
+      new_stock: newStock
+    });
+  } catch (err) {
+    console.error('Immediate stock restoration error:', err);
+    res.status(500).json({ message: 'Failed to restore stock.' });
+  }
+};
+
 // Get bar inventory (only items receptionist can sell)
 export const getBarInventory = async (req: Request, res: Response) => {
   try {

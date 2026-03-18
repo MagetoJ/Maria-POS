@@ -14,6 +14,9 @@ import SettingsManagement from '../components/admin/SettingsManagement';
 import ShiftManagement from '../components/admin/ShiftManagement';
 import WaiterClearing from '../components/admin/WaiterClearing';
 import ExpensesManagement from '../components/admin/ExpensesManagement';
+import InventoryManagement from '../components/admin/InventoryManagement';
+import ProductReturnsManagement from '../components/admin/ProductReturnsManagement';
+import AccessRequestsManagement from '../components/admin/AccessRequestsManagement';
 import InvoicesManagement from '../components/admin/InvoicesManagement';
 import InvoiceModal from '../components/admin/InvoiceModal';
 import PerfomanceDashboard from '../components/PerfomanceDashboardView';
@@ -24,6 +27,7 @@ import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } f
 
 import {
   BarChart3,
+  Package,
   Users,
   Settings,
   FileText,
@@ -36,7 +40,9 @@ import {
   TrendingUp,
   Search,
   Receipt,
+  RotateCcw,
   CheckCircle,
+  Shield,
 } from 'lucide-react';
 
 // --- Helper Functions ---
@@ -252,7 +258,10 @@ export default function AdminDashboard() {
     { id: 'shifts', label: 'Shift Management', icon: Clock, roles: ['admin', 'manager'] },
     { id: 'clearing', label: 'Waiter Clearing', icon: CheckCircle, roles: ['admin', 'manager'] },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
+    { id: 'access-requests', label: 'Access Requests', icon: Shield, roles: ['admin', 'manager'] },
     { id: 'menu', label: 'Menu Management', icon: Utensils, roles: ['admin', 'manager'] },
+    { id: 'inventory', label: 'Inventory', icon: Package, roles: ['admin', 'manager'] },
+    { id: 'product-returns', label: 'Product Returns', icon: RotateCcw, roles: ['admin', 'manager'] },
     { id: 'rooms', label: 'Room Management', icon: Bed, roles: ['admin', 'manager'] },
     { id: 'invoices', label: 'Invoices', icon: FileText, roles: ['admin', 'manager'] },
     { id: 'expenses', label: 'Expenses', icon: Receipt },
@@ -570,8 +579,14 @@ export default function AdminDashboard() {
         return <WaiterClearing />;
       case 'performance':
         return <PerfomanceDashboard />;
+      case 'access-requests':
+        return <AccessRequestsManagement />;
       case 'menu':
         return <MenuManagement />;
+      case 'inventory':
+        return <InventoryManagement />;
+      case 'product-returns':
+        return <ProductReturnsManagement />;
       case 'rooms':
         return <RoomManagement />;
       case 'invoices':

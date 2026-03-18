@@ -391,6 +391,113 @@ export const getUnclearedStaffReceipts = async (req: Request, res: Response) => 
   }
 };
 
+// --- Access Requests Functionality ---
+
+// Get all pending access requests (for Admin)
+export const getAccessRequests = async (req: Request, res: Response) => {
+  try {
+    const requests = await db('access_requests as ar')
+      .join('staff as s', 'ar.staff_id', 's.id')
+      .select(
+        'ar.*',
+        's.name as staff_name',
+        's.role as staff_role'
+      )
+      .where('ar.status', 'pending')
+      .orderBy('ar.created_at', 'desc');
+
+    res.json(requests);
+  } catch (error) {
+    console.error('Get access requests error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Create a new access request (for Waiter)
+export const createAccessRequest = async (req: Request, res: Response) => {
+  try {
+    const { request_type, notes } = req.body;
+    const staff_id = (req as any).user?.id;
+
+    if (!request_type) {
+      return res.status(400).json({ message: 'Request type is required' });
+    }
+
+    // Check if there's already a pending request of this type for this user
+    const existing = await db('access_requests')
+      .where({ staff_id, request_type, status: 'pending' })
+      .first();
+
+    if (existing) {
+      return res.status(400).json({ message: 'You already have a pending request for this action' });
+    }
+
+    const [id] = await db('access_requests').insert({
+      staff_id,
+      request_type,
+      notes,
+      status: 'pending',
+      created_at: new Date(),
+      updated_at: new Date()
+    }).returning('id');
+
+    res.status(201).json({ id, message: 'Request submitted successfully. Please wait for admin approval.' });
+  } catch (error) {
+    console.error('Create access request error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Handle access request (Approve/Deny)
+export const handleAccessRequest = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body; // status: 'approved' or 'denied'
+    const admin_id = (req as any).user?.id;
+
+    if (!['approved', 'denied'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const request = await db('access_requests').where({ id }).first();
+    if (!request) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+
+    await db('access_requests').where({ id }).update({
+      status,
+      approved_by: admin_id,
+      approved_at: status === 'approved' ? new Date() : null,
+      notes: notes || request.notes,
+      updated_at: new Date()
+    });
+
+    res.json({ message: `Request ${status} successfully` });
+  } catch (error) {
+    console.error('Handle access request error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Check status of a request (for Frontend polling or check)
+export const checkRequestStatus = async (req: Request, res: Response) => {
+  try {
+    const { type } = req.query;
+    const staff_id = (req as any).user?.id;
+
+    const request = await db('access_requests')
+      .where({ staff_id, request_type: type, status: 'approved' })
+      .where('updated_at', '>', new Date(Date.now() - 30 * 60 * 1000)) // Approved in last 30 mins
+      .orderBy('updated_at', 'desc')
+      .first();
+
+    res.json({ approved: !!request, request });
+  } catch (error) {
+    console.error('Check request status error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 // Get uncleared staff summary
 export const getUnclearedStaffSummary = async (req: Request, res: Response) => {
   try {

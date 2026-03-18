@@ -502,7 +502,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
   const handleCloseReceiptModal = () => {
     setShowReceiptModal(false);
     setReceiptDetails(null);
-    clearOrder();
+    clearOrder(false); // DO NOT restore stock, it was already sold!
     // 3. CALL THE PROP FUNCTION ONCE EVERYTHING IS DONE
     if (onOrderPlaced) {
       onOrderPlaced();
@@ -521,6 +521,7 @@ export default function OrderPanel({ isQuickAccess = false, onOrderPlaced }: Ord
       items: currentOrder.items.map((item) => ({
         product_id: item.product_id,
         inventory_item_id: item.inventory_item_id, // <-- ADDED
+        is_stock_deducted: item.is_stock_deducted || false, // NEW: Tell server it's already deducted
         quantity: item.quantity,
         unit_price: item.price,
         total_price: item.price * item.quantity,

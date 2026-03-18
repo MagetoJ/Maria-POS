@@ -123,101 +123,102 @@ export const createOrder = async (req: Request, res: Response) => {
 
       if (!orderId) throw new Error('Failed to create order and get ID');
 
-      // 115. Insert order items and handle inventory deduction
+      // 115. Insert order items and handle inventory deduction (Refactored for Bar Products)
       if (items && items.length > 0) {
         const orderItems = [];
         
-        // 1. Fetch all products in one query
+        // 1. Pre-fetch products and potential inventory items
         const productIds = items.map((i: any) => i.product_id);
         const orderProducts = await trx('products').whereIn('id', productIds);
         const productMap = new Map(orderProducts.map(p => [p.id, p]));
 
-        // 2. Fetch all potentially matching inventory items in one query
-        const inventoryIds = orderProducts
-          .map(p => p.inventory_item_id)
-          .filter(id => id !== null);
+        const potentialInvIds = new Set<number>();
+        items.forEach((i: any) => {
+          if (i.inventory_item_id) potentialInvIds.add(i.inventory_item_id);
+          const p = productMap.get(i.product_id);
+          if (p?.inventory_item_id) potentialInvIds.add(p.inventory_item_id);
+          // Compatibility: In bar_sale, product_id is often the inventory_id
+          if (orderData.order_type === 'bar_sale') potentialInvIds.add(i.product_id);
+        });
+
+        const inventoryItems = potentialInvIds.size > 0 
+          ? await trx('inventory_items').whereIn('id', Array.from(potentialInvIds)).where({ is_active: true }).forUpdate()
+          : [];
         
-        const productNames = orderProducts
-          .filter(p => !p.inventory_item_id)
-          .map(p => p.name.trim().toLowerCase());
-
-        let inventoryItems: any[] = [];
-        if (inventoryIds.length > 0 || productNames.length > 0) {
-          inventoryItems = await trx('inventory_items')
-            .where(function() {
-              if (inventoryIds.length > 0) {
-                this.whereIn('id', inventoryIds);
-              }
-              if (productNames.length > 0) {
-                this.orWhereRaw('TRIM(LOWER(name)) IN (?)', [productNames]);
-              }
-            })
-            .where({ is_active: true })
-            .forUpdate();
-        }
-
-        const invById = new Map(inventoryItems.map(i => [i.id, i]));
-        const invByName = new Map(inventoryItems.map(i => [i.name.trim().toLowerCase(), i]));
+        const invMap = new Map(inventoryItems.map(i => [i.id, i]));
 
         for (const item of items) {
           const product = productMap.get(item.product_id);
           
+          // Determine the correct inventory link
+          let invId = item.inventory_item_id || product?.inventory_item_id;
+          if (!invId && orderData.order_type === 'bar_sale') {
+            invId = item.product_id;
+          }
+
+          const inventoryItem = invId ? invMap.get(invId) : null;
           let costPrice = 0;
-          let inventoryItemId = null;
+          let finalInventoryId = null;
 
-          if (product) {
-            // Find matching inventory item: 1. From item payload, 2. From product table, 3. By Name
-            let inventoryItem = null;
-            const targetInventoryId = item.inventory_item_id || product.inventory_item_id;
-            
-            if (targetInventoryId) {
-              inventoryItem = invById.get(targetInventoryId);
-            } else {
-              inventoryItem = invByName.get(product.name.trim().toLowerCase());
-            }
-            
-            if (inventoryItem) {
-              costPrice = inventoryItem.cost_per_unit || 0;
-              inventoryItemId = inventoryItem.id;
+          // RESTRUCTURED: Only deduct stock for "bar" type inventory items
+          if (inventoryItem && inventoryItem.inventory_type === 'bar') {
+            costPrice = inventoryItem.cost_per_unit || 0;
+            finalInventoryId = inventoryItem.id;
 
-              const newStock = Number(inventoryItem.current_stock) - Number(item.quantity);
-              
+            const requestedQty = Number(item.quantity);
+            const currentStock = Number(inventoryItem.current_stock);
+            
+            // Check if stock was already deducted during "add to cart"
+            if (!item.is_stock_deducted) {
+              const newStock = currentStock - requestedQty;
+
               if (newStock < 0) {
-                throw new Error(`Insufficient stock for ${inventoryItem.name}. Available: ${inventoryItem.current_stock}`);
+                throw new Error(`Out of Stock: ${inventoryItem.name} has only ${currentStock} remaining.`);
               }
 
+              // Update Stock
               await trx('inventory_items')
                 .where({ id: inventoryItem.id })
                 .update({ 
                   current_stock: newStock, 
-                  updated_at: new Date()
+                  updated_at: new Date() 
                 });
-
-              await trx('inventory_log').insert({
-                inventory_item_id: inventoryItem.id,
-                action: 'sale',
-                quantity_change: -Number(item.quantity),
-                reference_id: orderId,
-                reference_type: 'order',
-                logged_by: staffId,
-                notes: `Sale: ${product.name} (Order: ${orderNumber})`,
-                created_at: new Date()
-              });
-              
-              // Update local map to reflect deduction for other items in same order
+                
+              // Update local map for multi-item orders
               inventoryItem.current_stock = newStock;
             } else {
-              // CHANGE: Log a warning instead of throwing an error for non-tracked items
-              console.warn(`⚠️ Non-inventory item sold: "${product.name}". Skipping stock deduction.`);
-              costPrice = 0;
-              inventoryItemId = null;
+              console.log(`ℹ️ Stock already pre-deducted for: ${inventoryItem.name}`);
             }
+
+            // Log Transaction (always log for orders)
+            await trx('inventory_log').insert({
+              inventory_item_id: inventoryItem.id,
+              action: 'sale',
+              quantity_change: -requestedQty,
+              reference_id: orderId,
+              reference_type: 'order',
+              logged_by: staffId,
+              notes: `Bar Sale: ${inventoryItem.name} (Order: ${orderNumber})`,
+              created_at: new Date()
+            });
+
+            console.log(`✅ Sale Logged: ${inventoryItem.name} (-${requestedQty})`);
+          } else {
+            // Strict requirement for bar/room sales
+            if (orderData.order_type === 'bar_sale' || orderData.order_type === 'room_service') {
+              const name = product?.name || item.name || 'Unknown';
+              console.error(`❌ Inventory Mapping Missing: ${name} (ID: ${item.product_id})`);
+              throw new Error(`Technical Error: "${name}" is not linked to a bar inventory item.`);
+            }
+            
+            // For other types, we just use the product cost if available
+            costPrice = product?.cost || 0;
           }
 
           orderItems.push({
             order_id: orderId,
             product_id: item.product_id,
-            inventory_item_id: inventoryItemId,
+            inventory_item_id: finalInventoryId,
             quantity: Number(item.quantity),
             unit_price: Number(item.unit_price),
             cost_price: costPrice,

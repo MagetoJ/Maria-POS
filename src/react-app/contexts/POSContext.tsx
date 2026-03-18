@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { apiClient } from '../config/api';
 
 // --- INTERFACES (Ensure all are exported) ---
 export interface Product {
@@ -48,6 +49,7 @@ export interface OrderItem {
   notes?: string;
   source?: 'kitchen' | 'bar';
   inventory_item_id?: number | null; // <-- ADDED
+  is_stock_deducted?: boolean; // <-- NEW: Track if stock was already deducted
 }
 
 export interface Order {
@@ -69,10 +71,10 @@ interface POSContextType {
     quantity?: number, 
     orderType?: Order['order_type'],
     roomId?: number | string
-  ) => void;
-  removeItemFromOrder: (itemId: number) => void;
-  updateItemQuantity: (itemId: number, newQuantity: number) => void;
-  clearOrder: () => void;
+  ) => Promise<void>;
+  removeItemFromOrder: (itemId: number) => Promise<void>;
+  updateItemQuantity: (itemId: number, newQuantity: number) => Promise<void>;
+  clearOrder: (shouldRestoreStock?: boolean) => Promise<void>;
 }
 
 const POSContext = createContext<POSContextType | undefined>(undefined);
@@ -81,12 +83,46 @@ const POSContext = createContext<POSContextType | undefined>(undefined);
 export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
-  const addItemToOrder = (
+  const addItemToOrder = async (
     product: Product, 
     quantity: number = 1, 
     orderType: Order['order_type'] = 'dine_in',
     roomId?: number | string
   ) => {
+    // If it's a bar product and we are in Quick POS / Bar sale, deduct stock immediately
+    let stockDeducted = false;
+    const invId = product.inventory_item_id || (product.source === 'bar' ? product.id : null);
+    
+    if (invId && product.source === 'bar') {
+      try {
+        const response = await apiClient.post('/api/quick-pos/deduct-stock-immediate', {
+          inventory_item_id: invId,
+          quantity: quantity
+        });
+        
+        if (response.ok) {
+          const resData = await response.json();
+          stockDeducted = true;
+          console.log(`✅ Immediate stock deduction successful for ${product.name}`);
+          // Notify other components that stock has changed
+          window.dispatchEvent(new CustomEvent('inventory-updated', { 
+            detail: { 
+              inventory_item_id: invId, 
+              new_stock: resData.new_stock 
+            } 
+          }));
+        } else {
+          const err = await response.json();
+          alert(`Stock Error: ${err.message || 'Could not deduct stock'}`);
+          return; // Stop if deduction fails
+        }
+      } catch (err) {
+        console.error('Failed to deduct stock immediately:', err);
+        alert('Network error while deducting stock. Please try again.');
+        return;
+      }
+    }
+
     const newItem: OrderItem = {
       id: Date.now(),
       product_id: product.id,
@@ -94,7 +130,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       quantity,
       price: product.price,
       source: product.source || 'kitchen',
-      inventory_item_id: product.inventory_item_id, // <-- ADDED
+      inventory_item_id: invId,
+      is_stock_deducted: stockDeducted, // Track that we already deducted it
     };
 
     if (!currentOrder) {
@@ -128,29 +165,123 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const removeItemFromOrder = (itemId: number) => {
+  const removeItemFromOrder = async (itemId: number) => {
     if (!currentOrder) return;
+    
+    const item = currentOrder.items.find(i => i.id === itemId);
+    if (item && item.source === 'bar' && item.inventory_item_id && item.is_stock_deducted) {
+      // Restore stock
+      try {
+        const response = await apiClient.post('/api/quick-pos/restore-stock-immediate', {
+          inventory_item_id: item.inventory_item_id,
+          quantity: item.quantity
+        });
+        const resData = await response.json();
+        window.dispatchEvent(new CustomEvent('inventory-updated', { 
+          detail: { 
+            inventory_item_id: item.inventory_item_id, 
+            new_stock: resData.new_stock 
+          } 
+        }));
+      } catch (err) {
+        console.error('Failed to restore stock:', err);
+      }
+    }
+
     const updatedItems = currentOrder.items.filter(item => item.id !== itemId);
     if (updatedItems.length === 0) {
-      clearOrder();
+      clearOrder(false);
     } else {
       setCurrentOrder({ ...currentOrder, items: updatedItems });
     }
   };
 
-  const updateItemQuantity = (itemId: number, newQuantity: number) => {
+  const updateItemQuantity = async (itemId: number, newQuantity: number) => {
     if (!currentOrder) return;
+    
+    const item = currentOrder.items.find(i => i.id === itemId);
+    if (!item) return;
+
     if (newQuantity <= 0) {
       removeItemFromOrder(itemId);
       return;
     }
-    const updatedItems = currentOrder.items.map(item =>
-      item.id === itemId ? { ...item, quantity: newQuantity } : item
+
+    // If it's a bar item, handle stock difference
+    if (item.source === 'bar' && item.inventory_item_id) {
+      const diff = newQuantity - item.quantity;
+      if (diff > 0) {
+        // Deduct more
+        try {
+          const response = await apiClient.post('/api/quick-pos/deduct-stock-immediate', {
+            inventory_item_id: item.inventory_item_id,
+            quantity: diff
+          });
+          if (!response.ok) {
+            const err = await response.json();
+            alert(`Stock Error: ${err.message || 'Could not deduct stock'}`);
+            return;
+          }
+          const resData = await response.json();
+          window.dispatchEvent(new CustomEvent('inventory-updated', { 
+            detail: { 
+              inventory_item_id: item.inventory_item_id, 
+              new_stock: resData.new_stock 
+            } 
+          }));
+        } catch (err) {
+          console.error('Failed to deduct stock:', err);
+          return;
+        }
+      } else if (diff < 0) {
+        // Restore stock
+        try {
+          const response = await apiClient.post('/api/quick-pos/restore-stock-immediate', {
+            inventory_item_id: item.inventory_item_id,
+            quantity: Math.abs(diff)
+          });
+          const resData = await response.json();
+          window.dispatchEvent(new CustomEvent('inventory-updated', { 
+            detail: { 
+              inventory_item_id: item.inventory_item_id, 
+              new_stock: resData.new_stock 
+            } 
+          }));
+        } catch (err) {
+          console.error('Failed to restore stock:', err);
+        }
+      }
+    }
+
+    const updatedItems = currentOrder.items.map(i =>
+      i.id === itemId ? { ...i, quantity: newQuantity } : i
     );
     setCurrentOrder({ ...currentOrder, items: updatedItems });
   };
 
-  const clearOrder = () => {
+  const clearOrder = async (shouldRestoreStock: boolean = true) => {
+    // Restore stock for all bar items in the cart if requested
+    if (shouldRestoreStock && currentOrder && currentOrder.items.length > 0) {
+      for (const item of currentOrder.items) {
+        if (item.source === 'bar' && item.inventory_item_id && item.is_stock_deducted) {
+          try {
+            const response = await apiClient.post('/api/quick-pos/restore-stock-immediate', {
+              inventory_item_id: item.inventory_item_id,
+              quantity: item.quantity
+            });
+            const resData = await response.json();
+            window.dispatchEvent(new CustomEvent('inventory-updated', { 
+              detail: { 
+                inventory_item_id: item.inventory_item_id, 
+                new_stock: resData.new_stock 
+              } 
+            }));
+          } catch (err) {
+            console.error('Failed to restore stock on clear:', err);
+          }
+        }
+      }
+    }
     setCurrentOrder(null);
   };
 

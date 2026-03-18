@@ -38,6 +38,7 @@ import maintenanceRoutes from './routes/maintenanceRoutes';
 import expensesRoutes from './routes/expensesRoutes';
 import productReturnsRoutes from './routes/productReturnsRoutes';
 import invoiceRoutes from './routes/invoiceRoutes';
+import inventoryRoutes from './routes/inventoryRoutes';
 
 // --- Initialization ---
 dotenv.config();
@@ -147,6 +148,7 @@ app.use('/api/maintenance-requests', maintenanceRoutes);
 app.use('/api/expenses', expensesRoutes);
 app.use('/api/product-returns', productReturnsRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/inventory', inventoryRoutes);
 app.use('/api/quick-pos', receptionistRoutes); // Add alias for quick-pos routes used by frontend
 
 // --- Search Endpoint ---

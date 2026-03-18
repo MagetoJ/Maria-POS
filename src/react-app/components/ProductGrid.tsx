@@ -29,10 +29,30 @@ export default function ProductGrid({ mode = 'kitchen', searchQuery = '' }: Prop
 
   useEffect(() => {
     fetchItems();
+
+    const handleInventoryUpdate = (event: any) => {
+      if (mode === 'bar') {
+        if (event.detail && event.detail.inventory_item_id !== undefined) {
+          // Selective update to avoid full refresh flicker
+          setItems(prevItems => prevItems.map(item => 
+            (item.source === 'bar' && item.id === event.detail.inventory_item_id)
+              ? { ...item, current_stock: event.detail.new_stock }
+              : item
+          ));
+        } else {
+          fetchItems(true); // Fallback to full silent fetch
+        }
+      }
+    };
+
+    window.addEventListener('inventory-updated', handleInventoryUpdate as EventListener);
+    return () => {
+      window.removeEventListener('inventory-updated', handleInventoryUpdate);
+    };
   }, [mode]);
 
-  const fetchItems = async () => {
-    setLoading(true);
+  const fetchItems = async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       if (IS_DEVELOPMENT) {
@@ -80,7 +100,8 @@ export default function ProductGrid({ mode = 'kitchen', searchQuery = '' }: Prop
           ...item,
           source: 'bar',
           price: item.price || item.cost_per_unit || 0,
-          is_available: item.current_stock > 0,
+          is_available: true, // Always show bar items
+          actual_availability: item.current_stock > 0
         }));
       }
 
@@ -108,7 +129,15 @@ export default function ProductGrid({ mode = 'kitchen', searchQuery = '' }: Prop
     return item.is_available && matchesSearch;
   });
 
-  if (loading) {
+  const handleAddItem = async (item: POSItem) => {
+    // If it's a bar item and out of stock, don't add
+    if (item.source === 'bar' && item.current_stock !== undefined && item.current_stock <= 0) {
+      return;
+    }
+    await addItemToOrder(item);
+  };
+
+  if (loading && items.length === 0) {
     return (
       <div className="flex justify-center items-center h-64 py-12">
         <Loader2 className="w-10 h-10 animate-spin text-yellow-500" />
@@ -134,13 +163,15 @@ export default function ProductGrid({ mode = 'kitchen', searchQuery = '' }: Prop
       {filteredItems.map((item) => (
         <div
           key={`${item.source}-${item.id}`}
-          onClick={() => addItemToOrder(item)}
+          onClick={() => handleAddItem(item)}
           className={`
             group relative bg-white rounded-xl shadow-sm border-2 cursor-pointer 
             transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 overflow-hidden
-            ${mode === 'bar'
-              ? 'border-purple-100 hover:border-purple-400'
-              : 'border-orange-100 hover:border-orange-400'
+            ${item.source === 'bar' && item.current_stock !== undefined && item.current_stock <= 0
+              ? 'border-red-100 opacity-70 grayscale-[0.5]'
+              : mode === 'bar'
+                ? 'border-purple-100 hover:border-purple-400'
+                : 'border-orange-100 hover:border-orange-400'
             }
           `}
         >
@@ -157,11 +188,17 @@ export default function ProductGrid({ mode = 'kitchen', searchQuery = '' }: Prop
               </span>
             )}
             
-            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-              <div className="bg-white rounded-full p-2 shadow-sm">
-                <Plus className="w-6 h-6 text-green-600" />
+            {item.source === 'bar' && item.current_stock !== undefined && item.current_stock <= 0 ? (
+              <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
+                <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded">OUT OF STOCK</span>
               </div>
-            </div>
+            ) : (
+              <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                <div className="bg-white rounded-full p-2 shadow-sm">
+                  <Plus className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="p-3">

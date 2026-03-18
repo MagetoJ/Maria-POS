@@ -21,4 +21,10 @@ router.get('/uncleared-receipts/:id', authorizeRoles('admin', 'manager', 'accoun
 router.post('/clear-previous-data', authorizeRoles('admin', 'manager'), adminController.clearPreviousData);
 router.post('/clear-staff/:id', authorizeRoles('admin', 'manager'), adminController.clearStaffData);
 
+// --- Access Requests Routes ---
+router.get('/access-requests', authorizeRoles('admin', 'manager'), adminController.getAccessRequests);
+router.post('/access-requests', authorizeRoles('admin', 'manager', 'waiter', 'cashier'), adminController.createAccessRequest);
+router.put('/access-requests/:id', authorizeRoles('admin', 'manager'), adminController.handleAccessRequest);
+router.get('/access-requests/check', authorizeRoles('admin', 'manager', 'waiter', 'cashier'), adminController.checkRequestStatus);
+
 export default router;

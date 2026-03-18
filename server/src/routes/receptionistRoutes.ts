@@ -16,6 +16,16 @@ router.post('/sell-item',
   receptionistController.sellBarItem
 );
 
+// Immediate stock deduction for bar items (when added to cart)
+router.post('/deduct-stock-immediate',
+  receptionistController.deductStockImmediate
+);
+
+// Immediate stock restoration for bar items (when removed from cart)
+router.post('/restore-stock-immediate',
+  receptionistController.restoreStockImmediate
+);
+
 // All receptionist routes require authentication and specific roles
 router.use(authenticateToken);
 

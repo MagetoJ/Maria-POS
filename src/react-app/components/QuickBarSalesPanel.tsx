@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { usePOS, Product } from '../contexts/POSContext';
+import { useAuth } from '../contexts/AuthContext';
 import { apiClient, IS_DEVELOPMENT } from '../config/api';
-import { Plus, Loader2, AlertCircle, Wine, Bed } from 'lucide-react';
+import { Plus, Loader2, AlertCircle, Wine, Bed, RotateCcw, Shield } from 'lucide-react';
+import AccessRequestModal from './pos/AccessRequestModal';
 
 // Extended product interface to support bar items
 interface BarProduct extends Product {
@@ -27,6 +29,7 @@ interface QuickBarSalesPanelProps {
 
 export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSalesPanelProps) {
   const { addItemToOrder } = usePOS();
+  const { user } = useAuth();
   // Initialize state directly from the cache
   const [barItems, setBarItems] = useState<BarProduct[]>(barItemsCache || []);
   const [filteredItems, setFilteredItems] = useState<BarProduct[]>(barItemsCache || []);
@@ -36,10 +39,37 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
   const [error, setError] = useState<string | null>(null);
   const [rooms, setRooms] = useState<any[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+  const [showAccessModal, setShowAccessModal] = useState(false);
+
+  const handleReturnAccess = () => {
+    if (user?.role === 'waiter') {
+      setShowAccessModal(true);
+    } else {
+      window.dispatchEvent(new CustomEvent('posNavigate', { detail: { view: 'product_returns' } }));
+    }
+  };
 
   useEffect(() => {
     fetchBarItems();
     fetchActiveRooms();
+
+    const handleInventoryUpdate = (event: any) => {
+      if (event.detail && event.detail.inventory_item_id !== undefined) {
+        // Selective update to avoid full refresh flicker
+        setBarItems(prevItems => prevItems.map(item => 
+          (item.id === event.detail.inventory_item_id)
+            ? { ...item, current_stock: event.detail.new_stock }
+            : item
+        ));
+      } else {
+        fetchBarItems(true, true); // Force and silent
+      }
+    };
+
+    window.addEventListener('inventory-updated', handleInventoryUpdate as EventListener);
+    return () => {
+      window.removeEventListener('inventory-updated', handleInventoryUpdate);
+    };
   }, []);
 
   const fetchActiveRooms = async () => {
@@ -55,7 +85,7 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
     }
   };
 
-  const fetchBarItems = async (force = false) => {
+  const fetchBarItems = async (force = false, silent = false) => {
     if (!force && barItemsCache) {
       setBarItems(barItemsCache);
       setFilteredItems(barItemsCache);
@@ -64,7 +94,7 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
       return;
     }
 
-    setIsLoading(true);
+    if (!silent) setIsLoading(true);
     setError(null);
     try {
       if (IS_DEVELOPMENT) {
@@ -83,9 +113,16 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
         console.log('✅ Bar items loaded:', data.length);
       }
 
-      barItemsCache = data;
-      setBarItems(data);
-      setFilteredItems(data);
+      // Ensure all items are marked as available for display but track actual stock
+      const normalizedData = data.map((item: any) => ({
+        ...item,
+        is_available: true, // Always show
+        actual_availability: item.current_stock > 0
+      }));
+
+      barItemsCache = normalizedData;
+      setBarItems(normalizedData);
+      setFilteredItems(normalizedData);
     } catch (err) {
       if (IS_DEVELOPMENT) {
         console.error('❌ Failed to fetch bar items:', err);
@@ -114,7 +151,12 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
     setFilteredItems(filtered);
   }, [searchTerm, barItems]);
 
-  const handleAddItem = (item: BarProduct) => {
+  const handleAddItem = async (item: BarProduct) => {
+    // Check if item is in stock
+    if (item.current_stock !== undefined && item.current_stock <= 0) {
+      return;
+    }
+
     // Convert bar item to Product format for adding to order
     const productToAdd: Product = {
       id: item.id,
@@ -132,7 +174,7 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
     // If a room is selected, we change the order type to room_service
     const orderType = selectedRoomId ? 'room_service' : 'bar_sale';
 
-    addItemToOrder(productToAdd, 1, orderType, selectedRoomId || undefined);
+    await addItemToOrder(productToAdd, 1, orderType, selectedRoomId || undefined);
   };
 
   const hasData = barItems.length > 0;
@@ -151,6 +193,16 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
             disabled={isLoading && !hasData}
           />
         </div>
+
+        {/* Product Returns Button */}
+        <button
+          onClick={handleReturnAccess}
+          className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 transition-colors text-sm font-medium"
+          title="Process Product Returns"
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span className="hidden sm:inline">Returns</span>
+        </button>
 
         {/* Room Selector */}
         <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-1.5 min-w-[200px]">
@@ -218,16 +270,16 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
           )}
 
           {hasData && (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
-                {filteredItems.map((item) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+              {filteredItems.map((item) => (
                   <div
                     key={item.id}
+                    onClick={() => handleAddItem(item)}
                     className={`
                       bg-white rounded-lg shadow-sm border overflow-hidden transition-all group
-                      ${item.is_available
+                      ${item.current_stock !== undefined && item.current_stock > 0
                         ? 'border-green-200 hover:shadow-lg hover:border-yellow-400 cursor-pointer'
-                        : 'border-red-200 opacity-50 cursor-not-allowed'
+                        : 'border-red-200 opacity-70 grayscale-[0.5] cursor-not-allowed'
                       }
                     `}
                   >
@@ -246,9 +298,9 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
                           {item.current_stock} {item.unit}
                         </div>
                       )}
-                      {!item.is_available && (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <span className="text-white font-semibold text-sm text-center">Out of Stock</span>
+                      {item.current_stock !== undefined && item.current_stock <= 0 && (
+                        <div className="absolute inset-0 bg-red-600/20 flex items-center justify-center">
+                          <span className="bg-red-600 text-white font-semibold text-xs px-2 py-1 rounded shadow-md">OUT OF STOCK</span>
                         </div>
                       )}
                     </div>
@@ -259,16 +311,15 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-yellow-600 text-xs">{formatCurrency(item.price)}</span>
                         <button
-                          onClick={() => handleAddItem(item)}
-                          disabled={!item.is_available}
+                          disabled={item.current_stock !== undefined && item.current_stock <= 0}
                           className={`
                             p-1 rounded-md transition-all
-                            ${item.is_available
+                            ${item.current_stock !== undefined && item.current_stock > 0
                               ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 active:scale-95'
                               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                             }
                           `}
-                          title={item.is_available ? 'Add to order' : 'Out of stock'}
+                          title={item.current_stock !== undefined && item.current_stock > 0 ? 'Add to order' : 'Out of stock'}
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -296,6 +347,16 @@ export default function QuickBarSalesPanel({ isQuickAccess = true }: QuickBarSal
           </p>
         </div>
       )}
+
+      <AccessRequestModal
+        isOpen={showAccessModal}
+        onClose={() => setShowAccessModal(false)}
+        requestType="product_returns"
+        onApproved={() => {
+          window.dispatchEvent(new CustomEvent('posNavigate', { detail: { view: 'product_returns' } }));
+          setShowAccessModal(false);
+        }}
+      />
     </div>
   );
 }

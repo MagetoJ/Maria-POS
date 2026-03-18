@@ -299,6 +299,57 @@ const ensureCriticalTables = async () => {
       console.error('⚠️ Error during auto-linking products to inventory:', linkErr);
     }
 
+    // Ensure user_sessions table exists for tracking active users
+    const hasUserSessions = await db.schema.hasTable('user_sessions');
+    if (!hasUserSessions) {
+      await db.schema.createTable('user_sessions', (table) => {
+        table.increments('id').primary();
+        table.integer('user_id').notNullable().references('staff.id').onDelete('CASCADE');
+        table.timestamp('login_time').defaultTo(db.fn.now());
+        table.timestamp('logout_time').nullable();
+        table.text('session_token');
+        table.boolean('is_active').defaultTo(true);
+        table.timestamp('updated_at').defaultTo(db.fn.now());
+      });
+      console.log('🛠️ Created missing user_sessions table');
+    }
+
+    // Ensure audit_logs table exists
+    const hasAuditLogs = await db.schema.hasTable('audit_logs');
+    if (!hasAuditLogs) {
+      await db.schema.createTable('audit_logs', (table) => {
+        table.increments('id').primary();
+        table.text('entity_type').notNullable();
+        table.integer('entity_id');
+        table.text('action').notNullable();
+        table.jsonb('old_values');
+        table.jsonb('new_values');
+        table.integer('changed_by').references('staff.id');
+        table.text('ip_address');
+        table.text('user_agent');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+      });
+      console.log('🛠️ Created missing audit_logs table');
+    }
+
+    // Ensure product_returns table exists
+    const hasProductReturns = await db.schema.hasTable('product_returns');
+    if (!hasProductReturns) {
+      await db.schema.createTable('product_returns', (table) => {
+        table.increments('id').primary();
+        table.integer('order_id').references('orders.id').onDelete('SET NULL');
+        table.integer('product_id').references('products.id').onDelete('SET NULL');
+        table.integer('inventory_id').references('inventory_items.id').onDelete('SET NULL');
+        table.integer('quantity_returned').notNullable();
+        table.text('reason').notNullable();
+        table.decimal('refund_amount', 12, 2);
+        table.text('notes');
+        table.integer('created_by').references('staff.id');
+        table.timestamps(true, true);
+      });
+      console.log('🛠️ Created missing product_returns table');
+    }
+
     // Ensure room_transactions has staff_id and total_amount
     if (await db.schema.hasTable('room_transactions')) {
       await ensureColumn('room_transactions', 'staff_id', (table) => table.integer('staff_id').unsigned().references('id').inTable('staff').onDelete('SET NULL'), '🛠️ Added room_transactions.staff_id column');
@@ -308,6 +359,23 @@ const ensureCriticalTables = async () => {
       await ensureColumn('room_transactions', 'rate_at_time', (table) => table.decimal('rate_at_time', 12, 2).defaultTo(0), '🛠️ Added room_transactions.rate_at_time column');
     }
     
+    // Ensure access_requests table exists for workflow permissions (e.g. returns)
+    const hasAccessRequests = await db.schema.hasTable('access_requests');
+    if (!hasAccessRequests) {
+      await db.schema.createTable('access_requests', (table) => {
+        table.increments('id').primary();
+        table.integer('staff_id').notNullable().references('staff.id').onDelete('CASCADE');
+        table.text('request_type').notNullable(); // e.g. 'product_return'
+        table.text('status').defaultTo('pending'); // 'pending', 'approved', 'denied'
+        table.integer('approved_by').references('staff.id');
+        table.timestamp('approved_at').nullable();
+        table.text('notes');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.timestamp('updated_at').defaultTo(db.fn.now());
+      });
+      console.log('🛠️ Created missing access_requests table');
+    }
+
     // Ensure rooms table has all required columns
     if (await db.schema.hasTable('rooms')) {
       await ensureColumn('rooms', 'floor', (table) => table.integer('floor').defaultTo(1), '🛠️ Added rooms.floor column');

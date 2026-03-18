@@ -14,6 +14,8 @@ import DashboardView from '../components/PerfomanceDashboardView';
 import TableManagementView from '../components/TableManagementView';
 import MyRecentOrders from '../components/MyRecentOrders';
 import WaiterClearing from '../components/admin/WaiterClearing';
+import ProductReturnsManagement from '../components/admin/ProductReturnsManagement';
+import AccessRequestModal from '../components/pos/AccessRequestModal';
 import {
   Building,
   Settings,
@@ -25,6 +27,7 @@ import {
   Search,
   Loader2,
   CheckCircle,
+  RotateCcw,
 } from 'lucide-react';
 
 interface POSProps {
@@ -36,10 +39,11 @@ export default function POS({ onBackToLogin }: POSProps) {
   const toast = useToast();
   const { addItemToOrder, currentOrder, setCurrentOrder } = usePOS();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'sales_dashboard' | 'clearing'>('menu');
+  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'sales_dashboard' | 'clearing' | 'product_returns'>('menu');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   const [isOrderPanelVisible, setOrderPanelVisible] = useState(false);
   const [showRecentOrders, setShowRecentOrders] = useState(false);
+  const [showAccessModal, setShowAccessModal] = useState(false);
 
   const handleRoomSelect = (room: any) => {
     if (orderType === 'room_service') {
@@ -143,12 +147,21 @@ export default function POS({ onBackToLogin }: POSProps) {
       setActiveView('menu');
     };
 
+    const handlePOSNavigate = (event: CustomEvent) => {
+      const { view } = event.detail;
+      if (view) {
+        setActiveView(view);
+      }
+    };
+
     window.addEventListener('posSearchSelect', handlePOSSearchSelect as EventListener);
     window.addEventListener('posAddToOrder', handlePOSAddToOrder as EventListener);
+    window.addEventListener('posNavigate', handlePOSNavigate as EventListener);
     
     return () => {
       window.removeEventListener('posSearchSelect', handlePOSSearchSelect as EventListener);
       window.removeEventListener('posAddToOrder', handlePOSAddToOrder as EventListener);
+      window.removeEventListener('posNavigate', handlePOSNavigate as EventListener);
     };
   }, [navigate, addItemToOrder, orderType]);
 
@@ -167,6 +180,8 @@ export default function POS({ onBackToLogin }: POSProps) {
         return <TableManagementView />;
       case 'sales_dashboard':
         return <SalesDashboard />;
+      case 'product_returns':
+        return <ProductReturnsManagement />;
       // case 'clearing':
       //   return <WaiterClearing />;
       default:
@@ -235,6 +250,20 @@ export default function POS({ onBackToLogin }: POSProps) {
                   <BarChart3 className="w-5 h-5" />
                 </button>
               )}
+
+              <button 
+                onClick={() => {
+                  if (user?.role === 'waiter') {
+                    setShowAccessModal(true);
+                  } else {
+                    setActiveView('product_returns');
+                  }
+                }} 
+                className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'product_returns' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} 
+                title="Product Returns"
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
               
               {/* {['waiter', 'manager', 'admin'].includes(user?.role ?? '') && (
                 <button 
@@ -304,6 +333,16 @@ export default function POS({ onBackToLogin }: POSProps) {
           </div>
         </div>
       )}
+
+      <AccessRequestModal
+        isOpen={showAccessModal}
+        onClose={() => setShowAccessModal(false)}
+        requestType="product_returns"
+        onApproved={() => {
+          setActiveView('product_returns');
+          setShowAccessModal(false);
+        }}
+      />
     </div>
   );
 }
