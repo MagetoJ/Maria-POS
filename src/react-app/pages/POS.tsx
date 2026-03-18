@@ -117,7 +117,7 @@ export default function POS({ onBackToLogin }: POSProps) {
     );
   }
 
-  const canAccessRooms = ['receptionist', 'manager', 'admin', 'waiter', 'cashier'].includes(user?.role ?? '');
+  const canAccessRooms = true; // Rooms should be visible to anyone whether logged in or not
   const canAccessDelivery = user?.role === 'delivery' || user?.role === 'manager' || user?.role === 'admin';
   const canAccessDashboard = ['waiter', 'cashier', 'delivery', 'receptionist', 'manager', 'admin'].includes(user?.role ?? '');
   const canManageTables = user?.role === 'receptionist';
@@ -202,14 +202,13 @@ export default function POS({ onBackToLogin }: POSProps) {
                   Delivery
                 </button>
               )}
-              {canAccessRooms && (
-                <button
-                  onClick={() => { setOrderType('room_service'); setActiveView('rooms'); }}
-                  className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 rounded-lg font-medium transition-colors whitespace-nowrap flex-shrink-0 ${orderType === 'room_service' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-                >
-                  Room Service
-                </button>
-              )}
+              {/* Room Service button - visible to everyone */}
+              <button
+                onClick={() => { setOrderType('room_service'); setActiveView('rooms'); }}
+                className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 rounded-lg font-medium transition-colors whitespace-nowrap flex-shrink-0 ${orderType === 'room_service' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+              >
+                Room Service
+              </button>
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto">
@@ -221,11 +220,11 @@ export default function POS({ onBackToLogin }: POSProps) {
                 <Search className="w-5 h-5" />
               </button>
               
-              {canAccessRooms && (
-                <button onClick={() => setActiveView('rooms')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'rooms' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Rooms">
-                  <Building className="w-5 h-5" />
-                </button>
-              )}
+              {/* Rooms button - visible to everyone */}
+              <button onClick={() => setActiveView('rooms')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'rooms' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Rooms">
+                <Building className="w-5 h-5" />
+              </button>
+
               {canManageTables && (
                 <button onClick={() => setActiveView('manage_tables')} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'manage_tables' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} title="Manage Tables">
                   <LayoutGrid className="w-5 h-5" />
