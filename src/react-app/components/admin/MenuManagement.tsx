@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { UtensilsCrossed, Plus, Edit3, Trash2, Search, Upload, Download } from 'lucide-react';
+import { UtensilsCrossed, Plus, Edit3, Trash2, Search, Upload, Download, Package } from 'lucide-react';
 import { apiClient } from '../../config/api';
 
 // Define interfaces to match backend schema
@@ -10,6 +10,7 @@ interface Product {
   description: string;
   price: number;
   cost?: number;
+  inventory_item_id?: number | null;
   is_available: boolean;
   is_active: boolean;
   image_url?: string;
@@ -54,6 +55,7 @@ export default function MenuManagement() {
     description: '',
     price: 0,
     cost: 0,
+    inventory_item_id: null as number | null,
     preparation_time: 0,
     image_url: ''
   });
@@ -68,9 +70,23 @@ export default function MenuManagement() {
     display_order: 0
   });
 
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+
   const getToken = () => localStorage.getItem('pos_token');
 
   // --- Data Fetching ---
+  const fetchInventoryItems = async () => {
+    try {
+      const response = await apiClient.get('/api/inventory');
+      if (response.ok) {
+        const data = await response.json();
+        setInventoryItems(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch inventory items:", error);
+    }
+  };
+
   const fetchProducts = async () => {
     try {
       const response = await apiClient.get('/api/products');
@@ -98,6 +114,7 @@ export default function MenuManagement() {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
+    fetchInventoryItems();
   }, []);
 
   // Debounce search term
@@ -190,6 +207,7 @@ export default function MenuManagement() {
         description: productForm.description.trim(),
         price: parseFloat(String(productForm.price)),
         cost: parseFloat(String(productForm.cost)) || 0,
+        inventory_item_id: productForm.inventory_item_id || null,
         preparation_time: parseInt(String(productForm.preparation_time)) || 0,
         image_url: productForm.image_url || '',
         is_available: true,
@@ -268,6 +286,7 @@ export default function MenuManagement() {
       description: product.description || '',
       price: product.price,
       cost: product.cost || 0,
+      inventory_item_id: product.inventory_item_id || null,
       preparation_time: product.preparation_time || 0,
       image_url: product.image_url || ''
     });
@@ -303,6 +322,7 @@ export default function MenuManagement() {
         description: (productForm.description || '').trim(),
         price: parseFloat(String(productForm.price)),
         cost: parseFloat(String(productForm.cost)) || 0,
+        inventory_item_id: productForm.inventory_item_id || null,
         preparation_time: parseInt(String(productForm.preparation_time)) || 0,
         image_url: imageUrl || '',
       };
@@ -417,6 +437,7 @@ export default function MenuManagement() {
       description: '',
       price: 0,
       cost: 0,
+      inventory_item_id: null,
       preparation_time: 0,
       image_url: ''
     });
@@ -847,6 +868,12 @@ export default function MenuManagement() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {getCategoryName(product.category_id)}
+                          {product.inventory_item_id && (
+                            <div className="text-[10px] text-blue-600 font-bold flex items-center gap-1 mt-1">
+                              <Package className="w-3 h-3" />
+                              Linked to Inv
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
@@ -1035,6 +1062,25 @@ export default function MenuManagement() {
                       step="0.01"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Inventory Link (Bar Items)</label>
+                  <select
+                    value={productForm.inventory_item_id || ''}
+                    onChange={(e) => setProductForm(prev => ({ ...prev, inventory_item_id: e.target.value ? parseInt(e.target.value) : null }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                  >
+                    <option value="">Not linked to inventory</option>
+                    {inventoryItems.map(item => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.inventory_type}) - Stock: {item.current_stock}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Linking to a bar inventory item enables automatic stock deduction on sales.
+                  </p>
                 </div>
 
                 <div>

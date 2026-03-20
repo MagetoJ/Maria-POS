@@ -6,7 +6,8 @@ import * as XLSX from 'xlsx';
 export const getPublicProducts = async (req: Request, res: Response) => {
   try {
     const products = await db('products')
-      .leftJoin('categories', 'products.category_id', 'categories.id') // Join to get category name
+      .leftJoin('categories', 'products.category_id', 'categories.id')
+      .leftJoin('inventory_items', 'products.inventory_item_id', 'inventory_items.id')
       .select(
         'products.id',
         'products.name',
@@ -14,31 +15,63 @@ export const getPublicProducts = async (req: Request, res: Response) => {
         'products.price',
         'products.image_url',
         'products.category_id',
-        'categories.name as category_name' // Select category name
+        'categories.name as category_name',
+        'inventory_items.inventory_type',
+        'inventory_items.current_stock',
+        'inventory_items.id as inventory_id'
       )
-      .where('products.is_active', true) // Only active products
-      .where('products.is_available', true) // Only available products
-      .orderBy('categories.display_order', 'asc') // Order by category display order
-      .orderBy('products.name', 'asc'); // Then by product name
+      .where('products.is_active', true)
+      .where('products.is_available', true)
+      .orderBy('categories.display_order', 'asc')
+      .orderBy('products.name', 'asc');
 
-    // Group products by category for easier use on the frontend
-    const groupedProducts = products.reduce((acc, product) => {
+    // Fetch bar items from inventory that aren't already in products
+    const barInventoryItems = await db('inventory_items')
+      .where('inventory_type', 'bar')
+      .where('is_active', true)
+      .whereNotIn('id', db('products').whereNotNull('inventory_item_id').select('inventory_item_id'));
+
+    const barItemsAsProducts = barInventoryItems.map(item => ({
+      id: `inv-${item.id}`,
+      name: item.name,
+      description: `Stock: ${item.current_stock} ${item.unit}`,
+      price: (item.buying_price || item.cost_per_unit || 0) * 1.5, // 50% markup if no product price
+      category_id: 3, // Beverages/Bar category
+      category_name: 'Bar',
+      inventory_type: 'bar',
+      current_stock: item.current_stock,
+      inventory_id: item.id
+    }));
+
+    // Group products by category
+    const allProducts = [...products, ...barItemsAsProducts];
+    const groupedProducts = allProducts.reduce((acc, product) => {
       const categoryName = product.category_name || 'Uncategorized';
       if (!acc[categoryName]) {
         acc[categoryName] = [];
       }
-      acc[categoryName].push({
+      
+      const itemData: any = {
         id: product.id,
         name: product.name,
         description: product.description,
         price: product.price,
         image_url: product.image_url,
-      });
+      };
+
+      // Specifically highlight bar items or items with inventory tracking
+      const isBarCategory = product.category_name && product.category_name.toLowerCase().includes('bar');
+      if (product.inventory_type === 'bar' || product.category_id === 3 || isBarCategory) {
+        itemData.is_bar_item = true;
+        itemData.in_stock = product.current_stock > 0 || product.current_stock === null;
+        itemData.stock_level = product.current_stock;
+      }
+
+      acc[categoryName].push(itemData);
       return acc;
     }, {} as Record<string, any[]>);
 
-
-    res.json(groupedProducts); // Return the grouped structure
+    res.json(groupedProducts);
   } catch (err) {
     console.error('Error fetching public products:', err);
     res.status(500).json({ message: 'Error fetching public products' });

@@ -344,10 +344,18 @@ const ensureCriticalTables = async () => {
         table.text('reason').notNullable();
         table.decimal('refund_amount', 12, 2);
         table.text('notes');
+        table.text('status').defaultTo('pending'); // 'pending', 'approved', 'denied'
+        table.integer('approved_by').references('staff.id');
+        table.timestamp('approved_at').nullable();
         table.integer('created_by').references('staff.id');
         table.timestamps(true, true);
       });
       console.log('🛠️ Created missing product_returns table');
+    } else {
+      // Ensure columns exist if table already exists
+      await ensureColumn('product_returns', 'status', (table) => table.text('status').defaultTo('pending'), '🛠️ Added product_returns.status column');
+      await ensureColumn('product_returns', 'approved_by', (table) => table.integer('approved_by').references('staff.id'), '🛠️ Added product_returns.approved_by column');
+      await ensureColumn('product_returns', 'approved_at', (table) => table.timestamp('approved_at').nullable(), '🛠️ Added product_returns.approved_at column');
     }
 
     // Ensure room_transactions has staff_id and total_amount

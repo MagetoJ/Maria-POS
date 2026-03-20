@@ -18,6 +18,7 @@ import InventoryManagement from '../components/admin/InventoryManagement';
 import ProductReturnsManagement from '../components/admin/ProductReturnsManagement';
 import AccessRequestsManagement from '../components/admin/AccessRequestsManagement';
 import InvoicesManagement from '../components/admin/InvoicesManagement';
+import QRMenuManagement from '../components/admin/QRMenuManagement';
 import InvoiceModal from '../components/admin/InvoiceModal';
 import PerfomanceDashboard from '../components/PerfomanceDashboardView';
 import PersonalSalesReport from '../components/PersonalSalesReport';
@@ -43,6 +44,7 @@ import {
   RotateCcw,
   CheckCircle,
   Shield,
+  QrCode,
 } from 'lucide-react';
 
 // --- Helper Functions ---
@@ -86,6 +88,7 @@ interface OverviewStats {
     todaysRevenue: number;
     ordersToday: number;
     activeStaff: number;
+    lowStockItems: number;
     recentOrders: {
         id: number;
         order_number: string;
@@ -260,6 +263,7 @@ export default function AdminDashboard() {
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'access-requests', label: 'Access Requests', icon: Shield, roles: ['admin', 'manager'] },
     { id: 'menu', label: 'Menu Management', icon: Utensils, roles: ['admin', 'manager'] },
+    { id: 'qr-menu', label: 'QR Menu', icon: QrCode, roles: ['admin', 'manager'] },
     { id: 'inventory', label: 'Inventory', icon: Package, roles: ['admin', 'manager'] },
     { id: 'product-returns', label: 'Product Returns', icon: RotateCcw, roles: ['admin', 'manager'] },
     { id: 'rooms', label: 'Room Management', icon: Bed, roles: ['admin', 'manager'] },
@@ -343,6 +347,23 @@ export default function AdminDashboard() {
                 </div>
             </div>
             </div>
+
+            {user?.role !== 'accountant' && (
+              <button 
+                onClick={() => setActiveTab('qr-menu')}
+                className="bg-white rounded-lg p-3 lg:p-6 border border-yellow-200 hover:bg-yellow-50 transition-colors text-left group"
+              >
+                <div className="flex items-center">
+                    <div className="p-1.5 lg:p-2 bg-yellow-100 rounded-lg group-hover:bg-yellow-200 transition-colors">
+                    <QrCode className="w-4 h-4 lg:w-6 lg:h-6 text-yellow-600" />
+                    </div>
+                    <div className="ml-2 lg:ml-4 min-w-0">
+                    <p className="text-xs lg:text-sm font-medium text-gray-600 truncate">Online Menu</p>
+                    <p className="text-sm lg:text-lg font-bold text-yellow-700 truncate">Manage QR Code</p>
+                    </div>
+                </div>
+              </button>
+            )}
         </div>
 
         {/* Charts Section - Revenue Over Time and Inventory Summary Placeholder */}
@@ -374,11 +395,27 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Inventory Summary Placeholder */}
+            {/* Inventory Summary */}
             <div className="bg-white rounded-lg p-4 lg:p-6 border border-gray-200">
               <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-4">Inventory Summary</h3>
-              <div className="flex items-center justify-center h-64 lg:h-80 text-gray-400 italic">
-                Low stock alerts visualization coming soon
+              <div className="flex flex-col items-center justify-center h-64 lg:h-80 text-center">
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${overviewData.lowStockItems > 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                  <Package className="w-10 h-10" />
+                </div>
+                <p className={`text-2xl font-bold ${overviewData.lowStockItems > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {overviewData.lowStockItems} Low Stock Items
+                </p>
+                <p className="text-gray-500 mt-2">
+                  {overviewData.lowStockItems > 0 
+                    ? 'Action required: Some items are below minimum levels.' 
+                    : 'All inventory levels are healthy.'}
+                </p>
+                <button 
+                  onClick={() => setActiveTab('inventory')}
+                  className="mt-6 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+                >
+                  View Inventory
+                </button>
               </div>
             </div>
         </div>
@@ -583,6 +620,8 @@ export default function AdminDashboard() {
         return <AccessRequestsManagement />;
       case 'menu':
         return <MenuManagement />;
+      case 'qr-menu':
+        return <QRMenuManagement />;
       case 'inventory':
         return <InventoryManagement />;
       case 'product-returns':

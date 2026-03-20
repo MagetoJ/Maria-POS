@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../../config/api';
-import { Plus, Trash2, Edit2, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit2, Loader2, AlertCircle, Check, X } from 'lucide-react';
 
 interface InventoryItem {
   id: number;
@@ -23,6 +23,7 @@ interface ProductReturn {
   reason: string;
   refund_amount: number;
   notes?: string;
+  status: 'pending' | 'approved' | 'denied';
   created_by?: number;
   created_by_name?: string;
   created_at: string;
@@ -151,6 +152,26 @@ export default function ProductReturnsManagement() {
       if (!response.ok) {
         throw new Error('Failed to delete return');
       }
+      await fetchData();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const handleApprove = async (id: number) => {
+    try {
+      const response = await apiClient.put(`/api/product-returns/${id}/status`, { status: 'approved' });
+      if (!response.ok) throw new Error('Failed to approve');
+      await fetchData();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const handleDeny = async (id: number) => {
+    try {
+      const response = await apiClient.put(`/api/product-returns/${id}/status`, { status: 'denied' });
+      if (!response.ok) throw new Error('Failed to deny');
       await fetchData();
     } catch (err) {
       setError((err as Error).message);
@@ -428,6 +449,8 @@ export default function ProductReturnsManagement() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Qty</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Unit</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reason</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Created By</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Refund</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Date</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">Actions</th>
@@ -451,6 +474,18 @@ export default function ProductReturnsManagement() {
                         {ret.reason.replace(/_/g, ' ')}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-sm">
+                      <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                        ret.status === 'approved' ? 'bg-green-100 text-green-800' :
+                        ret.status === 'denied' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {ret.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {ret.created_by_name || 'System'}
+                    </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
                       KES {ret.refund_amount.toLocaleString('en-KE', { maximumFractionDigits: 0 })}
                     </td>
@@ -459,6 +494,24 @@ export default function ProductReturnsManagement() {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center gap-2">
+                        {ret.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleApprove(ret.id)}
+                              className="p-2 hover:bg-green-50 rounded-lg text-green-600 transition-colors"
+                              title="Approve"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeny(ret.id)}
+                              className="p-2 hover:bg-red-50 rounded-lg text-red-600 transition-colors"
+                              title="Deny"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                         <button
                           onClick={() => handleEdit(ret)}
                           className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"

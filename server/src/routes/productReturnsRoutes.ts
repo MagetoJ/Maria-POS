@@ -15,7 +15,7 @@ router.get('/summary',
 
 // Get inventory items for returns dropdown
 router.get('/data/inventory', 
-  authorizeRoles('admin', 'manager', 'cashier'),
+  authorizeRoles('admin', 'manager', 'cashier', 'waiter'),
   productReturnsController.getInventoryForReturns
 );
 
@@ -37,10 +37,22 @@ router.get('/:id',
   productReturnsController.getProductReturnById
 );
 
-// Create new product return - admin and manager only
+// Create new product return - available to all staff (waiters' returns will be pending)
 router.post('/', 
-  authorizeRoles('admin', 'manager'),
+  authorizeRoles('admin', 'manager', 'waiter', 'cashier'),
   productReturnsController.createProductReturn
+);
+
+// Approve product return - admin and manager only
+router.post('/:id/approve', 
+  authorizeRoles('admin', 'manager'),
+  productReturnsController.approveProductReturn
+);
+
+// Deny product return - admin and manager only
+router.post('/:id/deny', 
+  authorizeRoles('admin', 'manager'),
+  productReturnsController.denyProductReturn
 );
 
 // Update product return - admin and manager only

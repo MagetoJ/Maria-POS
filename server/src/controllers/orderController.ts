@@ -241,9 +241,24 @@ export const createOrder = async (req: Request, res: Response) => {
       }
     });
 
-    // Broadcast to kitchen
+    // Broadcast to kitchen with full order data
     if (webSocketService) {
-      webSocketService.broadcastToKitchens({ type: 'new_order' });
+      try {
+        const fullOrder = await db('orders').where({ id: orderId }).first();
+        if (fullOrder) {
+          fullOrder.items = await db('order_items')
+            .join('products', 'order_items.product_id', 'products.id')
+            .where('order_id', orderId)
+            .select('order_items.quantity', 'products.name as product_name', 'order_items.notes');
+          
+          webSocketService.broadcastToKitchens({ 
+            type: 'new_order',
+            order: fullOrder
+          });
+        }
+      } catch (wsErr) {
+        console.error('WebSocket broadcast error:', wsErr);
+      }
     }
 
     res.status(201).json({

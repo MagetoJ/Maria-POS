@@ -14,7 +14,6 @@ import DashboardView from '../components/PerfomanceDashboardView';
 import TableManagementView from '../components/TableManagementView';
 import MyRecentOrders from '../components/MyRecentOrders';
 import WaiterClearing from '../components/admin/WaiterClearing';
-import ProductReturnsManagement from '../components/admin/ProductReturnsManagement';
 import AccessRequestModal from '../components/pos/AccessRequestModal';
 import {
   Building,
@@ -39,7 +38,7 @@ export default function POS({ onBackToLogin }: POSProps) {
   const toast = useToast();
   const { addItemToOrder, currentOrder, setCurrentOrder } = usePOS();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'sales_dashboard' | 'clearing' | 'product_returns'>('menu');
+  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'sales_dashboard' | 'clearing'>('menu');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   const [isOrderPanelVisible, setOrderPanelVisible] = useState(false);
   const [showRecentOrders, setShowRecentOrders] = useState(false);
@@ -182,6 +181,8 @@ export default function POS({ onBackToLogin }: POSProps) {
         return <SalesDashboard />;
       case 'product_returns':
         return <ProductReturnsManagement />;
+      case 'waiter_returns':
+        return <WaiterProductReturn />;
       // case 'clearing':
       //   return <WaiterClearing />;
       default:
@@ -255,11 +256,11 @@ export default function POS({ onBackToLogin }: POSProps) {
                 onClick={() => {
                   if (user?.role === 'waiter') {
                     setShowAccessModal(true);
-                  } else {
+                  } else if (user?.role === 'admin' || user?.role === 'manager') {
                     setActiveView('product_returns');
                   }
                 }} 
-                className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'product_returns' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} 
+                className={`p-2 rounded-lg transition-colors flex-shrink-0 ${['product_returns', 'waiter_returns'].includes(activeView) ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} 
                 title="Product Returns"
               >
                 <RotateCcw className="w-5 h-5" />
@@ -339,7 +340,7 @@ export default function POS({ onBackToLogin }: POSProps) {
         onClose={() => setShowAccessModal(false)}
         requestType="product_returns"
         onApproved={() => {
-          setActiveView('product_returns');
+          setActiveView('waiter_returns');
           setShowAccessModal(false);
         }}
       />

@@ -13,6 +13,8 @@ interface Order {
   order_number: string;
   created_at: string;
   status: string;
+  table_number?: string;
+  special_instructions?: string;
   items: OrderItem[];
 }
 
@@ -125,7 +127,14 @@ export default function KitchenOrderView() {
           >
             <div className="flex justify-between items-start mb-3">
               <div>
-                <h3 className="font-bold text-base sm:text-lg text-gray-900">{order.order_number}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-base sm:text-lg text-gray-900">{order.order_number}</h3>
+                  {order.table_number && (
+                    <span className="bg-yellow-100 text-yellow-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-yellow-200 uppercase tracking-tighter">
+                      TABLE: {order.table_number}
+                    </span>
+                  )}
+                </div>
                 <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mt-1 ${
                   order.status === 'pending' 
                     ? 'bg-blue-100 text-blue-800' 
@@ -142,6 +151,18 @@ export default function KitchenOrderView() {
                 {timeAgo(order.created_at)}
               </span>
             </div>
+
+            {order.special_instructions && (
+              <div className="mb-4 bg-red-50 border-2 border-dashed border-red-200 rounded-xl p-3 animate-pulse">
+                <p className="text-[10px] font-black text-red-700 uppercase tracking-widest mb-1 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-red-600 rounded-full"></span>
+                  Kitchen Note:
+                </p>
+                <p className="text-xs text-red-600 font-bold italic leading-tight">
+                  "{order.special_instructions}"
+                </p>
+              </div>
+            )}
 
             <div className="flex-1 space-y-2 mb-4">
               {order.items.map((item, index) => (

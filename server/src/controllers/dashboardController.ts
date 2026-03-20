@@ -34,14 +34,17 @@ export const getOverviewStats = async (req: Request, res: Response) => {
       .orderBy('created_at', 'desc')
       .limit(5)
       .select('id', 'order_number', 'order_type', 'table_id', 'room_id', 'total_amount', 'status', 'created_at')
-      .then(orders => orders.map(order => ({
-        ...order,
-        location: order.order_type === 'table' 
-          ? `Table ${order.table_id}` 
-          : order.order_type === 'room' 
-            ? `Room ${order.room_id}` 
-            : order.order_type
-      })));
+      .then(orders => orders.map(order => {
+        let location = order.order_type;
+        if (order.order_type === 'table') location = `Table ${order.table_id}`;
+        else if (order.order_type === 'room' || order.order_type === 'room_service') location = `Room ${order.room_id || ''}`;
+        else if (order.order_type === 'self_service') location = 'Online QR Order';
+        
+        return {
+          ...order,
+          location
+        };
+      }));
     
     res.json({
       todaysRevenue,

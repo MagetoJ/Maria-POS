@@ -57,7 +57,9 @@ export const getProductReturnById = async (req: Request, res: Response) => {
 export const createProductReturn = async (req: Request, res: Response) => {
   try {
     const { order_id, product_id, inventory_id, quantity_returned, reason, refund_amount, notes } = req.body;
-    const userId = (req as any).user?.id;
+    const user = (req as any).user;
+    const userId = user?.id;
+    const isAdmin = user?.role === 'admin' || user?.role === 'manager';
 
     // Require either product_id or inventory_id
     if (!quantity_returned || !reason) {
@@ -99,6 +101,9 @@ export const createProductReturn = async (req: Request, res: Response) => {
       finalRefundAmount = product.price * quantity_returned;
     }
 
+    // Determine initial status - Admins/Managers are auto-approved
+    const initialStatus = isAdmin ? 'approved' : 'pending';
+
     const id = await db('product_returns').insert({
       order_id: order_id || null,
       product_id: product_id || null,
@@ -108,10 +113,15 @@ export const createProductReturn = async (req: Request, res: Response) => {
       refund_amount: finalRefundAmount ? parseFloat(finalRefundAmount) : null,
       notes: notes || null,
       created_by: userId,
+      status: initialStatus,
+      approved_by: isAdmin ? userId : null,
+      approved_at: isAdmin ? new Date() : null,
     });
 
-    // Update inventory to add back the returned stock
-    if (inventory_id) {
+    const returnId = id[0];
+
+    // ONLY update inventory if approved immediately (Admin/Manager)
+    if (initialStatus === 'approved' && inventory_id) {
       await db('inventory_items')
         .where('id', inventory_id)
         .increment('current_stock', parseInt(quantity_returned));
@@ -120,7 +130,7 @@ export const createProductReturn = async (req: Request, res: Response) => {
     // Log to audit table
     await logAudit(
       'product_return',
-      id[0],
+      returnId,
       'create',
       null,
       {
@@ -130,16 +140,100 @@ export const createProductReturn = async (req: Request, res: Response) => {
         quantity_returned,
         reason,
         refund_amount: finalRefundAmount,
+        status: initialStatus
       },
       userId
     );
 
     res.status(201).json({
-      id: id[0],
-      message: 'Product return created successfully and inventory updated',
+      id: returnId,
+      status: initialStatus,
+      message: initialStatus === 'approved' 
+        ? 'Product return created and processed successfully' 
+        : 'Product return request submitted for Admin approval',
     });
   } catch (error) {
     console.error('Create product return error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Approve product return (Admin/Manager only)
+export const approveProductReturn = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const adminId = (req as any).user?.id;
+
+    const productReturn = await db('product_returns').where('id', id).first();
+    if (!productReturn) {
+      return res.status(404).json({ message: 'Product return not found' });
+    }
+
+    if (productReturn.status !== 'pending') {
+      return res.status(400).json({ message: `Return is already ${productReturn.status}` });
+    }
+
+    await db.transaction(async (trx) => {
+      // 1. Update return status
+      await trx('product_returns')
+        .where('id', id)
+        .update({
+          status: 'approved',
+          approved_by: adminId,
+          approved_at: new Date(),
+          updated_at: new Date()
+        });
+
+      // 2. Update inventory if applicable
+      if (productReturn.inventory_id) {
+        await trx('inventory_items')
+          .where('id', productReturn.inventory_id)
+          .increment('current_stock', productReturn.quantity_returned);
+      }
+    });
+
+    // Log to audit table
+    await logAudit('product_return', parseInt(id), 'approve', productReturn, { status: 'approved' }, adminId);
+
+    res.json({ message: 'Product return approved and inventory updated' });
+  } catch (error) {
+    console.error('Approve product return error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Deny product return (Admin/Manager only)
+export const denyProductReturn = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const adminId = (req as any).user?.id;
+    const { notes } = req.body;
+
+    const productReturn = await db('product_returns').where('id', id).first();
+    if (!productReturn) {
+      return res.status(404).json({ message: 'Product return not found' });
+    }
+
+    if (productReturn.status !== 'pending') {
+      return res.status(400).json({ message: `Return is already ${productReturn.status}` });
+    }
+
+    await db('product_returns')
+      .where('id', id)
+      .update({
+        status: 'denied',
+        approved_by: adminId,
+        approved_at: new Date(),
+        notes: notes ? `${productReturn.notes || ''}\nDenial reason: ${notes}` : productReturn.notes,
+        updated_at: new Date()
+      });
+
+    // Log to audit table
+    await logAudit('product_return', parseInt(id), 'deny', productReturn, { status: 'denied' }, adminId);
+
+    res.json({ message: 'Product return denied' });
+  } catch (error) {
+    console.error('Deny product return error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };

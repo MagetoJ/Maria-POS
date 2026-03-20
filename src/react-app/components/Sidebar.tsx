@@ -6,7 +6,7 @@ import { Menu, X } from 'lucide-react';
 interface NavItem {
   id: string;
   label: string;
-  icon: ElementType;
+  icon: any;
 }
 
 interface SidebarProps {
