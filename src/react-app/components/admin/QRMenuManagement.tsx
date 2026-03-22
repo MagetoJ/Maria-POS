@@ -3,24 +3,27 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Copy, Download, ExternalLink, QrCode, ArrowLeft } from 'lucide-react';
 import { useToast } from '../Toast';
 
-export default function QRMenuManagement() {
+export default function QRMenuManagement({ onBack }: { onBack?: () => void }) {
   const toast = useToast();
   // Get the base URL from the current window location
   const [baseUrl, setBaseUrl] = useState(() => {
     try {
-      return window.location.origin;
+      // Fallback to a common development URL if origin is not available
+      return window.location.origin || 'http://localhost:5173';
     } catch (e) {
-      return '';
+      return 'http://localhost:5173';
     }
   });
-  const menuUrl = baseUrl ? `${baseUrl}/qr/menu` : 'Link will appear when base URL is detected';
+  
+  // Ensure menuUrl is always a valid-ish URL for the QR code
+  const menuUrl = `${baseUrl}/qr/menu`;
 
   useEffect(() => {
     const origin = window.location.origin;
-    if (origin) {
+    if (origin && origin !== baseUrl) {
       setBaseUrl(origin);
     }
-  }, []);
+  }, [baseUrl]);
 
   const copyToClipboard = () => {
     try {
@@ -71,7 +74,7 @@ export default function QRMenuManagement() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header with Back button for better navigation context */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-yellow-100 rounded-lg text-yellow-600">
             <QrCode className="w-6 h-6" />
@@ -81,6 +84,16 @@ export default function QRMenuManagement() {
             <p className="text-sm text-gray-500">Manage digital menu access for your customers</p>
           </div>
         </div>
+        
+        {onBack && (
+          <button 
+            onClick={onBack}
+            className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-yellow-600 bg-white px-4 py-2 rounded-lg border border-gray-200 transition-all active:scale-95"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Overview
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">

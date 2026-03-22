@@ -31,17 +31,23 @@ export const getPublicProducts = async (req: Request, res: Response) => {
       .where('is_active', true)
       .whereNotIn('id', db('products').whereNotNull('inventory_item_id').select('inventory_item_id'));
 
-    const barItemsAsProducts = barInventoryItems.map(item => ({
-      id: `inv-${item.id}`,
-      name: item.name,
-      description: `Stock: ${item.current_stock} ${item.unit}`,
-      price: (item.buying_price || item.cost_per_unit || 0) * 1.5, // 50% markup if no product price
-      category_id: 3, // Beverages/Bar category
-      category_name: 'Bar',
-      inventory_type: 'bar',
-      current_stock: item.current_stock,
-      inventory_id: item.id
-    }));
+    const barItemsAsProducts = barInventoryItems.map(item => {
+      const buyingPrice = parseFloat(item.buying_price || '0');
+      const costPerUnit = parseFloat(item.cost_per_unit || '0');
+      const basePrice = buyingPrice || costPerUnit || 0;
+
+      return {
+        id: `inv-${item.id}`,
+        name: item.name,
+        description: `Stock: ${item.current_stock} ${item.unit}`,
+        price: basePrice * 1.5, // 50% markup if no product price
+        category_id: 3, // Beverages/Bar category
+        category_name: 'Bar',
+        inventory_type: 'bar',
+        current_stock: item.current_stock,
+        inventory_id: item.id
+      };
+    });
 
     // Group products by category
     const allProducts = [...products, ...barItemsAsProducts];

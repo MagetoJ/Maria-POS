@@ -450,6 +450,64 @@ export const markOrderAsCompleted = async (req: Request, res: Response) => {
   }
 };
 
+// NEW: Complete self-service order by waiter
+export const completeSelfServiceOrder = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { transaction_code, payment_method, waiter_id } = req.body;
+
+    if (!waiter_id) {
+      return res.status(400).json({ message: 'Waiter ID is required' });
+    }
+
+    // Start transaction
+    const result = await db.transaction(async trx => {
+      // 1. Update order
+      const [order] = await trx('orders')
+        .where({ id })
+        .update({
+          status: 'completed',
+          payment_status: 'paid',
+          completed_by: waiter_id,
+          updated_at: new Date()
+        })
+        .returning('*');
+
+      if (!order) {
+        throw new Error('Order not found');
+      }
+
+      // 2. Update payment
+      await trx('payments')
+        .where({ order_id: id })
+        .update({
+          status: 'completed',
+          payment_method: payment_method || order.payment_method,
+          transaction_code: transaction_code || null,
+          updated_at: new Date()
+        });
+
+      return order;
+    });
+
+    // 3. Broadcast
+    if (webSocketService) {
+      webSocketService.broadcastToKitchens({
+        type: 'order_status_update',
+        orderId: id,
+        status: 'completed',
+        order: result
+      });
+    }
+
+    res.json({ message: 'Order completed and payment verified', order: result });
+
+  } catch (err) {
+    console.error('Error completing self-service order:', err);
+    res.status(500).json({ message: (err as Error).message || 'Error completing order' });
+  }
+};
+
 // Get staff member's recent orders (for My Recent Orders feature)
 export const getStaffRecentOrders = async (req: Request, res: Response) => {
   try {
@@ -499,11 +557,15 @@ export const getStaffRecentOrders = async (req: Request, res: Response) => {
     }, {});
 
     // Attach to orders
-    const ordersWithDetails = orders.map(order => ({
-      ...order,
-      items: itemsByOrder[order.id] || [],
-      payment_method: paymentsByOrder[order.id]?.payment_method || order.payment_method || 'cash'
-    }));
+    const ordersWithDetails = orders.map(order => {
+      const payment = paymentsByOrder[order.id];
+      return {
+        ...order,
+        items: itemsByOrder[order.id] || [],
+        payment_method: payment?.payment_method || order.payment_method || 'cash',
+        transaction_code: payment?.transaction_code || null
+      };
+    });
 
     res.json(ordersWithDetails);
 
@@ -525,8 +587,13 @@ export const getAllRecentOrders = async (req: Request, res: Response) => {
     const { limit = 20, offset = 0 } = req.query;
 
     const orders = await db('orders')
-      .select('orders.*', 'staff.name as staff_name')
+      .select(
+        'orders.*', 
+        'staff.name as staff_name',
+        'completed_staff.name as completed_by_name'
+      )
       .leftJoin('staff', 'orders.staff_id', 'staff.id')
+      .leftJoin('staff as completed_staff', 'orders.completed_by', 'completed_staff.id')
       .orderBy('orders.created_at', 'desc')
       .limit(parseInt(limit as string))
       .offset(parseInt(offset as string));
@@ -563,11 +630,15 @@ export const getAllRecentOrders = async (req: Request, res: Response) => {
     }, {});
 
     // Attach to orders
-    const ordersWithDetails = orders.map(order => ({
-      ...order,
-      items: itemsByOrder[order.id] || [],
-      payment_method: paymentsByOrder[order.id]?.payment_method || order.payment_method || 'cash'
-    }));
+    const ordersWithDetails = orders.map(order => {
+      const payment = paymentsByOrder[order.id];
+      return {
+        ...order,
+        items: itemsByOrder[order.id] || [],
+        payment_method: payment?.payment_method || order.payment_method || 'cash',
+        transaction_code: payment?.transaction_code || null
+      };
+    });
 
     res.json(ordersWithDetails);
 

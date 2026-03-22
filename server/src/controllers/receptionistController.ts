@@ -218,7 +218,7 @@ export const getBarItemsAsProducts = async (req: Request, res: Response) => {
       category_id: 0, // Bar items are in category 0 (special category for bar)
       name: item.name,
       description: `${item.current_stock} ${item.unit} in stock`,
-      price: item.cost_per_unit,
+      price: item.selling_price || item.cost_per_unit || 0,
       is_available: item.current_stock > 0,
       preparation_time: 0,
       inventory_type: 'bar', // Mark as bar item for inventory tracking

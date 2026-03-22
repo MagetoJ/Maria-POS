@@ -15,6 +15,9 @@ import TableManagementView from '../components/TableManagementView';
 import MyRecentOrders from '../components/MyRecentOrders';
 import WaiterClearing from '../components/admin/WaiterClearing';
 import AccessRequestModal from '../components/pos/AccessRequestModal';
+import WaiterQRValidation from '../components/pos/WaiterQRValidation';
+import ProductReturnsManagement from '../components/admin/ProductReturnsManagement';
+import WaiterProductReturn from '../components/pos/WaiterProductReturn';
 import {
   Building,
   Settings,
@@ -27,6 +30,7 @@ import {
   Loader2,
   CheckCircle,
   RotateCcw,
+  Smartphone,
 } from 'lucide-react';
 
 interface POSProps {
@@ -38,11 +42,50 @@ export default function POS({ onBackToLogin }: POSProps) {
   const toast = useToast();
   const { addItemToOrder, currentOrder, setCurrentOrder } = usePOS();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'sales_dashboard' | 'clearing'>('menu');
+  const [activeView, setActiveView] = useState<'menu' | 'rooms' | 'delivery' | 'dashboard' | 'manage_tables' | 'sales_dashboard' | 'clearing' | 'qr_orders' | 'product_returns' | 'waiter_returns'>('menu');
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway' | 'delivery' | 'room_service'>('dine_in');
   const [isOrderPanelVisible, setOrderPanelVisible] = useState(false);
   const [showRecentOrders, setShowRecentOrders] = useState(false);
   const [showAccessModal, setShowAccessModal] = useState(false);
+
+  useEffect(() => {
+    const handlePOSSearchSelect = (event: CustomEvent) => {
+      const { result, type, userRole } = event.detail;
+      navigateToSearchResult(result, navigate, userRole, undefined, (view) => setActiveView(view as any));
+    };
+
+    const handlePOSAddToOrder = (event: CustomEvent) => {
+      const { product } = event.detail;
+      const productToAdd = {
+        id: product.id,
+        category_id: 1,
+        name: product.title,
+        description: product.description || '',
+        price: product.metadata?.price || 0,
+        is_available: true,
+        preparation_time: 0
+      };
+      addItemToOrder(productToAdd, 1, orderType);
+      setActiveView('menu');
+    };
+
+    const handlePOSNavigate = (event: CustomEvent) => {
+      const { view } = event.detail;
+      if (view) {
+        setActiveView(view);
+      }
+    };
+
+    window.addEventListener('posSearchSelect', handlePOSSearchSelect as EventListener);
+    window.addEventListener('posAddToOrder', handlePOSAddToOrder as EventListener);
+    window.addEventListener('posNavigate', handlePOSNavigate as EventListener);
+    
+    return () => {
+      window.removeEventListener('posSearchSelect', handlePOSSearchSelect as EventListener);
+      window.removeEventListener('posAddToOrder', handlePOSAddToOrder as EventListener);
+      window.removeEventListener('posNavigate', handlePOSNavigate as EventListener);
+    };
+  }, [navigate, addItemToOrder, orderType]);
 
   const handleRoomSelect = (room: any) => {
     if (orderType === 'room_service') {
@@ -125,45 +168,6 @@ export default function POS({ onBackToLogin }: POSProps) {
   const canAccessDashboard = ['waiter', 'cashier', 'delivery', 'receptionist', 'manager', 'admin'].includes(user?.role ?? '');
   const canManageTables = user?.role === 'receptionist';
 
-  useEffect(() => {
-    const handlePOSSearchSelect = (event: CustomEvent) => {
-      const { result, type, userRole } = event.detail;
-      navigateToSearchResult(result, navigate, userRole, undefined, (view) => setActiveView(view as any));
-    };
-
-    const handlePOSAddToOrder = (event: CustomEvent) => {
-      const { product } = event.detail;
-      const productToAdd = {
-        id: product.id,
-        category_id: 1,
-        name: product.title,
-        description: product.description || '',
-        price: product.metadata?.price || 0,
-        is_available: true,
-        preparation_time: 0
-      };
-      addItemToOrder(productToAdd, 1, orderType);
-      setActiveView('menu');
-    };
-
-    const handlePOSNavigate = (event: CustomEvent) => {
-      const { view } = event.detail;
-      if (view) {
-        setActiveView(view);
-      }
-    };
-
-    window.addEventListener('posSearchSelect', handlePOSSearchSelect as EventListener);
-    window.addEventListener('posAddToOrder', handlePOSAddToOrder as EventListener);
-    window.addEventListener('posNavigate', handlePOSNavigate as EventListener);
-    
-    return () => {
-      window.removeEventListener('posSearchSelect', handlePOSSearchSelect as EventListener);
-      window.removeEventListener('posAddToOrder', handlePOSAddToOrder as EventListener);
-      window.removeEventListener('posNavigate', handlePOSNavigate as EventListener);
-    };
-  }, [navigate, addItemToOrder, orderType]);
-
   const renderMainContent = () => {
     switch (activeView) {
       case 'rooms':
@@ -183,6 +187,8 @@ export default function POS({ onBackToLogin }: POSProps) {
         return <ProductReturnsManagement />;
       case 'waiter_returns':
         return <WaiterProductReturn />;
+      case 'qr_orders':
+        return <WaiterQRValidation />;
       // case 'clearing':
       //   return <WaiterClearing />;
       default:
@@ -251,6 +257,14 @@ export default function POS({ onBackToLogin }: POSProps) {
                   <BarChart3 className="w-5 h-5" />
                 </button>
               )}
+
+              <button 
+                onClick={() => setActiveView('qr_orders')} 
+                className={`p-2 rounded-lg transition-colors flex-shrink-0 ${activeView === 'qr_orders' ? 'bg-yellow-100 text-yellow-800' : 'text-gray-500 hover:bg-gray-100'}`} 
+                title="QR Orders (Waiter Validation)"
+              >
+                <Smartphone className="w-5 h-5" />
+              </button>
 
               <button 
                 onClick={() => {

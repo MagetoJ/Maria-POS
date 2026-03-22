@@ -9,6 +9,7 @@ interface InventoryItem {
   current_stock: number;
   minimum_stock: number;
   cost_per_unit: number;
+  selling_price: number;
   supplier: string;
   inventory_type: 'kitchen' | 'bar' | 'housekeeping' | 'minibar';
   is_active: boolean;
@@ -55,6 +56,7 @@ export default function InventoryManagement() {
     current_stock: 0,
     minimum_stock: 0,
     cost_per_unit: 0,
+    selling_price: 0,
     supplier: '',
     inventory_type: 'kitchen' as InventoryItem['inventory_type'],
     image_url: ''
@@ -156,6 +158,7 @@ export default function InventoryManagement() {
       current_stock: item.current_stock,
       minimum_stock: item.minimum_stock,
       cost_per_unit: item.cost_per_unit,
+      selling_price: item.selling_price || 0,
       supplier: item.supplier,
       inventory_type: item.inventory_type,
       image_url: item.image_url || ''
@@ -170,6 +173,7 @@ export default function InventoryManagement() {
       current_stock: 0,
       minimum_stock: 0,
       cost_per_unit: 0,
+      selling_price: 0,
       supplier: '',
       inventory_type: 'kitchen',
       image_url: ''
@@ -260,6 +264,7 @@ export default function InventoryManagement() {
                     <th className="px-6 py-4">Department</th>
                     <th className="px-6 py-4 text-center">Stock Level</th>
                     <th className="px-6 py-4">Cost/Unit</th>
+                    <th className="px-6 py-4">Selling Price</th>
                     <th className="px-6 py-4">Supplier</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
@@ -297,6 +302,9 @@ export default function InventoryManagement() {
                         </td>
                         <td className="px-6 py-4 text-sm font-medium text-gray-900">
                           {formatCurrency(item.cost_per_unit)}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-bold text-yellow-600">
+                          {item.inventory_type === 'bar' ? formatCurrency(item.selling_price || 0) : 'N/A'}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
                           {item.supplier || 'N/A'}
@@ -449,14 +457,24 @@ export default function InventoryManagement() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (Bar Items)</label>
                   <input
-                    type="text"
+                    type="number"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
-                    value={form.supplier}
-                    onChange={(e) => setForm({...form, supplier: e.target.value})}
+                    value={form.selling_price}
+                    onChange={(e) => setForm({...form, selling_price: parseFloat(e.target.value) || 0})}
+                    disabled={form.inventory_type !== 'bar'}
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                <input
+                  type="text"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
+                  value={form.supplier}
+                  onChange={(e) => setForm({...form, supplier: e.target.value})}
+                />
               </div>
             </div>
             <div className="p-6 border-t border-gray-200 flex justify-end gap-3">

@@ -23,6 +23,9 @@ interface RecentOrder {
   status: string;
   created_at: string;
   items: OrderItem[];
+  completed_by_name?: string;
+  transaction_code?: string;
+  table_number?: string;
 }
 
 interface ReceiptData {
@@ -236,11 +239,24 @@ export default function MyRecentOrders({ isQuickAccess = false }: MyRecentOrders
                   <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
                     {getOrderTypeLabel(order.order_type)}
                   </span>
+                  {order.table_number && (
+                    <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full font-bold">
+                      Table: {order.table_number}
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center text-sm text-gray-600 gap-3">
+                <div className="flex flex-wrap items-center text-sm text-gray-600 gap-3">
                   <span>{formatDate(order.created_at)}</span>
                   {order.customer_name && (
                     <span className="text-gray-700">👤 {order.customer_name}</span>
+                  )}
+                  {order.completed_by_name && (
+                    <span className="text-green-700 font-medium">✅ Completed by: {order.completed_by_name}</span>
+                  )}
+                  {order.transaction_code && (
+                    <span className="text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-xs uppercase">
+                      TX: {order.transaction_code}
+                    </span>
                   )}
                 </div>
               </div>

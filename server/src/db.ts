@@ -21,6 +21,7 @@ const getDatabaseConfig = () => {
       connection: {
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false },
+        keepAlive: true,
       },
       pool: {
         min: 2,
@@ -30,7 +31,13 @@ const getDatabaseConfig = () => {
         idleTimeoutMillis: 30000,
         reapIntervalMillis: 1000,
         createRetryIntervalMillis: 100,
-        propagateCreateError: false
+        propagateCreateError: false,
+        afterCreate: (conn: any, done: any) => {
+          conn.on('error', (err: any) => {
+            console.error('DATABASE CLIENT ERROR:', err);
+          });
+          done(null, conn);
+        }
       },
       debug: true, // Verbose SQL logging enabled for debugging inventory issues
     };
@@ -44,6 +51,7 @@ const getDatabaseConfig = () => {
       database: process.env.DATABASE_NAME || process.env.DB_NAME || 'pos_mocha_dev',
       port: parseInt(process.env.DATABASE_PORT || process.env.DB_PORT || '5432'),
       ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
+      keepAlive: true,
     },
     pool: {
       min: 2,
@@ -53,7 +61,13 @@ const getDatabaseConfig = () => {
       idleTimeoutMillis: 30000,
       reapIntervalMillis: 1000,
       createRetryIntervalMillis: 100,
-      propagateCreateError: false
+      propagateCreateError: false,
+      afterCreate: (conn: any, done: any) => {
+        conn.on('error', (err: any) => {
+          console.error('DATABASE CLIENT ERROR:', err);
+        });
+        done(null, conn);
+      }
     },
     debug: true, // Verbose SQL logging enabled for debugging inventory issues
     };
@@ -261,6 +275,7 @@ const ensureCriticalTables = async () => {
     // Ensure reorder_level on inventory_items for stock management
     if (await db.schema.hasTable('inventory_items')) {
       await ensureColumn('inventory_items', 'reorder_level', (table) => table.integer('reorder_level').defaultTo(10), '🛠️ Added inventory_items.reorder_level column');
+      await ensureColumn('inventory_items', 'selling_price', (table) => table.decimal('selling_price', 12, 2).defaultTo(0), '🛠️ Added inventory_items.selling_price column');
     }
 
     // Ensure cost_price on order_items for accurate profit tracking

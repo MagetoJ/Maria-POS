@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingCart, Plus, Minus, Check, AlertCircle, Info, Utensils } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Check, AlertCircle, Info, Utensils, Search, X } from 'lucide-react';
 
 interface Product {
   id: number;
@@ -33,6 +33,8 @@ export default function QRMenuOrdering() {
   const [tableNumber, setTableNumber] = useState('');
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchPublicMenu();
@@ -68,10 +70,19 @@ export default function QRMenuOrdering() {
   };
 
   const getFilteredProducts = () => {
-    if (activeCategory === 'All') {
-      return getAllProducts();
+    let products = activeCategory === 'All' 
+      ? getAllProducts() 
+      : groupedProducts[activeCategory] || [];
+    
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      products = products.filter(p => 
+        p.name.toLowerCase().includes(query) || 
+        (p.description && p.description.toLowerCase().includes(query))
+      );
     }
-    return groupedProducts[activeCategory] || [];
+    
+    return products;
   };
 
   const addToCart = (product: Product) => {
@@ -221,29 +232,49 @@ export default function QRMenuOrdering() {
       </div>
 
       <div className="bg-white shadow-md sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar items-center">
-            {categories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => {
-                  setActiveCategory(cat);
-                  // Scroll slightly down on mobile when picking category
-                  if (window.innerWidth < 768) {
-                    window.scrollTo({ top: 300, behavior: 'smooth' });
-                  }
-                }}
-                className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 transform active:scale-95 ${
-                  activeCategory === cat
-                    ? 'bg-yellow-500 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+          <button 
+            onClick={() => setIsSearchOpen(true)}
+            className="flex-shrink-0 p-2.5 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+          <div className="flex-1 overflow-x-auto no-scrollbar">
+            <div className="flex gap-2 pb-1">
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => {
+                    setActiveCategory(cat);
+                    setSearchQuery(''); // Clear search when switching categories
+                    // Scroll slightly down on mobile when picking category
+                    if (window.innerWidth < 768) {
+                      window.scrollTo({ top: 300, behavior: 'smooth' });
+                    }
+                  }}
+                  className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 transform active:scale-95 ${
+                    activeCategory === cat && !searchQuery
+                      ? 'bg-yellow-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+        {searchQuery && (
+          <div className="px-4 pb-2 pt-0 flex items-center justify-between text-xs text-gray-500 bg-gray-50/50">
+            <span>Showing results for: <b>"{searchQuery}"</b></span>
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="text-yellow-600 font-bold p-1"
+            >
+              Clear
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -394,6 +425,105 @@ export default function QRMenuOrdering() {
                 setSpecialInstructions={setSpecialInstructions}
                 onComplete={() => setIsCartOpen(false)}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Search Modal */}
+      {isSearchOpen && (
+        <div className="fixed inset-0 z-[70] flex items-start justify-center pt-20 px-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsSearchOpen(false)}></div>
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b flex items-center gap-3">
+              <Search className="w-5 h-5 text-gray-400" />
+              <input 
+                autoFocus
+                type="text" 
+                placeholder="Search for dishes, drinks..." 
+                className="flex-1 bg-transparent border-none outline-none text-lg font-medium py-2"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setIsSearchOpen(false);
+                }}
+              />
+              <button 
+                onClick={() => {
+                  setSearchQuery('');
+                  setIsSearchOpen(false);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="max-h-[60vh] overflow-y-auto p-2">
+              {searchQuery.length > 0 ? (
+                <div className="py-2">
+                  <p className="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider">Search Results</p>
+                  {getFilteredProducts().length > 0 ? (
+                    <div className="space-y-1 mt-1">
+                      {getFilteredProducts().slice(0, 8).map(product => (
+                        <div 
+                          key={product.id}
+                          onClick={() => {
+                            // Find the category of this product to highlight it if needed
+                            // But for now just close the modal and show results
+                            setIsSearchOpen(false);
+                            // Scroll to the product grid if needed
+                            window.scrollTo({ top: 400, behavior: 'smooth' });
+                          }}
+                          className="flex items-center gap-4 p-3 hover:bg-yellow-50 rounded-2xl cursor-pointer transition-colors group"
+                        >
+                          <div className="w-12 h-12 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
+                            {product.image_url ? (
+                              <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                <Utensils className="w-6 h-6" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-bold text-gray-800 group-hover:text-yellow-700">{product.name}</h4>
+                            <p className="text-xs text-gray-500">{product.price.toLocaleString()} • {product.is_bar_item ? 'Bar' : 'Menu'}</p>
+                          </div>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addToCart(product);
+                            }}
+                            className="p-2 bg-yellow-100 text-yellow-700 rounded-xl hover:bg-yellow-500 hover:text-white transition-all"
+                          >
+                            <Plus className="w-5 h-5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-12 text-center">
+                      <p className="text-gray-400 text-sm">No results for "{searchQuery}"</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="py-8 text-center">
+                  <p className="text-gray-400 text-sm italic">Type something to search our menu...</p>
+                </div>
+              )}
+            </div>
+            
+            {searchQuery.length > 0 && getFilteredProducts().length > 0 && (
+              <div className="p-4 bg-gray-50 border-t">
+                <button 
+                  onClick={() => setIsSearchOpen(false)}
+                  className="w-full py-3 bg-yellow-500 text-white rounded-xl font-bold shadow-lg shadow-yellow-200 active:scale-95 transition-all"
+                >
+                  View All {getFilteredProducts().length} Results
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

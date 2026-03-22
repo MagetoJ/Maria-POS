@@ -621,7 +621,7 @@ export default function AdminDashboard() {
       case 'menu':
         return <MenuManagement />;
       case 'qr-menu':
-        return <QRMenuManagement />;
+        return <QRMenuManagement onBack={() => setActiveTab('overview')} />;
       case 'inventory':
         return <InventoryManagement />;
       case 'product-returns':

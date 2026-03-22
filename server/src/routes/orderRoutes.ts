@@ -35,4 +35,9 @@ router.put('/:id/complete-for-print',
   orderController.markOrderAsCompleted
 );
 
+router.put('/:id/complete-self-service',
+  authorizeRoles('admin', 'manager', 'waiter', 'cashier'),
+  orderController.completeSelfServiceOrder
+);
+
 export default router;

@@ -28,6 +28,7 @@ export const createInventoryItem = async (req: Request, res: Response) => {
       current_stock,
       minimum_stock,
       cost_per_unit,
+      selling_price,
       supplier,
       inventory_type,
       image_url
@@ -44,6 +45,7 @@ export const createInventoryItem = async (req: Request, res: Response) => {
         current_stock: current_stock || 0,
         minimum_stock: minimum_stock || 0,
         cost_per_unit: cost_per_unit || 0,
+        selling_price: selling_price || 0,
         supplier: supplier || '',
         inventory_type: inventory_type || 'kitchen',
         image_url: image_url || null,
