@@ -26,6 +26,11 @@ module.exports = {
       connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/pos_mocha_dev',
       ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
     },
+    pool: {
+      min: 2,
+      max: 20,
+      propagateCreateError: false
+    },
     ...baseConfig,
     debug: true
   },

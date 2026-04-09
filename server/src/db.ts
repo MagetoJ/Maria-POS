@@ -31,7 +31,7 @@ const getDatabaseConfig = () => {
         idleTimeoutMillis: 30000,
         reapIntervalMillis: 1000,
         createRetryIntervalMillis: 100,
-        propagateCreateError: false,
+        propagateCreateError: true,
         afterCreate: (conn: any, done: any) => {
           conn.on('error', (err: any) => {
             console.error('DATABASE CLIENT ERROR:', err);
@@ -55,9 +55,9 @@ const getDatabaseConfig = () => {
     },
     pool: {
       min: 2,
-      max: 10,
-      acquireTimeoutMillis: 30000,
-      createTimeoutMillis: 30000,
+      max: 20,
+      acquireTimeoutMillis: 60000,
+      createTimeoutMillis: 60000,
       idleTimeoutMillis: 30000,
       reapIntervalMillis: 1000,
       createRetryIntervalMillis: 100,
@@ -410,7 +410,13 @@ const ensureCriticalTables = async () => {
   }
 };
 
-// Test connection on startup
-testConnection().then(() => ensureCriticalTables()).catch(() => ensureCriticalTables());
+// Export the initialization function to be called from index.ts
+export const initializeDatabase = async () => {
+  const connected = await testConnection();
+  if (connected) {
+    await ensureCriticalTables();
+  }
+  return connected;
+};
 
 export default db;

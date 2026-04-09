@@ -3,10 +3,8 @@ import cors from 'cors';
 import http from 'http';
 import path from 'path';
 import dotenv from 'dotenv';
-import db from './db';
-db.raw('SELECT current_database(), current_user')
-  .then((res) => console.log('🧩 Connected DB info:', res.rows[0]))
-  .catch(console.error);
+import db, { initializeDatabase } from './db';
+// Database info will be logged after initialization
 
 // Import configuration
 import { config } from './config/environment';
@@ -358,20 +356,32 @@ app.get('*', (req, res) => {
 });
 
 // --- Start Server with Database Connection Test ---
-db.raw('SELECT 1')
-  .then(() => {
-    console.log('✅ Connected to PostgreSQL successfully');
-    server.listen(port, () => {
-      console.log(`🚀 Backend server is running at http://localhost:${port}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`📁 Serving frontend from: ${clientBuildPath}`);
-      console.log('🔗 WebSocket service initialized');
-    });
-  })
-  .catch((err) => {
-    console.error('❌ Database connection failed:', err.message);
+const startServer = async () => {
+  try {
+    console.log('⏳ Initializing database...');
+    const connected = await initializeDatabase();
+    
+    if (connected) {
+      const dbInfo = await db.raw('SELECT current_database(), current_user');
+      console.log('🧩 Connected DB info:', dbInfo.rows[0]);
+      
+      server.listen(port, () => {
+        console.log(`🚀 Backend server is running at http://localhost:${port}`);
+        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`📁 Serving frontend from: ${clientBuildPath}`);
+        console.log('🔗 WebSocket service initialized');
+      });
+    } else {
+      console.error('❌ Database initialization failed. Server cannot start.');
+      process.exit(1);
+    }
+  } catch (err: any) {
+    console.error('❌ Server startup failed:', err.message);
     process.exit(1);
-  });
+  }
+};
+
+startServer();
 
 // Export WebSocket service for use in other modules
 export { webSocketService };
