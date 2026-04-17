@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Package, Plus, Edit3, Trash2, Search, AlertTriangle, History, RefreshCw } from 'lucide-react';
+import { Package, Plus, Edit3, Trash2, Search, AlertTriangle, History, RefreshCw, Boxes, DollarSign } from 'lucide-react';
 import { apiClient } from '../../config/api';
 
 interface InventoryItem {
@@ -185,6 +185,10 @@ export default function InventoryManagement() {
     item.supplier.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalStockValue = filteredItems.reduce((sum, item) => sum + (Number(item.current_stock) * Number(item.selling_price || 0)), 0);
+  const totalStockQuantity = filteredItems.reduce((sum, item) => sum + Number(item.current_stock), 0);
+  const lowStockCount = filteredItems.filter(item => item.current_stock <= item.minimum_stock).length;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -222,6 +226,49 @@ export default function InventoryManagement() {
 
       {activeTab === 'items' ? (
         <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                  <Package className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-medium text-gray-500">Total Item Types</span>
+              </div>
+              <div className="text-2xl font-bold text-gray-900">{filteredItems.length}</div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                  <Boxes className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-medium text-gray-500">Total Stock Quantity</span>
+              </div>
+              <div className="text-2xl font-bold text-gray-900">{totalStockQuantity.toLocaleString()}</div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-yellow-50 text-yellow-600 rounded-lg">
+                  <DollarSign className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-medium text-gray-500">Total Stock Value</span>
+              </div>
+              <div className="text-2xl font-bold text-gray-900">{formatCurrency(totalStockValue)}</div>
+              <p className="text-[10px] text-gray-400 mt-1 uppercase">Calculated from Selling Price</p>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-red-50 text-red-600 rounded-lg">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-medium text-gray-500">Low Stock Items</span>
+              </div>
+              <div className="text-2xl font-bold text-red-600">{lowStockCount}</div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
