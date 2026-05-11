@@ -12,8 +12,8 @@ dotenv.config({ path: path.join(__dirname, envFile) });
 const db = knex({
   client: 'pg',
   connection: {
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
+    connectionString: process.env.EXTERNAL_DATABASE_URL || process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
   }
 });
 

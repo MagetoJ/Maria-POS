@@ -181,8 +181,8 @@ export default function InventoryManagement() {
   };
 
   const filteredItems = items.filter(item => 
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.supplier.toLowerCase().includes(searchTerm.toLowerCase())
+    (item.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (item.supplier?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   const totalStockValue = filteredItems.reduce((sum, item) => sum + (Number(item.current_stock) * Number(item.selling_price || 0)), 0);

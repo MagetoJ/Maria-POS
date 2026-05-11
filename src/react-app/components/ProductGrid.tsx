@@ -122,9 +122,9 @@ export default function ProductGrid({ mode = 'kitchen', searchQuery = '' }: Prop
 
   const filteredItems = items.filter((item) => {
     const matchesSearch = searchQuery === '' || 
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (item.category_name && item.category_name.toLowerCase().includes(searchQuery.toLowerCase()));
+      (item.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (item.description?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (item.category_name?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     
     return item.is_available && matchesSearch;
   });

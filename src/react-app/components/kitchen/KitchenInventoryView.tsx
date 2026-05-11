@@ -42,8 +42,8 @@ const KitchenInventoryView: React.FC<KitchenInventoryViewProps> = ({ onClose }) 
   }, []);
 
   const filteredItems = items.filter(item => 
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.category.toLowerCase().includes(searchTerm.toLowerCase())
+    (item.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (item.category?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   return (

@@ -70,7 +70,7 @@ export default function WaiterProductReturn() {
   };
 
   const filteredItems = inventoryItems.filter(item => 
-    item.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (item.name?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   ).slice(0, 5);
 
   const handleSubmit = async (e: React.FormEvent) => {

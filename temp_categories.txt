@@ -1,0 +1,1 @@
+Get-Content server\old_backup.sql | Select-Object -Skip 1549 -First 50
