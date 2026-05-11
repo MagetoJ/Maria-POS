@@ -124,12 +124,20 @@ NODE_ENV=development
 JWT_SECRET=your-jwt-secret
 
 # Database Configuration
-DATABASE_HOST=localhost
-DATABASE_PORT=5432
-DATABASE_NAME=pos_database
-DATABASE_USER=postgres
-DATABASE_PASSWORD=your-password
-DATABASE_SSL=false
+
+# Production Environment (Render)
+PORT=10000
+DATABASE_URL=postgresql://maria_pos_user:v0YiOikwXUaDVFhO6uSVCTBDR38cGZyW@dpg-d80rvppo3t8c73e278s0-a/maria_pos
+EXTERNAL_DATABASE_URL=postgresql://maria_pos_user:v0YiOikwXUaDVFhO6uSVCTBDR38cGZyW@dpg-d80rvppo3t8c73e278s0-a.oregon-postgres.render.com/maria_pos
+
+# Local Development Environment (example values, adjust as needed)
+# PORT=3000
+# DATABASE_HOST=localhost
+# DATABASE_PORT=5432
+# DATABASE_NAME=pos_database
+# DATABASE_USER=postgres
+# DATABASE_PASSWORD=your-password
+# DATABASE_SSL=false
 
 # Email Configuration
 EMAIL_HOST=smtp.gmail.com
