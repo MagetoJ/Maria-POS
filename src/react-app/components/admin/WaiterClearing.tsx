@@ -18,6 +18,7 @@ interface ReceiptData {
   order_type: string;
   total_amount: number;
   payment_method: string;
+  is_cleared: boolean;
   status: string;
   created_at: string;
   items: OrderItem[];
@@ -528,8 +529,17 @@ export default function WaiterClearing() {
                   {staffReceipts.map((receipt) => (
                     <div key={receipt.id} className="border rounded-lg p-3 sm:p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start mb-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-bold text-blue-600 truncate">{receipt.order_number}</p>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-blue-600 truncate">{receipt.order_number}</p>
+                            {receipt.is_cleared ? (
+                              <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-0.5">
+                                <CheckCircle className="w-2.5 h-2.5" /> Cleared
+                              </span>
+                            ) : (
+                              <span className="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold uppercase">Uncleared</span>
+                            )}
+                          </div>
                           <p className="text-[10px] sm:text-xs text-gray-500">
                             {new Date(receipt.created_at).toLocaleString()}
                           </p>

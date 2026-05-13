@@ -95,6 +95,7 @@ export const createOrder = async (req: Request, res: Response) => {
         subtotal: Number(orderToInsert.subtotal || 0),
         total_amount: Number(orderToInsert.total_amount || 0),
         payment_method: payment_method || 'cash',
+        is_cleared: false,
         // Set initial status for self-service orders to 'pending' (kitchen needs to accept/see it)
         status: orderData.order_type === 'self_service' ? 'pending' : (orderToInsert.status || 'pending'), 
         created_at: new Date(),
