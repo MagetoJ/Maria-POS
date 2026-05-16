@@ -126,23 +126,29 @@ export const clearPreviousData = async (req: Request, res: Response) => {
 
     await db.transaction(async (trx) => {
       // Record clearance for each unique staff member with uncleared data
-      const staffWithUnclearedData = await trx('orders')
-        .where('is_cleared', false)
-        .select('staff_id')
-        .groupBy('staff_id');
+      // We union all sources to find all staff who need clearing
+      const staffWithUnclearedData = await trx.raw(`
+        SELECT staff_id FROM (
+          SELECT staff_id FROM orders WHERE is_cleared = false
+          UNION
+          SELECT created_by as staff_id FROM expenses WHERE is_cleared = false
+          UNION
+          SELECT staff_id FROM room_transactions WHERE is_cleared = false
+        ) as combined WHERE staff_id IS NOT NULL GROUP BY staff_id
+      `);
 
-      for (const { staff_id } of staffWithUnclearedData) {
-        const summary = await trx('orders')
-          .where('staff_id', staff_id)
-          .where('is_cleared', false)
-          .sum('total_amount as total')
-          .first();
+      for (const { staff_id } of (staffWithUnclearedData.rows || staffWithUnclearedData)) {
+        const orderSum = await trx('orders').where({ staff_id, is_cleared: false }).sum('total_amount as total').first();
+        const roomSum = await trx('room_transactions').where({ staff_id, is_cleared: false }).sum('total_amount as total').first();
+        const expenseSum = await trx('expenses').where({ created_by: staff_id, is_cleared: false }).sum('amount as total').first();
+
+        const totalToClear = (Number(orderSum?.total) || 0) + (Number(roomSum?.total) || 0) - (Number(expenseSum?.total) || 0);
 
         await trx('waiter_clearances').insert({
           staff_id,
           cleared_by: adminId,
           cleared_at: new Date(),
-          total_amount_cleared: summary?.total || 0,
+          total_amount_cleared: totalToClear,
           notes: 'Clear All Previous Data action'
         });
       }
@@ -193,12 +199,12 @@ export const clearStaffData = async (req: Request, res: Response) => {
     }
 
     const result = await db.transaction(async (trx) => {
-      // 1. Calculate total before clearing
-      const summary = await trx('orders')
-        .where('staff_id', staffIdToClear)
-        .where('is_cleared', false)
-        .sum('total_amount as total')
-        .first();
+      // 1. Calculate total before clearing (Orders + Rooms - Expenses)
+      const orderSum = await trx('orders').where({ staff_id: staffIdToClear, is_cleared: false }).sum('total_amount as total').first();
+      const roomSum = await trx('room_transactions').where({ staff_id: staffIdToClear, is_cleared: false }).sum('total_amount as total').first();
+      const expenseSum = await trx('expenses').where({ created_by: staffIdToClear, is_cleared: false }).sum('amount as total').first();
+
+      const totalNet = (Number(orderSum?.total) || 0) + (Number(roomSum?.total) || 0) - (Number(expenseSum?.total) || 0);
 
       // 2. Get staff name
       const staff = await trx('staff')
@@ -210,8 +216,8 @@ export const clearStaffData = async (req: Request, res: Response) => {
       await trx('waiter_clearances').insert({
         staff_id: staffIdToClear,
         cleared_by: adminId,
-        cleared_at: new Date(),
-        total_amount_cleared: summary?.total || 0,
+        cleared_at: trx.fn.now(),
+        total_amount_cleared: totalNet,
         notes: `Individual clearance for ${staff?.name || 'staff'}`
       });
 
@@ -247,7 +253,7 @@ export const clearStaffData = async (req: Request, res: Response) => {
 
       return {
         staffName: staff?.name || 'Unknown',
-        totalAmount: summary?.total || 0
+        totalAmount: totalNet
       };
     });
 
@@ -505,7 +511,7 @@ export const getUnclearedStaffSummary = async (req: Request, res: Response) => {
 
     // Subqueries for different transaction types
     const ordersQuery = db('orders').where('is_cleared', false).select('staff_id', 'total_amount', db.raw("'order' as type"));
-    const expensesQuery = db('expenses').where('is_cleared', false).select('created_by as staff_id', 'amount as total_amount', db.raw("'expense' as type"));
+    const expensesQuery = db('expenses').where('is_cleared', false).select('created_by as staff_id', db.raw('(amount * -1) as total_amount'), db.raw("'expense' as type"));
     const roomsQuery = db('room_transactions').where('is_cleared', false).select('staff_id', 'total_amount', db.raw("'room' as type"));
 
     // Combine all uncleared records

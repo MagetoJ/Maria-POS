@@ -21,6 +21,7 @@ interface ReceiptData {
   is_cleared: boolean;
   status: string;
   created_at: string;
+  payment_status: string;
   items: OrderItem[];
 }
 

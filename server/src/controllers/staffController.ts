@@ -360,13 +360,11 @@ export const checkClearance = async (req: Request, res: Response) => {
   try {
     const { id: staffId } = req.params;
     
-    // Create a date object for today at 8:00:00 AM
-    const today8AM = new Date();
-    today8AM.setHours(8, 0, 0, 0);
-
-    // If currently before 8 AM, check against YESTERDAY'S 8 AM
-    if (new Date() < today8AM) {
-      today8AM.setDate(today8AM.getDate() - 1);
+    // Shift Anchor: 8:00 AM Kenyan Time is 05:00 UTC
+    const anchorUTC = new Date();
+    anchorUTC.setUTCHours(5, 0, 0, 0);
+    if (new Date() < anchorUTC) {
+      anchorUTC.setUTCDate(anchorUTC.getUTCDate() - 1);
     }
 
     // Check if staff member requires clearing
@@ -386,26 +384,26 @@ export const checkClearance = async (req: Request, res: Response) => {
     // Strict check: Is there a clearance record for the current shift period?
     const clearance = await db('waiter_clearances')
       .where('staff_id', staffId)
-      .where('cleared_at', '>=', today8AM)
+      .where('cleared_at', '>=', anchorUTC)
       .first();
 
-    // Also check for uncleared data from PREVIOUS shift (before this shift's 8 AM anchor)
+    // Check for uncleared data from BEFORE the anchor
     const unclearedOrder = await db('orders')
       .where('staff_id', staffId)
       .andWhere('is_cleared', false)
-      .andWhere('created_at', '<', today8AM)
+      .andWhere('created_at', '<', anchorUTC)
       .first();
 
     const unclearedExpense = await db('expenses')
       .where('created_by', staffId)
       .andWhere('is_cleared', false)
-      .andWhere('created_at', '<', today8AM)
+      .andWhere('created_at', '<', anchorUTC)
       .first();
 
     const unclearedRoomTx = await db('room_transactions')
       .where('staff_id', staffId)
       .andWhere('is_cleared', false)
-      .andWhere('created_at', '<', today8AM)
+      .andWhere('created_at', '<', anchorUTC)
       .first();
 
     if (!clearance) {

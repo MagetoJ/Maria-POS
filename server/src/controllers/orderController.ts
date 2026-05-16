@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import db from '../db';
 import { validateStaffPinForOrder } from '../utils/validation';
 import { WebSocketService } from '../services/websocket';
+import { isPast8AMKenyanTime } from '../utils/time';
 
 let webSocketService: WebSocketService;
 
@@ -36,28 +37,29 @@ export const createOrder = async (req: Request, res: Response) => {
       staffName = validation.staffName;
       console.log('PIN validated for order by:', staffName);
       
-      // 8 AM Blocking Logic: Block orders if previous days have uncleared data
-      const now = new Date();
-      if (now.getHours() >= 8) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+      // Kenyan 8 AM Rollover Logic (8 AM EAT = 5 AM UTC)
+      const anchorUTC = new Date();
+      anchorUTC.setUTCHours(5, 0, 0, 0);
+      
+      // If current time is before 8 AM EAT, the previous work window ended at yesterday's 8 AM anchor.
+      if (new Date() < anchorUTC) {
+        anchorUTC.setUTCDate(anchorUTC.getUTCDate() - 1);
+      }
 
-        // Check if this specific staff requires clearing
-        const staff = await db('staff').where({ id: staffId }).first();
-        
-        if (staff && staff.requires_clearing) {
-          const unclearedPreviousData = await db('orders')
-            .where('staff_id', staffId)
-            .where('created_at', '<', today)
-            .where('is_cleared', false)
-            .first();
-            
-          if (unclearedPreviousData) {
-            return res.status(403).json({ 
-              message: 'Action Blocked: Your previous shift receipts have not been cleared by Admin. Please see Admin to clear your previous shift receipts before proceeding.',
-              blocking_reason: 'uncleared_previous_data'
-            });
-          }
+      const staff = await db('staff').where({ id: staffId }).select('requires_clearing').first();
+      
+      if (staff && staff.requires_clearing) {
+        // Block if there is any uncleared data created BEFORE the current anchor point
+        const hasOldData = await db('orders')
+          .where({ staff_id: staffId, is_cleared: false })
+          .andWhere('created_at', '<', anchorUTC)
+          .first();
+          
+        if (hasOldData) {
+          return res.status(403).json({ 
+            message: 'Action Blocked: Your previous shift receipts have not been cleared. Please see Admin to clear your account before proceeding.',
+            blocking_reason: 'uncleared_data'
+          });
         }
       }
     }

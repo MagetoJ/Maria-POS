@@ -5,6 +5,7 @@ import db from '../db';
 import config from '../config/environment';
 import { sendResetEmail, generateResetCode } from '../utils/email';
 import { isValidEmail, isValidPassword } from '../utils/validation';
+import { isPast8AMKenyanTime } from '../utils/time';
 
 // Login endpoint
 export const login = async (req: any, res: Response) => {
@@ -22,6 +23,21 @@ export const login = async (req: any, res: Response) => {
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid username or password' });
+    }
+
+    // 8 AM Blocking Logic for Waiters
+    if (user.role === 'waiter' && isPast8AMKenyanTime() && user.requires_clearing) {
+      // Check for any uncleared transactions (orders, expenses, or room_transactions)
+      const unclearedOrders = await db('orders').where({ staff_id: user.id, is_cleared: false }).first();
+      const unclearedExpenses = await db('expenses').where({ created_by: user.id, is_cleared: false }).first();
+      const unclearedRooms = await db('room_transactions').where({ staff_id: user.id, is_cleared: false }).first();
+
+      if (unclearedOrders || unclearedExpenses || unclearedRooms) {
+        return res.status(403).json({ 
+          message: 'Access Denied: Your previous shift data has not been cleared by Admin. Please see Admin to be cleared before logging in.',
+          blocking_reason: 'uncleared_data'
+        });
+      }
     }
 
     // Check if password field exists and compare
@@ -101,6 +117,26 @@ export const validatePin = async (req: any, res: Response) => {
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid username or PIN' });
+    }
+
+    // Kenyan 8 AM Rollover Logic
+    const anchorUTC = new Date();
+    anchorUTC.setUTCHours(5, 0, 0, 0);
+    if (new Date() < anchorUTC) {
+      anchorUTC.setUTCDate(anchorUTC.getUTCDate() - 1);
+    }
+
+    if (user.role === 'waiter' && user.requires_clearing) {
+      const hasOldOrders = await db('orders').where({ staff_id: user.id, is_cleared: false }).andWhere('created_at', '<', anchorUTC).first();
+      const hasOldExpenses = await db('expenses').where({ created_by: user.id, is_cleared: false }).andWhere('created_at', '<', anchorUTC).first();
+      const hasOldRooms = await db('room_transactions').where({ staff_id: user.id, is_cleared: false }).andWhere('created_at', '<', anchorUTC).first();
+
+      if (hasOldOrders || hasOldExpenses || hasOldRooms) {
+        return res.status(403).json({ 
+          message: 'Access Denied: Your previous shift data (before 8:00 AM) has not been cleared. Please see Admin to be cleared before proceeding.',
+          blocking_reason: 'uncleared_data'
+        });
+      }
     }
 
     // Generate a temporary JWT token for this quick access session
