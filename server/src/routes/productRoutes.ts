@@ -1,7 +1,8 @@
+/* cspell:ignore openxmlformats officedocument spreadsheetml */
 import { Router } from 'express'; 
 import multer from 'multer'; 
 import fs from 'fs'; 
-import path from 'path'; 
+import path from 'path';
 import * as productController from '../controllers/productController'; 
 import { authenticateToken, authorizeRoles } from '../middleware/auth'; 
   
@@ -35,6 +36,8 @@ router.use(authenticateToken);
 // CRITICAL: Define specific routes BEFORE generic /:id
 // /export must come before /:id, otherwise "/:id" matches "/export" as id="export"
 router.get('/export', authorizeRoles('admin', 'manager'), productController.exportProducts); 
+router.post('/bulk-unlink', authenticateToken, authorizeRoles('admin', 'manager'), productController.bulkUnlinkFromInventory);
+router.post('/bulk-link', authenticateToken, authorizeRoles('admin', 'manager'), productController.bulkLinkToInventory);
 router.post('/upload', authorizeRoles('admin', 'manager'), upload.single('file'), productController.uploadProducts); 
   
 // Now define generic ID route

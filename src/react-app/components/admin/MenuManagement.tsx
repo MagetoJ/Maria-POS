@@ -48,6 +48,8 @@ export default function MenuManagement() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [targetInventoryId, setTargetInventoryId] = useState<string>('');
 
   const [productForm, setProductForm] = useState({
     category_id: 1,
@@ -516,6 +518,54 @@ export default function MenuManagement() {
     return ((price - cost) / price) * 100;
   };
 
+  // Bulk Unlink Logic
+  const handleBulkUnlink = async () => {
+    if (selectedProductIds.length === 0) return;
+    
+    if (!confirm(`Are you sure you want to completely break the inventory connection for these ${selectedProductIds.length} selected items? Menu management orders will no longer deduct stock for them.`)) {
+      return;
+    }
+
+    try {
+      const response = await apiClient.post('/api/products/bulk-unlink', {
+        productIds: selectedProductIds
+      });
+
+      if (!response.ok) throw new Error('Failed to update relationships');
+
+      alert('Products successfully unlinked from stock management tracking!');
+      setSelectedProductIds([]);
+      fetchProducts(); // Refresh your active data tables grid state
+    } catch (err) {
+      console.error(err);
+      alert('Failed to execute bulk inventory detachment.');
+    }
+  };
+
+  // Bulk Link Logic
+  const handleBulkLinkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedProductIds.length === 0 || !targetInventoryId) return;
+
+    try {
+      const response = await apiClient.post('/api/products/bulk-link', {
+        productIds: selectedProductIds, 
+        inventoryItemId: parseInt(targetInventoryId, 10) 
+      });
+
+      if (!response.ok) throw new Error('Failed to assign inventory matching records');
+
+      alert('Products successfully linked to tracking!');
+      setShowLinkModal(false);
+      setSelectedProductIds([]);
+      setTargetInventoryId('');
+      fetchProducts(); // Reload view metrics tables
+    } catch (err) {
+      console.error(err);
+      alert('Failed to connect items to selected inventory asset tracking.');
+    }
+  };
+
   const uploadImage = async (productId: number, file: File): Promise<string> => {
     const formData = new FormData();
     formData.append('image', file);
@@ -555,16 +605,24 @@ export default function MenuManagement() {
   const handleExportProducts = async () => {
     try {
       setUploading(true);
-      const response = await apiClient.get('/api/products/export', { responseType: 'arraybuffer' });
-      
-      const blob = new Blob([response], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const response = await fetch('/api/products/export', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${getToken()}` // Ensure auth is sent if needed
+        }
+      });
+
+      if (!response.ok) throw new Error('Export failed');
+
+      // Correct way to capture a binary file streaming data block
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `products_${new Date().toISOString().split('T')[0]}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `products_${new Date().toISOString().split('T')[0]}.xlsx`; // Dynamic filename
+      document.body.appendChild(a);
+      a.click();
+      a.remove(); // Clean up the element
       window.URL.revokeObjectURL(url);
       
       alert('✅ Products exported successfully!');
@@ -585,14 +643,26 @@ export default function MenuManagement() {
 
     try {
       setUploading(true);
-      const response = await apiClient.post('/api/products/upload', formData);
-      
-      alert(`✅ Import Successful! Processed ${response.processed_count} items.`);
-      if (response.errors && response.errors.length > 0) {
-        console.warn('Import warnings:', response.errors);
+      const response = await fetch('/api/products/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getToken()}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to import product sheet.');
       }
       
-      await fetchProducts();
+      const data = await response.json(); // Explicitly extract JSON parameters from the body stream
+      alert(`✅ Import Successful! Processed ${data.processed || data.processed_count || 0} items.`);
+      if (data.errors && data.errors.length > 0) {
+        console.warn('Import validation remarks:', data.errors);
+      }
+      
+      await fetchProducts(); // Refresh data after successful upload
     } catch (error) {
       console.error('Upload error:', error);
       alert('Failed to upload products');
@@ -729,6 +799,8 @@ export default function MenuManagement() {
                     )}
                     <input
                       type="text"
+                      title="Search products"
+                      aria-label="Search products to edit"
                       placeholder="Search products to edit..."
                       value={searchTerm}
                       onFocus={() => setShowSuggestions(true)}
@@ -784,39 +856,63 @@ export default function MenuManagement() {
 
               {/* Bulk Actions Bar */}
               {selectedProductIds.length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-center justify-between">
-                  <span className="text-yellow-800 font-medium">{selectedProductIds.length} products selected</span>
-                  <div className="flex gap-2">
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg flex flex-wrap items-center justify-between gap-4">
+                  <span className="text-sm text-blue-700 font-medium">
+                    {selectedProductIds.length} item(s) selected
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {/* 1. Mark Available */}
                     <button
                       onClick={() => handleBulkAvailability(true)}
-                      className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition"
                     >
                       Mark Available
                     </button>
+
+                    {/* 2. Mark Unavailable */}
                     <button
                       onClick={() => handleBulkAvailability(false)}
-                      className="px-3 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
+                      className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm font-medium transition"
                     >
                       Mark Unavailable
                     </button>
+
+                    {/* 3. Unlink From Inventory */}
+                    <button
+                      onClick={handleBulkUnlink}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition"
+                    >
+                      Unlink From Inventory
+                    </button>
+
+                    {/* 4. Link to Inventory */}
+                    <button
+                      onClick={() => setShowLinkModal(true)}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-medium transition"
+                    >
+                      Link to Inventory
+                    </button>
+
+                    {/* 5. Delete */}
                     <button
                       onClick={handleBulkDeleteProducts}
-                      className="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 text-sm flex items-center gap-1"
+                      className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition"
                     >
-                      <Trash2 className="w-4 h-4" /> Delete
+                      Delete
                     </button>
                   </div>
                 </div>
               )}
-
               {/* Products Table */}
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left">
-                        <input 
+                      <th className="px-6 py-3 text-left w-12">
+                        <input
                           type="checkbox"
+                          title="Select all products"
+                          aria-label="Select all products"
                           checked={filteredProducts.length > 0 && filteredProducts.every(p => selectedProductIds.includes(p.id))}
                           onChange={toggleSelectAllProducts}
                           className="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
@@ -836,6 +932,8 @@ export default function MenuManagement() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <input 
                             type="checkbox"
+                            title={`Select ${product.name}`}
+                            aria-label={`Select ${product.name}`}
                             checked={selectedProductIds.includes(product.id)}
                             onChange={() => toggleProductSelection(product.id)}
                             className="rounded border-gray-300 text-yellow-500 focus:ring-yellow-500"
@@ -903,11 +1001,15 @@ export default function MenuManagement() {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleEditProduct(product)}
-                              className="text-blue-600 hover:text-blue-900"
+                              title="Edit Product Details" // Added for accessibility
+                              aria-label={`Edit details for ${product.name}`} // Added for accessibility
+                              className="text-blue-600 hover:text-blue-900 p-1 rounded"
                             >
                               <Edit3 className="w-4 h-4" />
                             </button>
                             <button
+                              title="Delete Product" // Added for accessibility
+                              aria-label={`Delete ${product.name}`} // Added for accessibility
                               onClick={() => handleDeleteProduct(product.id)}
                               className="text-red-600 hover:text-red-900"
                             >
@@ -968,11 +1070,15 @@ export default function MenuManagement() {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleEditCategory(category)}
-                              className="text-blue-600 hover:text-blue-900"
+                              title="Edit Category Details" // Added for accessibility
+                              aria-label={`Edit details for ${category.name}`} // Added for accessibility
+                              className="text-blue-600 hover:text-blue-900 p-1 rounded"
                             >
                               <Edit3 className="w-4 h-4" />
                             </button>
                             <button
+                              title="Delete Category" // Added for accessibility
+                              aria-label={`Delete ${category.name}`} // Added for accessibility
                               onClick={() => handleDeleteCategory(category.id)}
                               className="text-red-600 hover:text-red-900"
                             >
@@ -1004,9 +1110,11 @@ export default function MenuManagement() {
             {activeTab === 'products' ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                  <label htmlFor="product-name" className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
                   <input
+                    id="product-name" // Added for accessibility
                     type="text"
+                    placeholder="Enter product name"
                     value={productForm.name}
                     onChange={(e) => setProductForm(prev => ({ ...prev, name: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
@@ -1015,8 +1123,10 @@ export default function MenuManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <label htmlFor="product-description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                   <textarea
+                    id="product-description" // Added for accessibility
+                    placeholder="Enter product description"
                     value={productForm.description}
                     onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
@@ -1025,8 +1135,8 @@ export default function MenuManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <select
+                  <label htmlFor="product-category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select id="product-category" title="Select Product Category"
                     value={productForm.category_id}
                     onChange={(e) => setProductForm(prev => ({ ...prev, category_id: parseInt(e.target.value) }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
@@ -1039,9 +1149,11 @@ export default function MenuManagement() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (KES)</label>
-                    <input
-                      type="number"
+                    <label htmlFor="product-price" className="block text-sm font-medium text-gray-700 mb-1">Price (KES)</label>
+                    <input // Added for accessibility
+                      id="product-price"
+                      type="number" 
+                      placeholder="0.00"
                       value={productForm.price}
                       onChange={(e) => setProductForm(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
@@ -1052,9 +1164,11 @@ export default function MenuManagement() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Cost (KES)</label>
-                    <input
+                    <label htmlFor="product-cost" className="block text-sm font-medium text-gray-700 mb-1">Cost (KES)</label>
+                    <input // Added for accessibility
+                      id="product-cost"
                       type="number"
+                      placeholder="0.00"
                       value={productForm.cost}
                       onChange={(e) => setProductForm(prev => ({ ...prev, cost: parseFloat(e.target.value) || 0 }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
@@ -1065,8 +1179,10 @@ export default function MenuManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Inventory Link (Bar Items)</label>
+                  <label htmlFor="inventory-link" className="block text-sm font-medium text-gray-700 mb-1">Inventory Link (Bar Items)</label>
                   <select
+                    id="inventory-link" // Added for accessibility
+                    title="Link to Inventory Item" // Added for accessibility
                     value={productForm.inventory_item_id || ''}
                     onChange={(e) => setProductForm(prev => ({ ...prev, inventory_item_id: e.target.value ? parseInt(e.target.value) : null }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
@@ -1084,9 +1200,11 @@ export default function MenuManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Preparation Time (minutes)</label>
-                  <input
+                  <label htmlFor="preparation-time" className="block text-sm font-medium text-gray-700 mb-1">Preparation Time (minutes)</label>
+                  <input // Added for accessibility
+                    id="preparation-time"
                     type="number"
+                    placeholder="e.g. 15"
                     value={productForm.preparation_time}
                     onChange={(e) => setProductForm(prev => ({ ...prev, preparation_time: parseInt(e.target.value) || 0 }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
@@ -1095,8 +1213,9 @@ export default function MenuManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
+                  <label htmlFor="product-image" className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
                   <div className="space-y-3">
+                    {/* Image preview logic remains the same */}
                     {imagePreview && (
                       <div className="flex items-center gap-3">
                         <img
@@ -1118,6 +1237,7 @@ export default function MenuManagement() {
                       </div>
                     )}
                     <input
+                      id="product-image" // Added for accessibility
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
                       onChange={handleImageSelect}
@@ -1132,9 +1252,11 @@ export default function MenuManagement() {
             ) : (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
-                  <input
+                  <label htmlFor="category-name" className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
+                  <input // Added for accessibility
+                    id="category-name"
                     type="text"
+                    placeholder="Category Name"
                     value={categoryForm.name}
                     onChange={(e) => setCategoryForm(prev => ({ ...prev, name: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
@@ -1143,8 +1265,10 @@ export default function MenuManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <textarea
+                  <label htmlFor="category-description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea // Added for accessibility
+                    id="category-description"
+                    placeholder="Enter category description"
                     value={categoryForm.description}
                     onChange={(e) => setCategoryForm(prev => ({ ...prev, description: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
@@ -1153,9 +1277,11 @@ export default function MenuManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
-                  <input
+                  <label htmlFor="category-display-order" className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
+                  <input // Added for accessibility
+                    id="category-display-order"
                     type="number"
+                    placeholder="0"
                     value={categoryForm.display_order}
                     onChange={(e) => setCategoryForm(prev => ({ ...prev, display_order: parseInt(e.target.value) || 0 }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
@@ -1201,6 +1327,46 @@ export default function MenuManagement() {
           </div>
         </div>
       )}
-    </div>
-  );
+
+      {showLinkModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Connect to Master Inventory Item</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Enter the target Inventory Tracking ID to map all {selectedProductIds.length} selected items.
+            </p>
+            <form onSubmit={handleBulkLinkSubmit}>
+              <div className="mb-4">
+                <label htmlFor="bulk-inventory-id" className="block text-sm font-medium text-gray-700 mb-1">Inventory Item ID</label>
+                <input
+                  id="bulk-inventory-id"
+                  type="number"
+                  required
+                  placeholder="e.g. 14"
+                  value={targetInventoryId}
+                  onChange={(e) => setTargetInventoryId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLinkModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded"
+                >
+                  Apply Connections
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )} 
+    </div> 
+  ); 
 }

@@ -1,3 +1,4 @@
+/* cspell:ignore openxmlformats officedocument spreadsheetml */
 import { Request, Response } from 'express';
 import db from '../db';
 import fs from 'fs';
@@ -465,4 +466,54 @@ export const uploadProducts = async (req: Request, res: Response) => {
     if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     res.status(500).json({ message: 'Import failed', error: (err as Error).message });
   }
-}; 
+};
+
+// Bulk unlink products from inventory tracking
+export const bulkUnlinkFromInventory = async (req: Request, res: Response) => {
+  try {
+    const { productIds } = req.body;
+
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ message: 'No product IDs provided' });
+    }
+
+    await db('products')
+      .whereIn('id', productIds)
+      .update({
+        inventory_item_id: null,
+        updated_at: new Date()
+      });
+
+    return res.json({ message: `Successfully unlinked ${productIds.length} products from inventory.` });
+  } catch (err) {
+    console.error('Error in bulk unlinking products:', err);
+    return res.status(500).json({ message: 'Error unlinking products from inventory' });
+  }
+};
+
+// Bulk link products to a specific inventory item
+export const bulkLinkToInventory = async (req: Request, res: Response) => {
+  try {
+    const { productIds, inventoryItemId } = req.body;
+
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ message: 'No product IDs provided' });
+    }
+
+    if (!inventoryItemId) {
+      return res.status(400).json({ message: 'An Inventory Item ID is required to map these items' });
+    }
+
+    await db('products')
+      .whereIn('id', productIds)
+      .update({
+        inventory_item_id: Number(inventoryItemId),
+        updated_at: new Date()
+      });
+
+    return res.json({ message: `Successfully linked ${productIds.length} products to inventory item ID ${inventoryItemId}.` });
+  } catch (err) {
+    console.error('Error in bulk linking products:', err);
+    return res.status(500).json({ message: 'Error linking products to inventory' });
+  }
+};
