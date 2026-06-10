@@ -116,7 +116,7 @@ export const getUserSessionHistory = async (req: Request, res: Response) => {
   }
 };
 
-// Clear previous days data (End of Day / Cash Up)
+// Clear previous days data (End of Day / Cash Up / Bulk Rollover)
 export const clearPreviousData = async (req: Request, res: Response) => {
   try {
     const adminId = (req as any).user?.id;
@@ -124,23 +124,33 @@ export const clearPreviousData = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    // Kenyan 8 AM Rollover Logic (8 AM EAT = 5 AM UTC)
+    const anchorUTC = new Date();
+    anchorUTC.setUTCHours(5, 0, 0, 0);
+    
+    // If current time is before 8 AM EAT, the previous shift work window ended at yesterday's 8 AM anchor.
+    if (new Date() < anchorUTC) {
+      anchorUTC.setUTCDate(anchorUTC.getUTCDate() - 1);
+    }
+
     await db.transaction(async (trx) => {
-      // Record clearance for each unique staff member with uncleared data
-      // We union all sources to find all staff who need clearing
+      // Record clearance for each unique staff member who has uncleared data created BEFORE the 8 AM cutoff
       const staffWithUnclearedData = await trx.raw(`
         SELECT staff_id FROM (
-          SELECT staff_id FROM orders WHERE is_cleared = false
+          SELECT staff_id FROM orders WHERE is_cleared = false AND created_at < ?
           UNION
-          SELECT created_by as staff_id FROM expenses WHERE is_cleared = false
+          SELECT created_by as staff_id FROM expenses WHERE is_cleared = false AND created_at < ?
           UNION
-          SELECT staff_id FROM room_transactions WHERE is_cleared = false
+          SELECT staff_id FROM room_transactions WHERE is_cleared = false AND created_at < ?
         ) as combined WHERE staff_id IS NOT NULL GROUP BY staff_id
-      `);
+      `, [anchorUTC, anchorUTC, anchorUTC]);
 
-      for (const { staff_id } of (staffWithUnclearedData.rows || staffWithUnclearedData)) {
-        const orderSum = await trx('orders').where({ staff_id, is_cleared: false }).sum('total_amount as total').first();
-        const roomSum = await trx('room_transactions').where({ staff_id, is_cleared: false }).sum('total_amount as total').first();
-        const expenseSum = await trx('expenses').where({ created_by: staff_id, is_cleared: false }).sum('amount as total').first();
+      const targetStaff = staffWithUnclearedData.rows || staffWithUnclearedData;
+
+      for (const { staff_id } of targetStaff) {
+        const orderSum = await trx('orders').where({ staff_id, is_cleared: false }).andWhere('created_at', '<', anchorUTC).sum('total_amount as total').first();
+        const roomSum = await trx('room_transactions').where({ staff_id, is_cleared: false }).andWhere('created_at', '<', anchorUTC).sum('total_amount as total').first();
+        const expenseSum = await trx('expenses').where({ created_by: staff_id, is_cleared: false }).andWhere('created_at', '<', anchorUTC).sum('amount as total').first();
 
         const totalToClear = (Number(orderSum?.total) || 0) + (Number(roomSum?.total) || 0) - (Number(expenseSum?.total) || 0);
 
@@ -149,31 +159,34 @@ export const clearPreviousData = async (req: Request, res: Response) => {
           cleared_by: adminId,
           cleared_at: new Date(),
           total_amount_cleared: totalToClear,
-          notes: 'Clear All Previous Data action'
+          notes: `Bulk rollover clearance for previous shifts (Cutoff: ${anchorUTC.toISOString()})`
         });
       }
 
-      // Clear orders
+      // Clear orders older than the 8 AM rollover point
       await trx('orders')
         .where('is_cleared', false)
+        .andWhere('created_at', '<', anchorUTC)
         .update({
           is_cleared: true,
           cleared_at: new Date(),
           cleared_by: adminId
         });
 
-      // Clear expenses
+      // Clear expenses older than the 8 AM rollover point
       await trx('expenses')
         .where('is_cleared', false)
+        .andWhere('created_at', '<', anchorUTC)
         .update({
           is_cleared: true,
           cleared_at: new Date(),
           cleared_by: adminId
         });
 
-      // Clear room transactions
+      // Clear room transactions older than the 8 AM rollover point
       await trx('room_transactions')
         .where('is_cleared', false)
+        .andWhere('created_at', '<', anchorUTC)
         .update({
           is_cleared: true,
           cleared_at: new Date(),
@@ -181,26 +194,29 @@ export const clearPreviousData = async (req: Request, res: Response) => {
         });
     });
 
-    res.json({ message: 'Previous data cleared successfully' });
+    res.json({ message: 'Previous shift data cleared successfully. Active shift data preserved.' });
   } catch (error) {
     console.error('Clear previous data error:', error);
     res.status(500).json({ message: 'Failed to clear previous data' });
   }
 };
 
-// Clear specific staff member's previous data
+// Clear specific staff member's total outstanding balance on demand (Individual Clear Button)
 export const clearStaffData = async (req: Request, res: Response) => {
   try {
     const { id: staffIdToClear } = req.params;
     const adminId = (req as any).user?.id;
+    const userRole = (req as any).user?.role;
 
-    if (!adminId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+    // Enforce that only admins or managers can trigger clearing functions
+    if (!adminId || (userRole !== 'admin' && userRole !== 'manager')) {
+      return res.status(403).json({ message: 'Access denied: Only Admins or Managers can execute waiter clearances.' });
     }
 
     const result = await db.transaction(async (trx) => {
-      // 1. Calculate total before clearing (Orders + Rooms - Expenses)
+      // 1. Calculate the active balance up to this exact millisecond
       const orderSum = await trx('orders').where({ staff_id: staffIdToClear, is_cleared: false }).sum('total_amount as total').first();
+      // No change
       const roomSum = await trx('room_transactions').where({ staff_id: staffIdToClear, is_cleared: false }).sum('total_amount as total').first();
       const expenseSum = await trx('expenses').where({ created_by: staffIdToClear, is_cleared: false }).sum('amount as total').first();
 
@@ -212,16 +228,16 @@ export const clearStaffData = async (req: Request, res: Response) => {
         .select('name')
         .first();
 
-      // 3. Record in waiter_clearances
+      // 3. Record entry inside log
       await trx('waiter_clearances').insert({
         staff_id: staffIdToClear,
         cleared_by: adminId,
         cleared_at: trx.fn.now(),
         total_amount_cleared: totalNet,
-        notes: `Individual clearance for ${staff?.name || 'staff'}`
+        notes: `Individual clearance for ${staff?.name || 'staff'} completed by Admin`
       });
 
-      // 4. Update all pending records
+      // 4. Update all pending records to true right now
       await trx('orders')
         .where('staff_id', staffIdToClear)
         .where('is_cleared', false)
@@ -231,7 +247,6 @@ export const clearStaffData = async (req: Request, res: Response) => {
           cleared_by: adminId
         });
         
-      // Also clear expenses if applicable
       await trx('expenses')
         .where('created_by', staffIdToClear)
         .where('is_cleared', false)
@@ -241,7 +256,6 @@ export const clearStaffData = async (req: Request, res: Response) => {
           cleared_by: adminId
         });
 
-      // Also clear room transactions if applicable
       await trx('room_transactions')
         .where('staff_id', staffIdToClear)
         .where('is_cleared', false)
@@ -280,7 +294,6 @@ export const getUnclearedStaffReceipts = async (req: Request, res: Response) => 
       return res.status(403).json({ message: 'Access denied: You can only view your own receipts' });
     }
 
-    const today = new Date().toISOString().split('T')[0];
 
     // 1. Get Orders
     let ordersQuery = db('orders').where('staff_id', staffId);

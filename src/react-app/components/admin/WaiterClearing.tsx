@@ -231,8 +231,8 @@ export default function WaiterClearing() {
   };
 
   const filteredStaff = unclearedStaff.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.employee_id.toLowerCase().includes(searchTerm.toLowerCase())
+    (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.employee_id || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (isLoading) {
@@ -456,6 +456,8 @@ export default function WaiterClearing() {
                   setShowModal(false);
                   setModalDateRange({ start: '', end: '' });
                 }}
+                aria-label="Close receipts modal"
+                title="Close modal"
                 className="p-2 hover:bg-gray-200 rounded-full transition-colors"
               >
                 <X className="w-6 h-6 text-gray-500" />
@@ -465,8 +467,9 @@ export default function WaiterClearing() {
             <div className="px-6 py-4 bg-white border-b space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-end gap-4">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Start Date</label>
+                  <label htmlFor="modalStartDate" className="block text-xs font-medium text-gray-500 uppercase mb-1">Start Date</label>
                   <input 
+                    id="modalStartDate"
                     type="date" 
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-yellow-500 focus:border-yellow-500"
                     value={modalDateRange.start}
@@ -474,8 +477,9 @@ export default function WaiterClearing() {
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">End Date</label>
+                  <label htmlFor="modalEndDate" className="block text-xs font-medium text-gray-500 uppercase mb-1">End Date</label>
                   <input 
+                    id="modalEndDate"
                     type="date" 
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-yellow-500 focus:border-yellow-500"
                     value={modalDateRange.end}

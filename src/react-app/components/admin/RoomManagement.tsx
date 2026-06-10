@@ -332,7 +332,7 @@ export default function RoomManagement() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>2
+        <div>
           <h2 className="text-2xl font-bold text-gray-900">Room Management</h2>
           <p className="text-gray-600">Manage rooms, reservations, and guest information</p>
         </div>

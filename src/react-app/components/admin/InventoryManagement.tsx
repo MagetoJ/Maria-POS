@@ -95,7 +95,7 @@ export default function InventoryManagement() {
     } else {
       fetchLogs();
     }
-  }, [activeTab, selectedType]);
+  }, [activeTab, selectedType, fetchItems, fetchLogs]);
 
   const handleAddItem = async () => {
     if (!form.name || !form.unit) {

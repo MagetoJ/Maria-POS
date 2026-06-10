@@ -46,7 +46,7 @@ export default function ShiftManagement() {
   useEffect(() => {
     fetchShifts();
     fetchStaff();
-  }, [selectedDate, viewMode]);
+  }, [selectedDate, viewMode, fetchShifts, fetchStaff]);
 
   const fetchShifts = async () => {
     setIsLoading(true);

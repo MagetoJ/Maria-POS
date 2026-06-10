@@ -95,7 +95,7 @@ export default function InvoicesManagement() {
 
   useEffect(() => {
     fetchInvoices();
-  }, [filterStatus]);
+  }, [filterStatus, fetchInvoices]);
 
   const fetchInvoices = async () => {
     setIsLoading(true);
