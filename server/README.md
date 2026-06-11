@@ -127,8 +127,8 @@ JWT_SECRET=your-jwt-secret
 
 # Production Environment (Render)
 PORT=10000
-DATABASE_URL=postgresql://maria_pos_user:v0YiOikwXUaDVFhO6uSVCTBDR38cGZyW@dpg-d80rvppo3t8c73e278s0-a/maria_pos
-EXTERNAL_DATABASE_URL=postgresql://maria_pos_user:v0YiOikwXUaDVFhO6uSVCTBDR38cGZyW@dpg-d80rvppo3t8c73e278s0-a.oregon-postgres.render.com/maria_pos
+DATABASE_URL=postgresql://maria_backup_9erc_user:uSGUw1ZGduy9BjK1gNx7qpZAhqYtTYDM@dpg-d8jdp4svikkc73bh3kc0-a/maria_backup_9erc
+EXTERNAL_DATABASE_URL=postgresql://maria_backup_9erc_user:uSGUw1ZGduy9BjK1gNx7qpZAhqYtTYDM@dpg-d8jdp4svikkc73bh3kc0-a.oregon-postgres.render.com/maria_backup_9erc
 
 # Local Development Environment (example values, adjust as needed)
 # PORT=3000
