@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../../config/api';
 import { 
   FileText, 
@@ -93,11 +93,7 @@ export default function InvoicesManagement() {
     items: [] as InvoiceItem[]
   });
 
-  useEffect(() => {
-    fetchInvoices();
-  }, [filterStatus, fetchInvoices]);
-
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -117,7 +113,11 @@ export default function InvoicesManagement() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filterStatus]);
+
+  useEffect(() => {
+    fetchInvoices();
+  }, [fetchInvoices]);
 
   const fetchRecentOrders = async () => {
     try {
@@ -127,7 +127,6 @@ export default function InvoicesManagement() {
         setOrders(data);
       }
 
-      // Also fetch products for multi-item entry
       const prodRes = await apiClient.get('/api/products');
       if (prodRes.ok) {
         const prodData = await prodRes.json();
@@ -164,7 +163,7 @@ export default function InvoicesManagement() {
       total_price: product.price
     };
 
-    setSelectedOrderId(null); // Clear selected order if manual items are added
+    setSelectedOrderId(null);
     setInvoiceFormData(prev => ({
       ...prev,
       items: [...prev.items, newItem]
@@ -307,8 +306,10 @@ export default function InvoicesManagement() {
           {/* Filters & Search */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
             <div className="relative md:col-span-2">
+              <label htmlFor="searchInvoices" className="sr-only">Search Invoices</label>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
+                id="searchInvoices"
                 type="text"
                 placeholder="Search by invoice #, customer, or order #..."
                 value={searchQuery}
@@ -316,17 +317,23 @@ export default function InvoicesManagement() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            >
-              <option value="all">All Statuses</option>
-              <option value="unpaid">Unpaid</option>
-              <option value="paid">Paid</option>
-              <option value="partial">Partial</option>
-              <option value="overdue">Overdue</option>
-            </select>
+            <div>
+              <label htmlFor="statusFilterSelect" className="sr-only">Filter by invoice status</label>
+              <select
+                id="statusFilterSelect"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                aria-label="Filter invoices by status"
+                title="Filter invoices by status"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="all">All Statuses</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="paid">Paid</option>
+                <option value="partial">Partial</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
           </div>
 
           {/* Invoices List */}
@@ -373,17 +380,20 @@ export default function InvoicesManagement() {
                           {getStatusBadge(inv.status)}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-2 items-center">
                             <button
                               onClick={() => setSelectedInvoiceId(inv.id)}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="View/Print"
+                              title="View/Print invoice details"
+                              aria-label={`View or print invoice number ${inv.invoice_number}`}
                             >
                               <Printer className="w-5 h-5" />
                             </button>
                             <select
                               value={inv.status}
                               onChange={(e) => updateInvoiceStatus(inv.id, e.target.value)}
+                              aria-label={`Update status for invoice ${inv.invoice_number}`}
+                              title="Change Invoice Status"
                               className="text-xs border rounded px-1 py-1"
                             >
                               <option value="unpaid">Unpaid</option>
@@ -406,8 +416,11 @@ export default function InvoicesManagement() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 max-w-4xl mx-auto">
           <div className="flex items-center gap-2 mb-6">
             <button 
+              type="button"
               onClick={() => setShowCreateView(false)}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Back to invoices list"
+              title="Back to invoices list"
             >
               <ChevronRight className="w-5 h-5 rotate-180" />
             </button>
@@ -432,8 +445,9 @@ export default function InvoicesManagement() {
               <div className="space-y-4 border-t pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Event Type</label>
+                    <label htmlFor="eventTypeSelect" className="block text-sm font-bold text-gray-700 mb-2">Event Type</label>
                     <select 
+                      id="eventTypeSelect"
                       className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                       value={invoiceFormData.event_type}
                       onChange={(e) => handleTemplateChange(e.target.value)}
@@ -443,8 +457,9 @@ export default function InvoicesManagement() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Event Package Price (KES)</label>
+                    <label htmlFor="eventPriceInput" className="block text-sm font-bold text-gray-700 mb-2">Event Package Price (KES)</label>
                     <input 
+                      id="eventPriceInput"
                       type="number"
                       placeholder="e.g. 50000"
                       className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
@@ -461,6 +476,7 @@ export default function InvoicesManagement() {
                       <input 
                         type="checkbox" 
                         checked={item.selected} 
+                        aria-label={`Include item number ${idx + 1} in invoice`}
                         onChange={(e) => {
                           const updated = [...manualItems];
                           updated[idx].selected = e.target.checked;
@@ -471,6 +487,7 @@ export default function InvoicesManagement() {
                       <input 
                         className="flex-1 bg-transparent border-b border-gray-300 focus:border-blue-500 outline-none py-1"
                         placeholder="Item Description"
+                        aria-label={`Item description number ${idx + 1}`}
                         value={item.description}
                         onChange={(e) => {
                           const updated = [...manualItems];
@@ -484,6 +501,7 @@ export default function InvoicesManagement() {
                           type="number" 
                           className="w-24 p-1 border rounded focus:ring-1 focus:ring-blue-500 outline-none"
                           placeholder="Price"
+                          aria-label={`Item price number ${idx + 1}`}
                           value={item.price}
                           onChange={(e) => {
                             const updated = [...manualItems];
@@ -507,9 +525,10 @@ export default function InvoicesManagement() {
               <div className="space-y-6">
                 <div className="border-t border-gray-100 pt-6">
                   <div className="flex justify-between items-center mb-4">
-                    <label className="block text-sm font-bold text-gray-700">Add Specific Items</label>
+                    <label htmlFor="addProductSelect" className="block text-sm font-bold text-gray-700">Add Specific Items</label>
                     <div className="relative">
                       <select
+                        id="addProductSelect"
                         onChange={(e) => {
                           if (e.target.value) {
                             addItem(parseInt(e.target.value));
@@ -548,6 +567,7 @@ export default function InvoicesManagement() {
                                   type="number"
                                   min="1"
                                   value={item.quantity}
+                                  aria-label={`Quantity for item ${item.product_name}`}
                                   onChange={(e) => updateItemQuantity(index, parseInt(e.target.value) || 1)}
                                   className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
                                 />
@@ -559,6 +579,8 @@ export default function InvoicesManagement() {
                                   type="button"
                                   onClick={() => removeItem(index)}
                                   className="text-red-500 hover:text-red-700"
+                                  aria-label={`Remove item ${item.product_name}`}
+                                  title={`Remove ${item.product_name}`}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -581,7 +603,7 @@ export default function InvoicesManagement() {
                 </div>
 
                 <div className="border-t border-gray-100 pt-6">
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Or Select Recent Order</label>
+                  <span className="block text-sm font-bold text-gray-700 mb-2">Or Select Recent Order</span>
                   <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
                     {orders.length === 0 ? (
                       <div className="p-4 text-center text-gray-500">No recent orders found</div>
@@ -589,15 +611,28 @@ export default function InvoicesManagement() {
                       orders.map(order => (
                         <div 
                           key={order.id}
+                          tabIndex={0}
+                          role="button"
+                          aria-label={`Select order ${order.order_number} for customer ${order.customer_name || 'Guest'} worth ${formatCurrency(order.total_amount)}`}
                           onClick={() => {
                             setSelectedOrderId(order.id);
-                            // Clear manual items and event details if order is selected
                             setInvoiceFormData(prev => ({
                               ...prev,
                               items: [],
                               event_type: '',
                               event_price: ''
                             }));
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              setSelectedOrderId(order.id);
+                              setInvoiceFormData(prev => ({
+                                ...prev,
+                                items: [],
+                                event_type: '',
+                                event_price: ''
+                              }));
+                            }
                           }}
                           className={`p-4 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors ${
                             selectedOrderId === order.id ? 'bg-blue-50 border-blue-200' : ''
@@ -624,10 +659,10 @@ export default function InvoicesManagement() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-gray-100 pt-6">
-              {/* Manual Customer Name */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Customer Name</label>
+                <label htmlFor="customerNameInput" className="block text-sm font-bold text-gray-700 mb-2">Customer Name</label>
                 <input
+                  id="customerNameInput"
                   type="text"
                   placeholder="Enter customer name..."
                   value={invoiceFormData.customer_name}
@@ -636,10 +671,10 @@ export default function InvoicesManagement() {
                 />
               </div>
 
-              {/* Manual Customer Email */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Customer Email</label>
+                <label htmlFor="customerEmailInput" className="block text-sm font-bold text-gray-700 mb-2">Customer Email</label>
                 <input
+                  id="customerEmailInput"
                   type="email"
                   placeholder="Enter customer email..."
                   value={invoiceFormData.customer_email}
@@ -649,8 +684,9 @@ export default function InvoicesManagement() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Due Date</label>
+                <label htmlFor="invoiceDueDateInput" className="block text-sm font-bold text-gray-700 mb-2">Due Date</label>
                 <input
+                  id="invoiceDueDateInput"
                   type="date"
                   value={invoiceFormData.due_date}
                   onChange={(e) => setInvoiceFormData({ ...invoiceFormData, due_date: e.target.value })}
@@ -660,8 +696,9 @@ export default function InvoicesManagement() {
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-gray-700 mb-2">Billing Address</label>
+                <label htmlFor="billingAddressTextarea" className="block text-sm font-bold text-gray-700 mb-2">Billing Address</label>
                 <textarea
+                  id="billingAddressTextarea"
                   value={invoiceFormData.billing_address}
                   onChange={(e) => setInvoiceFormData({ ...invoiceFormData, billing_address: e.target.value })}
                   placeholder="Enter customer billing address details..."
@@ -670,8 +707,9 @@ export default function InvoicesManagement() {
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-bold text-gray-700 mb-2">Notes</label>
+                <label htmlFor="invoiceNotesTextarea" className="block text-sm font-bold text-gray-700 mb-2">Notes</label>
                 <textarea
+                  id="invoiceNotesTextarea"
                   value={invoiceFormData.notes}
                   onChange={(e) => setInvoiceFormData({ ...invoiceFormData, notes: e.target.value })}
                   placeholder="Internal notes or messages for the customer..."
@@ -714,7 +752,6 @@ export default function InvoicesManagement() {
         </div>
       )}
 
-      {/* Invoice Detail Modal */}
       {selectedInvoiceId && (
         <InvoiceModal
           invoiceId={selectedInvoiceId}

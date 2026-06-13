@@ -56,6 +56,9 @@ export default function WaiterClearing() {
     end: ''
   });
 
+  // Custom confirmation modal state for individual clearance
+  const [confirmClearingStaff, setConfirmClearingStaff] = useState<UnclearedStaff | null>(null);
+
   useEffect(() => {
     fetchUnclearedStaff();
   }, []);
@@ -113,30 +116,30 @@ export default function WaiterClearing() {
     }
   };
 
-  const handleClearStaff = async (staffId: number, staffName: string) => {
-    if (!confirm(`Are you sure you want to clear all previous shift receipts for ${staffName}?`)) return;
-
-    setIsClearing(staffId);
+  const handleClearStaff = async (staff: UnclearedStaff) => {
+    setIsClearing(staff.id);
     setError(null);
     setSuccess(null);
     try {
-      const response = await apiClient.post(`/api/admin/clear-staff/${staffId}`);
+      const response = await apiClient.post(`/api/admin/clear-staff/${staff.id}`);
       if (!response.ok) throw new Error('Failed to clear staff data');
       
-      setSuccess(`Successfully cleared data for ${staffName}`);
-      fetchUnclearedStaff(); // Re-fetch to show updated balances (waiters will stay with 0)
+      setSuccess(`Successfully cleared data for ${staff.name}`);
+      fetchUnclearedStaff(); // Re-fetch to show updated balances
       
-      // Close modal if it was open for this staff
-      if (selectedStaff?.id === staffId) {
+      // Close views if they were active for this staff member
+      if (selectedStaff?.id === staff.id) {
         setShowModal(false);
         setSelectedStaff(null);
       }
+      
+      setConfirmClearingStaff(null); // Close confirmation modal
       
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       console.error(err);
-      setError(`Failed to clear data for ${staffName}`);
+      setError(`Failed to clear data for ${staff.name}`);
     } finally {
       setIsClearing(null);
     }
@@ -254,12 +257,47 @@ export default function WaiterClearing() {
           <button
             onClick={handleClearAll}
             disabled={isClearing !== null}
-            className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+            className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 font-medium text-sm"
           >
             {isClearing === 0 ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
             Clear All Previous Data
           </button>
         )}
+      </div>
+
+      {/* Dashboard Analytics Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+            <User className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Staff Registered</p>
+            <p className="text-xl font-bold text-gray-900">{unclearedStaff.length}</p>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
+            <Receipt className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Awaiting Clearance</p>
+            <p className="text-xl font-bold text-gray-900">
+              {unclearedStaff.filter(s => Number(s.total_due) > 0).length}
+            </p>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-green-50 text-green-600 rounded-lg">
+            <DollarSign className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Outstanding Debt</p>
+            <p className="text-xl font-bold text-gray-900">
+              {formatCurrency(unclearedStaff.reduce((sum, s) => sum + Number(s.total_due), 0))}
+            </p>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -304,8 +342,8 @@ export default function WaiterClearing() {
               <div key={s.id} className="p-4 space-y-3">
                 <div className="flex justify-between items-start">
                   <div className="flex items-center">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
-                      <User className="w-4 h-4" />
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3 text-xs font-bold">
+                      {s.name.split(' ').map(w => w[0]).join('').toUpperCase()}
                     </div>
                     <div>
                       <div className="text-sm font-bold text-gray-900">{s.name}</div>
@@ -320,16 +358,16 @@ export default function WaiterClearing() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleViewReceipts(s)}
-                    className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+                    className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors font-medium"
                   >
                     <Eye className="w-4 h-4" />
                     View
                   </button>
                   {canClear && (
                     <button
-                      onClick={() => handleClearStaff(s.id, s.name)}
+                      onClick={() => setConfirmClearingStaff(s)}
                       disabled={isClearing !== null}
-                      className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600 transition-colors disabled:opacity-50"
+                      className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600 transition-colors disabled:opacity-50 font-medium"
                     >
                       {isClearing === s.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -373,8 +411,8 @@ export default function WaiterClearing() {
                   <tr key={s.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
-                          <User className="w-4 h-4" />
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3 text-xs font-bold">
+                          {s.name.split(' ').map(w => w[0]).join('').toUpperCase()}
                         </div>
                         <div>
                           <div className="text-sm font-medium text-gray-900">{s.name}</div>
@@ -403,7 +441,7 @@ export default function WaiterClearing() {
                       </button>
                       {canClear && (
                         <button
-                          onClick={() => handleClearStaff(s.id, s.name)}
+                          onClick={() => setConfirmClearingStaff(s)}
                           disabled={isClearing !== null}
                           className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors disabled:opacity-50"
                         >
@@ -438,9 +476,70 @@ export default function WaiterClearing() {
         </div>
       </div>
 
+      {/* Custom Confirmation Clearance Modal */}
+      {confirmClearingStaff && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 border border-gray-100 transform transition-all">
+            <div className="flex items-center gap-3 text-amber-500 mb-4">
+              <AlertCircle className="w-6 h-6 flex-shrink-0" />
+              <h3 className="text-lg font-bold text-gray-900">Confirm Clearance Settlement</h3>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+              You are about to execute a full structural balance shift for this staff member. Confirming will clear outstanding shift items and set their net debt obligations to zero.
+            </p>
+            
+            <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-200 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">
+                  {confirmClearingStaff.name.split(' ').map(w => w[0]).join('').toUpperCase()}
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900">{confirmClearingStaff.name}</h4>
+                  <p className="text-xs text-gray-500">ID: {confirmClearingStaff.employee_id} • {confirmClearingStaff.role.replace('_', ' ')}</p>
+                </div>
+              </div>
+              
+              <div className="border-t border-gray-200 pt-3 flex justify-between items-center text-sm">
+                <span className="text-gray-500">Unprocessed Records:</span>
+                <span className="font-semibold text-gray-900">{confirmClearingStaff.uncleared_count} transactions</span>
+              </div>
+              
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500">Total Net to Settle:</span>
+                <span className="text-base font-black text-red-600">{formatCurrency(confirmClearingStaff.total_due)}</span>
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmClearingStaff(null)}
+                className="flex-1 py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors border border-gray-200 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleClearStaff(confirmClearingStaff)}
+                disabled={isClearing !== null}
+                className="flex-1 py-2 px-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm disabled:opacity-50 shadow-sm"
+              >
+                {isClearing === confirmClearingStaff.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-4 h-4" />
+                )}
+                Confirm Settlement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Receipts Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
               <div>
@@ -500,7 +599,7 @@ export default function WaiterClearing() {
                   <button 
                     onClick={handleSearchClick}
                     disabled={!modalDateRange.start || !modalDateRange.end || isLoadingReceipts}
-                    className="flex-1 bg-yellow-500 text-white px-6 py-2 rounded-md font-bold hover:bg-yellow-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="flex-1 bg-yellow-500 text-white px-6 py-2 rounded-md font-bold hover:bg-yellow-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                   >
                     <Eye className="w-4 h-4" />
                     Search
@@ -589,7 +688,7 @@ export default function WaiterClearing() {
               </div>
               <button
                 onClick={() => setShowModal(false)}
-                className="w-full sm:w-auto px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                className="w-full sm:w-auto px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium text-sm"
               >
                 Close
               </button>

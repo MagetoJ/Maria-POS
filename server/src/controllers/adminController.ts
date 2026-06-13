@@ -294,34 +294,40 @@ export const getUnclearedStaffReceipts = async (req: Request, res: Response) => 
       return res.status(403).json({ message: 'Access denied: You can only view your own receipts' });
     }
 
-
     // 1. Get Orders
     let ordersQuery = db('orders').where('staff_id', staffId);
-    if (includeCleared !== 'true') {
+    if (includeCleared === 'true') {
+      ordersQuery = ordersQuery.where('is_cleared', true);
+      if (start && end) {
+        ordersQuery = ordersQuery.whereBetween('created_at', [start as string, end as string]);
+      }
+    } else {
+      // For active clearing, ignore date range and pull ALL uncleared transactions
       ordersQuery = ordersQuery.where('is_cleared', false);
-    }
-    if (start && end) {
-      ordersQuery = ordersQuery.whereBetween('created_at', [start as string, end as string]);
     }
     const orders = await ordersQuery.select('*').orderBy('created_at', 'desc');
 
     // 2. Get Expenses (formatted as pseudo-receipts)
     let expensesQuery = db('expenses').where('created_by', staffId);
-    if (includeCleared !== 'true') {
+    if (includeCleared === 'true') {
+      expensesQuery = expensesQuery.where('is_cleared', true);
+      if (start && end) {
+        expensesQuery = expensesQuery.whereBetween('created_at', [start as string, end as string]);
+      }
+    } else {
       expensesQuery = expensesQuery.where('is_cleared', false);
-    }
-    if (start && end) {
-      expensesQuery = expensesQuery.whereBetween('created_at', [start as string, end as string]);
     }
     const expenses = await expensesQuery.select('*').orderBy('created_at', 'desc');
 
     // 3. Get Room Transactions (formatted as pseudo-receipts)
     let roomsQuery = db('room_transactions').where('staff_id', staffId);
-    if (includeCleared !== 'true') {
+    if (includeCleared === 'true') {
+      roomsQuery = roomsQuery.where('is_cleared', true);
+      if (start && end) {
+        roomsQuery = roomsQuery.whereBetween('created_at', [start as string, end as string]);
+      }
+    } else {
       roomsQuery = roomsQuery.where('is_cleared', false);
-    }
-    if (start && end) {
-      roomsQuery = roomsQuery.whereBetween('created_at', [start as string, end as string]);
     }
     const rooms = await roomsQuery.select('*').orderBy('created_at', 'desc');
 
@@ -522,13 +528,20 @@ export const getUnclearedStaffSummary = async (req: Request, res: Response) => {
   try {
     const currentUser = (req as any).user;
 
-    // Subqueries for different transaction types
-    const ordersQuery = db('orders').where('is_cleared', false).select('staff_id', 'total_amount', db.raw("'order' as type"));
-    const expensesQuery = db('expenses').where('is_cleared', false).select('created_by as staff_id', db.raw('(amount * -1) as total_amount'), db.raw("'expense' as type"));
-    const roomsQuery = db('room_transactions').where('is_cleared', false).select('staff_id', 'total_amount', db.raw("'room' as type"));
-
-    // Combine all uncleared records
-    const combinedTransactions = db.union([ordersQuery, expensesQuery, roomsQuery], true).as('u');
+    // Build the subquery using a proper base table selection chained with unionAll.
+    // This allows Knex to properly compile a structured derived table as an alias wrapper ('u').
+    const combinedTransactions = db('orders')
+      .where('is_cleared', false)
+      .select('staff_id', 'total_amount', db.raw("'order' as type"))
+      .unionAll([
+        db('expenses')
+          .where('is_cleared', false)
+          .select('created_by as staff_id', db.raw('(amount * -1) as total_amount'), db.raw("'expense' as type")),
+        db('room_transactions')
+          .where('is_cleared', false)
+          .select('staff_id', 'total_amount', db.raw("'room' as type"))
+      ])
+      .as('u');
     
     // Join staff table with the combined transactions to ensure all waiters appear
     const staffSummary = await db('staff as s')
