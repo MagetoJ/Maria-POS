@@ -27,10 +27,17 @@ export const login = async (req: any, res: Response) => {
 
     // 8 AM Blocking Logic for Waiters
     if (user.role === 'waiter' && isPast8AMKenyanTime() && user.requires_clearing) {
-      // Check for any uncleared transactions (orders, expenses, or room_transactions)
-      const unclearedOrders = await db('orders').where({ staff_id: user.id, is_cleared: false }).first();
-      const unclearedExpenses = await db('expenses').where({ created_by: user.id, is_cleared: false }).first();
-      const unclearedRooms = await db('room_transactions').where({ staff_id: user.id, is_cleared: false }).first();
+      // Kenyan 8 AM Rollover Logic (8 AM EAT = 5 AM UTC)
+      const anchorUTC = new Date();
+      anchorUTC.setUTCHours(5, 0, 0, 0);
+      if (new Date() < anchorUTC) {
+        anchorUTC.setUTCDate(anchorUTC.getUTCDate() - 1);
+      }
+
+      // Check for any uncleared transactions created BEFORE the current anchor point (previous shifts)
+      const unclearedOrders = await db('orders').where({ staff_id: user.id, is_cleared: false }).andWhere('created_at', '<', anchorUTC).first();
+      const unclearedExpenses = await db('expenses').where({ created_by: user.id, is_cleared: false }).andWhere('created_at', '<', anchorUTC).first();
+      const unclearedRooms = await db('room_transactions').where({ staff_id: user.id, is_cleared: false }).andWhere('created_at', '<', anchorUTC).first();
 
       if (unclearedOrders || unclearedExpenses || unclearedRooms) {
         return res.status(403).json({ 
