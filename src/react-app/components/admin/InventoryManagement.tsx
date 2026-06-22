@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Package, Plus, Edit3, Trash2, Search, AlertTriangle, History, RefreshCw, Boxes, DollarSign } from 'lucide-react';
 import { apiClient } from '../../config/api';
 
@@ -62,7 +62,7 @@ export default function InventoryManagement() {
     image_url: ''
   });
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
       const response = await apiClient.get(`/api/inventory?type=${selectedType}`);
@@ -75,9 +75,9 @@ export default function InventoryManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedType]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       const response = await apiClient.get('/api/inventory/log');
       if (response.ok) {
@@ -87,7 +87,7 @@ export default function InventoryManagement() {
     } catch (error) {
       console.error("Failed to fetch inventory logs:", error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'items') {
@@ -278,12 +278,14 @@ export default function InventoryManagement() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                aria-label="Search items or suppliers"
               />
             </div>
             <select
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
+              aria-label="Filter by Department"
             >
               <option value="all">All Departments</option>
               <option value="kitchen">Kitchen</option>
@@ -296,6 +298,7 @@ export default function InventoryManagement() {
                 onClick={fetchItems}
                 className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
                 title="Refresh inventory"
+                aria-label="Refresh inventory"
               >
                 <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
               </button>
@@ -319,7 +322,7 @@ export default function InventoryManagement() {
                 <tbody className="divide-y divide-gray-200">
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center">
+                      <td colSpan={7} className="px-6 py-12 text-center">
                         <RefreshCw className="w-8 h-8 text-yellow-500 animate-spin mx-auto mb-2" />
                         <p className="text-gray-500">Loading inventory data...</p>
                       </td>
@@ -358,10 +361,18 @@ export default function InventoryManagement() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => handleEdit(item)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                            <button 
+                              onClick={() => handleEdit(item)} 
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              aria-label={`Edit ${item.name}`}
+                            >
                               <Edit3 className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleDeleteItem(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            <button 
+                              onClick={() => handleDeleteItem(item.id)} 
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              aria-label={`Delete ${item.name}`}
+                            >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
@@ -370,7 +381,7 @@ export default function InventoryManagement() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center">
+                      <td colSpan={7} className="px-6 py-12 text-center">
                         <Package className="w-12 h-12 text-gray-300 mx-auto mb-2" />
                         <p className="text-gray-500">No inventory items found</p>
                       </td>
@@ -441,8 +452,9 @@ export default function InventoryManagement() {
             </div>
             <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
+                <label htmlFor="modal-item-name" className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
                 <input
+                  id="modal-item-name"
                   type="text"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
                   value={form.name}
@@ -451,8 +463,9 @@ export default function InventoryManagement() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit (e.g. Kg, Ltr, Pcs)</label>
+                  <label htmlFor="modal-item-unit" className="block text-sm font-medium text-gray-700 mb-1">Unit (e.g. Kg, Ltr, Pcs)</label>
                   <input
+                    id="modal-item-unit"
                     type="text"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
                     value={form.unit}
@@ -460,11 +473,13 @@ export default function InventoryManagement() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <label htmlFor="modal-item-department" className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                   <select
+                    id="modal-item-department"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
                     value={form.inventory_type}
                     onChange={(e) => setForm({...form, inventory_type: e.target.value as any})}
+                    aria-label="Department Selection"
                   >
                     <option value="kitchen">Kitchen</option>
                     <option value="bar">Bar</option>
@@ -475,8 +490,9 @@ export default function InventoryManagement() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Stock</label>
+                  <label htmlFor="modal-current-stock" className="block text-sm font-medium text-gray-700 mb-1">Current Stock</label>
                   <input
+                    id="modal-current-stock"
                     type="number"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
                     value={form.current_stock}
@@ -484,8 +500,9 @@ export default function InventoryManagement() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Stock Alert</label>
+                  <label htmlFor="modal-minimum-stock" className="block text-sm font-medium text-gray-700 mb-1">Minimum Stock Alert</label>
                   <input
+                    id="modal-minimum-stock"
                     type="number"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
                     value={form.minimum_stock}
@@ -495,8 +512,9 @@ export default function InventoryManagement() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cost Per Unit</label>
+                  <label htmlFor="modal-cost-per-unit" className="block text-sm font-medium text-gray-700 mb-1">Cost Per Unit</label>
                   <input
+                    id="modal-cost-per-unit"
                     type="number"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
                     value={form.cost_per_unit}
@@ -504,8 +522,9 @@ export default function InventoryManagement() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (Bar Items)</label>
+                  <label htmlFor="modal-selling-price" className="block text-sm font-medium text-gray-700 mb-1">Selling Price (Bar Items)</label>
                   <input
+                    id="modal-selling-price"
                     type="number"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
                     value={form.selling_price}
@@ -515,8 +534,9 @@ export default function InventoryManagement() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                <label htmlFor="modal-supplier" className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
                 <input
+                  id="modal-supplier"
                   type="text"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
                   value={form.supplier}
