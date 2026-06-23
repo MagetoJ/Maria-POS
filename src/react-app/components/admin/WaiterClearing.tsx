@@ -218,7 +218,8 @@ export default function WaiterClearing() {
     setError(null);
     setSuccess(null);
     try {
-      const response = await apiClient.post('/api/admin/clear-previous-data');
+      // Updated to explicitly pass the confirm property inside the post body payload guard
+      const response = await apiClient.post('/api/admin/clear-previous-data', { confirm: true });
       if (!response.ok) throw new Error('Failed to clear all data');
       
       setSuccess('Successfully cleared all previous day data');

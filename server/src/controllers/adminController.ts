@@ -117,11 +117,19 @@ export const getUserSessionHistory = async (req: Request, res: Response) => {
 };
 
 // Clear previous days data (End of Day / Cash Up / Bulk Rollover)
+// REQUIRES explicit { "confirm": true } in the request body to prevent accidental triggers.
 export const clearPreviousData = async (req: Request, res: Response) => {
   try {
     const adminId = (req as any).user?.id;
     if (!adminId) {
       return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    // Safety guard: caller must explicitly pass { confirm: true } in the body.
+    // This prevents automated calls (e.g. dashboard load side-effects) from
+    // triggering a bulk rollover and making balances appear to reset at midnight.
+    if (req.body?.confirm !== true) {
+      return res.status(400).json({ message: 'Explicit confirmation required. Pass { "confirm": true } in the request body.' });
     }
 
     // Kenyan 8 AM Rollover Logic (8 AM EAT = 5 AM UTC)
@@ -214,9 +222,16 @@ export const clearStaffData = async (req: Request, res: Response) => {
     }
 
     const result = await db.transaction(async (trx) => {
-      // 1. Calculate the active balance up to this exact millisecond
-      const orderSum = await trx('orders').where({ staff_id: staffIdToClear, is_cleared: false }).sum('total_amount as total').first();
-      // No change
+      // 1. Calculate the active balance up to this exact millisecond.
+      // Use COALESCE(staff_id, completed_by) so QR self-service orders attributed
+      // via completed_by are included — matching the summary query logic.
+      const orderSum = await trx('orders')
+        .where('is_cleared', false)
+        .where('status', 'completed')
+        .where(function() {
+          this.where('staff_id', staffIdToClear).orWhere('completed_by', staffIdToClear);
+        })
+        .sum('total_amount as total').first();
       const roomSum = await trx('room_transactions').where({ staff_id: staffIdToClear, is_cleared: false }).sum('total_amount as total').first();
       const expenseSum = await trx('expenses').where({ created_by: staffIdToClear, is_cleared: false }).sum('amount as total').first();
 
@@ -237,10 +252,14 @@ export const clearStaffData = async (req: Request, res: Response) => {
         notes: `Individual clearance for ${staff?.name || 'staff'} completed by Admin`
       });
 
-      // 4. Update all pending records to true right now
+      // 4. Update all uncleared completed records to cleared.
+      // Match via staff_id OR completed_by to catch QR self-service orders.
       await trx('orders')
-        .where('staff_id', staffIdToClear)
         .where('is_cleared', false)
+        .where('status', 'completed')
+        .where(function() {
+          this.where('staff_id', staffIdToClear).orWhere('completed_by', staffIdToClear);
+        })
         .update({
           is_cleared: true,
           cleared_at: new Date(),
@@ -530,9 +549,18 @@ export const getUnclearedStaffSummary = async (req: Request, res: Response) => {
 
     // Build the subquery using a proper base table selection chained with unionAll.
     // This allows Knex to properly compile a structured derived table as an alias wrapper ('u').
+    // IMPORTANT: Only count COMPLETED orders (status = 'completed') toward the balance.
+    // Pending/in-progress orders should NOT appear in the clearing balance.
+    // Also unify staff_id and completed_by so QR self-service orders (which set completed_by,
+    // not staff_id) are correctly attributed to the waiter who processed them.
     const combinedTransactions = db('orders')
       .where('is_cleared', false)
-      .select('staff_id', 'total_amount', db.raw("'order' as type"))
+      .where('status', 'completed')
+      .select(
+        db.raw('COALESCE(staff_id, completed_by) as staff_id'),
+        'total_amount',
+        db.raw("'order' as type")
+      )
       .unionAll([
         db('expenses')
           .where('is_cleared', false)
