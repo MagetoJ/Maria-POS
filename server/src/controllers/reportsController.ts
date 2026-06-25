@@ -11,27 +11,35 @@ export const getPersonalSales = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
-    const queryDate = date || new Date().toISOString().split('T')[0];
-
-    // Get personal sales for the specific date
-    const salesData = await db('orders')
+    // Base query initialization
+    let baseQuery = db('orders')
       .join('staff', 'orders.staff_id', 'staff.id')
       .where('orders.staff_id', userId)
-      .whereBetween('orders.created_at', [
-        `${queryDate} 00:00:00`,
-        `${queryDate} 23:59:59`
-      ])
+      .whereNot('orders.status', 'cancelled');
+
+    const displayDate = date || new Date().toISOString().split('T')[0];
+
+    if (date) {
+      // Calendar Filtering Logic: Fall back to full date boundaries if explicit date is picked
+      baseQuery = baseQuery.whereBetween('orders.created_at', [
+        `${date} 00:00:00`,
+        `${date} 23:59:59`
+      ]);
+    } else {
+      // DEFAULT CONTINUOUS SHIFT MODE: Tracks all records with uncleared status across days until manual settlement
+      baseQuery = baseQuery.where('orders.is_cleared', false);
+    }
+
+    const salesData = await baseQuery
       .select(
         'staff.id as staff_id',
         'staff.name as staff_name',
         'staff.role as staff_role'
       )
-      .select(db.raw('DATE(orders.created_at) as sales_date'))
       .select(db.raw('COUNT(orders.id) as total_orders'))
       .select(db.raw('COALESCE(SUM(orders.total_amount), 0) as total_sales'))
       .select(db.raw('COALESCE(SUM(orders.service_charge), 0) as total_service_charge'))
       .groupBy('staff.id', 'staff.name', 'staff.role')
-      .groupBy(db.raw('DATE(orders.created_at)'))
       .first();
 
     if (!salesData) {
@@ -41,14 +49,17 @@ export const getPersonalSales = async (req: Request, res: Response) => {
         staff_id: userId,
         staff_name: user?.name || 'Unknown',
         staff_role: user?.role || 'Unknown',
-        sales_date: queryDate,
+        sales_date: displayDate,
         total_orders: 0,
         total_sales: 0,
         total_service_charge: 0
       });
     }
 
-    res.json(salesData);
+    res.json({
+      ...salesData,
+      sales_date: displayDate
+    });
   } catch (error) {
     console.error('Personal sales report error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -66,30 +77,42 @@ export const getWaiterSales = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
 
-    const queryDate = date || new Date().toISOString().split('T')[0];
-
-    // Get all waiter sales for the specific date
-    const waiterSalesData = await db('orders')
+    let baseQuery = db('orders')
       .join('staff', 'orders.staff_id', 'staff.id')
       .where('staff.role', 'waiter')
-      .whereBetween('orders.created_at', [
-        `${queryDate} 00:00:00`,
-        `${queryDate} 23:59:59`
-      ])
+      .whereNot('orders.status', 'cancelled');
+
+    const displayDate = date || new Date().toISOString().split('T')[0];
+
+    if (date) {
+      // Calendar day filtering logic
+      baseQuery = baseQuery.whereBetween('orders.created_at', [
+        `${date} 00:00:00`,
+        `${date} 23:59:59`
+      ]);
+    } else {
+      // Continuous team shift metrics view tracking all uncleared data until manual clearance
+      baseQuery = baseQuery.where('orders.is_cleared', false);
+    }
+
+    const waiterSalesData = await baseQuery
       .select(
         'staff.id as staff_id',
         'staff.name as staff_name',
         'staff.role as staff_role'
       )
-      .select(db.raw('DATE(orders.created_at) as sales_date'))
       .select(db.raw('COUNT(orders.id) as total_orders'))
       .select(db.raw('COALESCE(SUM(orders.total_amount), 0) as total_sales'))
       .select(db.raw('COALESCE(SUM(orders.service_charge), 0) as total_service_charge'))
       .groupBy('staff.id', 'staff.name', 'staff.role')
-      .groupBy(db.raw('DATE(orders.created_at)'))
       .orderBy('total_sales', 'desc');
 
-    res.json(waiterSalesData);
+    const formattedData = waiterSalesData.map(item => ({
+      ...item,
+      sales_date: displayDate
+    }));
+
+    res.json(formattedData);
   } catch (error) {
     console.error('Waiter sales report error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -583,16 +606,7 @@ export const getPerformanceReport = async (req: Request, res: Response) => {
   }
 };
 
-/*
-  Get receipts by date range with filters
-  Query params:
-  - start_date: Start date (YYYY-MM-DD or ISO string)
-  - end_date: End date (YYYY-MM-DD or ISO string)
-  - customer_name: Optional customer name filter
-  - order_type: Optional order type filter
-  - limit: Pagination limit (default 100)
-  - offset: Pagination offset (default 0)
- */
+// Get receipts by date range with filters
 export const getReceiptsByDate = async (req: Request, res: Response) => {
   try {
     const { 
