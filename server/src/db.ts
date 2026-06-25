@@ -244,28 +244,6 @@ const ensureCriticalTables = async () => {
       console.log('🛠️ Created missing inventory_log table');
     }
 
-    const hasWaiterClearances = await db.schema.hasTable('waiter_clearances');
-    if (!hasWaiterClearances) {
-      await db.schema.createTable('waiter_clearances', (table) => {
-        table.increments('id').primary();
-        table.integer('staff_id').notNullable().references('staff.id');
-        table.integer('cleared_by').notNullable().references('staff.id');
-        table.timestamp('cleared_at').notNullable().defaultTo(db.fn.now());
-        table.decimal('total_amount_cleared', 12, 2).defaultTo(0);
-        table.text('notes');
-      });
-      console.log('🛠️ Created missing waiter_clearances table');
-    }
-
-    // Ensure clearance columns for end-of-day clearing
-    const ensureClearanceForTable = async (tableName: string) => {
-      if (await db.schema.hasTable(tableName)) {
-        await ensureColumn(tableName, 'is_cleared', (table) => table.boolean('is_cleared').defaultTo(false).index(), `🛠️ Added ${tableName}.is_cleared column`);
-        await ensureColumn(tableName, 'cleared_at', (table) => table.timestamp('cleared_at').nullable(), `🛠️ Added ${tableName}.cleared_at column`);
-        await ensureColumn(tableName, 'cleared_by', (table) => table.integer('cleared_by').unsigned().references('id').inTable('staff').onDelete('SET NULL'), `🛠️ Added ${tableName}.cleared_by column`);
-      }
-    };
-
     // Ensure inventory_item_id on products for better stock tracking
     if (await db.schema.hasTable('products')) {
       await ensureColumn('products', 'inventory_item_id', (table) => table.integer('inventory_item_id').unsigned().references('id').inTable('inventory_items').onDelete('SET NULL'), '🛠️ Added products.inventory_item_id column');
@@ -284,18 +262,6 @@ const ensureCriticalTables = async () => {
       await ensureColumn('order_items', 'inventory_item_id', (table) => table.integer('inventory_item_id').unsigned().references('id').inTable('inventory_items').onDelete('SET NULL'), '🛠️ Added order_items.inventory_item_id column');
     }
 
-    await ensureClearanceForTable('orders');
-    await ensureClearanceForTable('expenses');
-    await ensureClearanceForTable('room_transactions');
-    
-    // One-time fix: Mark all data from before today as cleared if it's currently uncleared
-    // This prevents waiters from being blocked by old historical data when the clearance feature is first added.
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    
-    await db('orders').where('created_at', '<', startOfToday).where('is_cleared', false).update({ is_cleared: true, cleared_at: new Date(), notes: 'System: Historical data auto-clearance' }).catch(() => {});
-    await db('expenses').where('created_at', '<', startOfToday).where('is_cleared', false).update({ is_cleared: true, cleared_at: new Date(), notes: 'System: Historical data auto-clearance' }).catch(() => {});
-    await db('room_transactions').where('created_at', '<', startOfToday).where('is_cleared', false).update({ is_cleared: true, cleared_at: new Date() }).catch(() => {});
     
     // Proactive link: Map products to inventory items by name if inventory_item_id is null
     try {

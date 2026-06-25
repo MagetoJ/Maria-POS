@@ -13,15 +13,12 @@ router.get('/user-sessions', authorizeRoles('admin', 'manager', 'accountant'), a
 router.get('/low-stock-alerts', authorizeRoles('admin', 'manager', 'accountant'), adminController.getLowStockAlerts);
 router.get('/session-history', authorizeRoles('admin', 'manager', 'accountant'), adminController.getUserSessionHistory);
 
-// Routes accessible to admin, manager, accountant, and waiter (viewing uncleared data)
-router.get('/uncleared-staff', authorizeRoles('admin', 'manager', 'accountant', 'waiter'), adminController.getUnclearedStaffSummary);
-router.get('/uncleared-receipts/:id', authorizeRoles('admin', 'manager', 'accountant', 'waiter'), adminController.getUnclearedStaffReceipts);
-
-// Routes strictly for clearing (admin/manager only as per requirements)
-router.post('/clear-previous-data', authorizeRoles('admin', 'manager'), adminController.clearPreviousData);
-router.post('/clear-staff/:id', authorizeRoles('admin', 'manager'), adminController.clearStaffData);
-
 // --- Access Requests Routes ---
+router.get('/access-requests', authorizeRoles('admin', 'manager'), adminController.getAccessRequests);
+router.post('/access-requests', authorizeRoles('admin', 'manager', 'waiter', 'cashier'), adminController.createAccessRequest);
+router.put('/access-requests/:id', authorizeRoles('admin', 'manager'), adminController.handleAccessRequest);
+router.get('/access-requests/check', authorizeRoles('admin', 'manager', 'waiter', 'cashier'), adminController.checkRequestStatus);
+
 router.get('/access-requests', authorizeRoles('admin', 'manager'), adminController.getAccessRequests);
 router.post('/access-requests', authorizeRoles('admin', 'manager', 'waiter', 'cashier'), adminController.createAccessRequest);
 router.put('/access-requests/:id', authorizeRoles('admin', 'manager'), adminController.handleAccessRequest);

@@ -5,8 +5,11 @@ import db from '../db';
 export const getOverviewStats = async (req: Request, res: Response) => {
   try {
     // CONTINUOUS SHIFT LOGIC: Fetch all orders that haven't been cleared yet, ignoring hardcoded midnight resets
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     const todaysOrders = await db('orders')
-      .where('is_cleared', false)
+      .where('created_at', '>=', startOfToday)
       .whereNot('status', 'cancelled')
       .select('*');
 

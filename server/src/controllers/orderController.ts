@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import db from '../db';
 import { validateStaffPinForOrder } from '../utils/validation';
 import { WebSocketService } from '../services/websocket';
-import { isPast8AMKenyanTime } from '../utils/time';
 
 let webSocketService: WebSocketService;
 
@@ -46,22 +45,6 @@ export const createOrder = async (req: Request, res: Response) => {
         anchorUTC.setUTCDate(anchorUTC.getUTCDate() - 1);
       }
 
-      const staff = await db('staff').where({ id: staffId }).select('requires_clearing').first();
-      
-      if (staff && staff.requires_clearing) {
-        // Block if there is any uncleared data created BEFORE the current anchor point
-        const hasOldData = await db('orders')
-          .where({ staff_id: staffId, is_cleared: false })
-          .andWhere('created_at', '<', anchorUTC)
-          .first();
-          
-        if (hasOldData) {
-          return res.status(403).json({ 
-            message: 'Action Blocked: Your previous shift receipts have not been cleared. Please see Admin to clear your account before proceeding.',
-            blocking_reason: 'uncleared_data'
-          });
-        }
-      }
     }
 
     // New Receipt Numbering System: ORD-YYYYMMDD-XXXX
@@ -97,7 +80,6 @@ export const createOrder = async (req: Request, res: Response) => {
         subtotal: Number(orderToInsert.subtotal || 0),
         total_amount: Number(orderToInsert.total_amount || 0),
         payment_method: payment_method || 'cash',
-        is_cleared: false,
         // Set initial status for self-service orders to 'pending' (kitchen needs to accept/see it)
         status: orderData.order_type === 'self_service' ? 'pending' : (orderToInsert.status || 'pending'), 
         created_at: new Date(),
