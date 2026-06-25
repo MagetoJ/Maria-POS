@@ -338,9 +338,14 @@ export const getUnclearedStaffReceipts = async (req: Request, res: Response) => 
     const { id: staffId } = req.params;
     const { start, end, includeCleared } = req.query;
     const currentUser = (req as any).user;
+    const staffIdInt = parseInt(staffId, 10);
+
+    if (Number.isNaN(staffIdInt)) {
+      return res.status(400).json({ message: 'Invalid staff id' });
+    }
 
     // Waiters can ONLY see their own receipts
-    if (currentUser.role === 'waiter' && currentUser.id !== parseInt(staffId)) {
+    if (currentUser.role === 'waiter' && currentUser.id !== staffIdInt) {
       return res.status(403).json({ message: 'Access denied: You can only view your own receipts' });
     }
 
@@ -348,13 +353,14 @@ export const getUnclearedStaffReceipts = async (req: Request, res: Response) => 
     const hasCompletedBy = await db.schema.hasColumn('orders', 'completed_by');
 
     // 1. Get Orders matching either standard staff allocation or completed token if column exists
-    let ordersQuery = db('orders').where(function() {
-      if (hasCompletedBy) {
-        this.where('staff_id', staffId).orWhere('completed_by', staffId);
-      } else {
-        this.where('staff_id', staffId);
-      }
-    });
+    let ordersQuery = db('orders');
+    if (hasCompletedBy) {
+      ordersQuery = ordersQuery.where(function() {
+        this.where('staff_id', staffIdInt).orWhere('completed_by', staffIdInt);
+      });
+    } else {
+      ordersQuery = ordersQuery.where('staff_id', staffIdInt);
+    }
 
     if (includeCleared === 'true') {
       ordersQuery = ordersQuery.where('is_cleared', true);
@@ -367,7 +373,7 @@ export const getUnclearedStaffReceipts = async (req: Request, res: Response) => 
     const orders = await ordersQuery.select('*').orderBy('created_at', 'desc');
 
     // 2. Get Expenses (formatted as pseudo-receipts)
-    let expensesQuery = db('expenses').where('created_by', staffId);
+    let expensesQuery = db('expenses').where('created_by', staffIdInt);
     if (includeCleared === 'true') {
       expensesQuery = expensesQuery.where('is_cleared', true);
       if (start && end) {
@@ -379,7 +385,7 @@ export const getUnclearedStaffReceipts = async (req: Request, res: Response) => 
     const expenses = await expensesQuery.select('*').orderBy('created_at', 'desc');
 
     // 3. Get Room Transactions (formatted as pseudo-receipts)
-    let roomsQuery = db('room_transactions').where('staff_id', staffId);
+    let roomsQuery = db('room_transactions').where('staff_id', staffIdInt);
     if (includeCleared === 'true') {
       roomsQuery = roomsQuery.where('is_cleared', true);
       if (start && end) {
@@ -616,8 +622,8 @@ export const getUnclearedStaffSummary = async (req: Request, res: Response) => {
         's.name', 
         's.employee_id', 
         's.role',
-        db.raw('COUNT(u.type) as uncleared_count'), // Count actual records, not staff rows
-        db.raw('SUM(COALESCE(u.total_amount, 0)) as total_due')
+        db.raw('CAST(COUNT(u.type) AS INTEGER) as uncleared_count'), // Count actual records, not staff rows
+        db.raw('CAST(SUM(COALESCE(u.total_amount, 0)) AS DOUBLE PRECISION) as total_due')
       )
       .where(function() {
         // Always show all active waiters
@@ -638,7 +644,13 @@ export const getUnclearedStaffSummary = async (req: Request, res: Response) => {
       .groupBy('s.id', 's.name', 's.employee_id', 's.role')
       .orderBy('s.name', 'asc');
 
-    res.json(staffSummary);
+    const normalizedSummary = staffSummary.map((staff) => ({
+      ...staff,
+      uncleared_count: Number(staff.uncleared_count),
+      total_due: Number(staff.total_due),
+    }));
+
+    res.json(normalizedSummary);
   } catch (error: any) {
     console.error('Get uncleared staff summary error:', error);
     res.status(500).json({ message: 'Failed to fetch staff summary', error: error.message });
