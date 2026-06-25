@@ -132,9 +132,9 @@ export const clearPreviousData = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Explicit confirmation required. Pass { "confirm": true } in the request body.' });
     }
 
-    // Kenyan 8 AM Rollover Logic (8 AM EAT = 5 AM UTC)
+    // Kenyan 8 AM Rollover Logic (8 AM EAT = 11 AM UTC)
     const anchorUTC = new Date();
-    anchorUTC.setUTCHours(5, 0, 0, 0);
+    anchorUTC.setUTCHours(11, 0, 0, 0);
     
     // If current time is before 8 AM EAT, the previous shift work window ended at yesterday's 8 AM anchor.
     if (new Date() < anchorUTC) {
