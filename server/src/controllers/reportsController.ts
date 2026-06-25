@@ -26,8 +26,10 @@ export const getPersonalSales = async (req: Request, res: Response) => {
         `${date} 23:59:59`
       ]);
     } else {
-      // DEFAULT CONTINUOUS SHIFT MODE: Tracks all records with uncleared status across days until manual settlement
-      baseQuery = baseQuery.where('orders.is_cleared', false);
+      // Default to today's records when no date filter is specified
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      baseQuery = baseQuery.where('orders.created_at', '>=', startOfToday);
     }
 
     const salesData = await baseQuery
@@ -91,8 +93,10 @@ export const getWaiterSales = async (req: Request, res: Response) => {
         `${date} 23:59:59`
       ]);
     } else {
-      // Continuous team shift metrics view tracking all uncleared data until manual clearance
-      baseQuery = baseQuery.where('orders.is_cleared', false);
+      // Default to today's records when no date filter is specified
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      baseQuery = baseQuery.where('orders.created_at', '>=', startOfToday);
     }
 
     const waiterSalesData = await baseQuery
