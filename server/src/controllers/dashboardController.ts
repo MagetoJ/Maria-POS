@@ -4,12 +4,10 @@ import db from '../db';
 // Get dashboard overview statistics
 export const getOverviewStats = async (req: Request, res: Response) => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Get today's orders and revenue
+    // CONTINUOUS SHIFT LOGIC: Fetch all orders that haven't been cleared yet, ignoring hardcoded midnight resets
     const todaysOrders = await db('orders')
-      .where('created_at', '>=', today)
+      .where('is_cleared', false)
+      .whereNot('status', 'cancelled')
       .select('*');
 
     const todaysRevenue = todaysOrders.reduce(
